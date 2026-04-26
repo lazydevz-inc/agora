@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Test artifacts
+coverage/
+.vitest-cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets & local config
+.env
+.env.local
+.env.*.local
+
+# Agora runtime (project-local)
+.agora/cache/
+.agora/logs/
+.agora/runtime.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
