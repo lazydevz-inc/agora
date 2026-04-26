@@ -90,9 +90,9 @@
 
 **Agora = 고대 철학자들이 모이는 광장. AI 코딩 에이전트의 alignment harness.**
 
-> - License: MIT (Q00의 Ouroboros에서 컨셉 차용, CREDITS.md 참조)
+> - License: MIT (provisional, ADR-0007 — Q00의 Ouroboros 저작권 보존, CREDITS.md 참조)
 > - Status: **Stage 1 (Philosophy + North Star) — 닫는 중**
-> - Repo: github.com/lazydevz-inc/agora (Stage 5까지 private, ADR-0002)
+> - Repo: github.com/lazydevz-inc/agora (private indefinitely, ADR-0002 + ADR-0007 — public-release는 명시적 전략 결정 시에만)
 > - Package: `@lazydevz/agora` (npm 미공개)
 
 ### 한 줄 정의
@@ -379,6 +379,7 @@ UX expertise-aware split:
 | 0004 | Development Stages | Accepted |
 | 0005 | Claude Integration via Subprocess (not Agent SDK) | Accepted |
 | 0006 | Pre-Ralph Infrastructure Gate (Gate 0) | Accepted |
+| 0007 | License Choice: MIT (Provisional), Public Release Deferred | Accepted (partially supersedes ADR-0002) |
 
 ---
 

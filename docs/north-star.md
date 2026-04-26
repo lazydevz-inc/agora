@@ -69,21 +69,24 @@ To reach the 3-month horizon, Stages 2–5 must close in roughly two weeks of fo
 
 ### What success looks like
 
-- **Adoption inside lazydevz**: 2–3 senior devs in Sang's circle adopt Agora and report similar dependency
-- **Commercial form decided and shipped**: open-source CLI + paid tier (TBD what the paid tier provides — see *Deferred decisions*)
-- **HAA term begins to appear** in technical discourse outside lazydevz (blog posts, conference talks). We don't need to coin it — we need to use it consistently and let the work speak.
+- Sang's daily-use dependency on Agora has held up across 12 months of project work
+- **Per ADR-0007, the project may still be private at this point** — that is no longer a "failure" framing
+- IF public-release happened during the year (Sang's call), at least one external senior dev reports value
 - **A second AI backend works**: when Codex CLI or a future Anthropic competitor reaches Claude-Code parity, Agora supports it. The augmentation thesis was real, not Anthropic-specific.
+- HAA term — IF used publicly — begins to appear in technical discourse. (We don't need to coin it; we need to use it consistently and let the work speak.)
 
 ### What failure would look like
 
-- Agora is still only-Sang. *The biased-product framing was a private aesthetic, not a transferable value.*
-- Other senior devs try it and bounce off. *We mistook our own taste for the genre's taste.*
-- Cursor or Devin ships an alignment-loop feature that closes the gap differently and is easier to adopt. *We were too philosophical, not pragmatic enough.*
+- Sang stopped reaching for Agora. *Daily-use status was lost; another tool replaced it.*
+- The system became a maintenance burden rather than leverage. *We over-engineered.*
+- Cursor or Devin shipped an alignment-loop feature that closes the gap differently and Sang prefers theirs. *We were too philosophical, not pragmatic enough.*
+
+(Note: failure is **not** "the project is still private and only-Sang." That is the explicit default per ADR-0007. Public release / adoption beyond Sang is opt-in, not a success metric.)
 
 ### Deferred decisions for this horizon
 
-1. **Commercial form**: open-source + paid tier? open-core? hosted variant? This decision blocks itself until 3-month adoption data exists. Decide in 2026-Q3.
-2. **Public release**: Stage 5 close = repo goes public. (Codified in ADR-0002.)
+1. **Commercial form**: open-source + paid tier? open-core? hosted variant? This decision blocks itself until 3-month adoption data exists. Decide in 2026-Q3 if relevant.
+2. **Public release**: **No scheduled public-release date.** Per ADR-0007, going public is an explicit strategic decision triggered by a concrete reason (e.g. a contributor wants to join, commercial product launches, or Sang sees adoption value). Default state: private indefinitely. Re-evaluation of license (currently MIT) happens at the same moment.
 3. **Foundation model abstraction**: when to add adapters beyond Claude. Driven by user demand, not preemptively.
 
 ---

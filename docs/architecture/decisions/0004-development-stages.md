@@ -44,7 +44,7 @@ Auto mode does not bypass gate approvals. Auto mode means *continuous execution 
 
 - Sang can pause, redirect, or kill a stage at any boundary
 - Documents written under this discipline form a coherent, interlinked spec — not a pile of notes
-- The roadmap doubles as a teaching narrative when we make Agora public (Stage 5)
+- The roadmap doubles as a teaching narrative IF Agora is ever made public (per ADR-0007, no longer scheduled)
 
 ### Negative / Trade-offs
 

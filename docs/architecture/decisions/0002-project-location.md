@@ -1,7 +1,8 @@
 # ADR-0002 — Project Location and Visibility
 
-> **Status**: Accepted
+> **Status**: Accepted (visibility section partially superseded by ADR-0007 on 2026-04-27)
 > **Date**: 2026-04-26
+> **Last Revised**: 2026-04-27 (visibility commitment withdrawn — see ADR-0007)
 > **Decided by**: Sang Rhee
 > **Discussed with**: Claude
 
@@ -20,12 +21,12 @@ Agora needs a home. Decisions:
 |---------|----------|
 | GitHub org | `lazydevz-inc` |
 | Repo name | `agora` |
-| Visibility | **Private** during Stage 0–5 |
+| Visibility | **Private indefinitely** (no scheduled public-release; see ADR-0007) |
 | Local path | `/Users/sang/Developer/agora/` |
 | npm package | `@lazydevz/agora` |
 | Discarded Python skeleton | Preserved at `/Users/sang/Developer/agora-draft/` (not pushed) |
 
-The repository will be made **public** at the start of Stage 5 (Polish + Daily Use), when the philosophy and CLI surface are stable enough that public scrutiny adds value rather than confusion.
+> **Update (2026-04-27, ADR-0007)**: The original commitment to make the repo public at the start of Stage 5 has been **withdrawn**. Sang's revised position: *"우선은 private repo로 두고 내가 쓸 용도로 만드는거야. 나중에 public repo로 가는게 의미가 생긴다면 그때 검토해볼 수 있을거같아."* Public release is now an open option triggered by an explicit strategic decision, not a Stage milestone.
 
 ## Consequences
 
@@ -38,8 +39,8 @@ The repository will be made **public** at the start of Stage 5 (Polish + Daily U
 
 ### Negative / Trade-offs
 
-- Outside contributors cannot help during private phase (acceptable trade-off)
-- Marketing momentum delayed until Stage 5
+- Outside contributors cannot help during private phase (acceptable — Sang's personal-tool framing does not require contributors)
+- Marketing momentum is not pre-scheduled — public release happens only when there is a strategic reason
 
 ### Neutral
 
@@ -55,4 +56,5 @@ The repository will be made **public** at the start of Stage 5 (Polish + Daily U
 
 ## References
 
+- ADR-0007 — License Choice (which formally withdrew this ADR's Stage-5 public commitment)
 - Sang's other lazydevz repos for organizational conventions
