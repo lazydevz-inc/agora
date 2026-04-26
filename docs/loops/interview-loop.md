@@ -64,6 +64,104 @@ must encode it as the only valid termination path (no auto-terminate).
 
 ---
 
+## Observed Failure Modes — Live Ouroboros Baseline (2026-04-26)
+
+These failure modes were captured from a live `ooo interview` session run on the
+Agora project itself (session `interview_20260426_081950`). They are baseline
+evidence; Stage 2 design must explicitly prevent each one.
+
+### F1 — Korean output incorrect (typos, encoding artifacts)
+
+Observed: MCP returned questions with Korean grammar errors ("뭔는지" instead of
+"뭔지") and occasional character corruption.
+
+Root cause hypothesis: model responses for non-English locales are not validated
+before being shown to the user.
+
+Agora rule: **i18n correctness is a quality gate.** Every user-facing string
+must pass a locale-correctness check before being rendered. Garbled output is
+treated as a bug, not a quirk.
+
+### F2 — "Why this question?" is invisible
+
+Observed: questions felt arbitrary. Sang said *"이 질문을 왜 하는거지? 이 질문을
+해서 플랜의 어떤 부분이 도대체 개선이 된다는건지 도저히 모르겠음."*
+
+Root cause hypothesis: questions are generated without binding them to a
+specific seed field or open ambiguity that they will resolve.
+
+Agora rule: **every question declares its purpose.** When a question is shown,
+the system must show *what seed slot it fills* or *what ambiguity it resolves*.
+Examples: "필요한 정보: 시드의 telos 필드 (현재 비어있음)" or "해소할 모호점:
+brownfield 자동 감지가 충돌함."
+
+### F3 — Abstract abstraction (the "tell me about your experience" trap)
+
+Observed: questions like *"진짜 telos가 뭔가요?"* or *"인터뷰가 telos를 놓치는
+패턴을 드러내기 위해…"* require the user to translate vague meta-language
+back into concrete terms before they can even answer.
+
+Root cause hypothesis: the question-generator drifts into self-referential
+philosophical territory because that's where the prompt's own vocabulary lives.
+
+Agora rule: **no abstract questions about abstract things.** Every question must
+be answerable with concrete reference to (a) a file, (b) a person, (c) an event
+that occurred, (d) a measurable outcome. If a question can only be answered
+abstractly, it is malformed and must be rewritten.
+
+### F4 — Chatbot-feel: questions don't follow from prior answers
+
+Observed: each new question feels like a fresh start; the prior answer's
+specifics aren't woven into the next question.
+
+Root cause hypothesis: the question generator uses the *summary state* (e.g.
+"ambiguity score") rather than the *substance* of the prior answer.
+
+Agora rule: **every question quotes or references the last substantive answer.**
+"You said X. Given X, the next thing I need to know is Y because…" Continuity
+must be visible to the user.
+
+### F5 — False binary (forces choice when user provided compound input)
+
+Observed: Sang listed three pain points; Ouroboros asked "which is the most
+important?" Sang's reaction: *"이 세가지 중 뭐가 가장 큰가요? 이런 질문을 하는데,
+이게 왜 중요하고 왜 내가 세가지 이슈 다 필요해서 언급한건데 그 중 하나를 꼭
+최우선으로 답해야 하는지 이유를 모르겠어."*
+
+Root cause hypothesis: the question generator defaults to ranking/forcing
+selection because that produces structured data the model can index. But it
+violates the user's actual semantic — they meant "all three matter."
+
+Agora rule: **never ask the user to rank what they presented as compound,**
+unless ranking serves a *concrete downstream decision* and that decision is
+shown to the user. Compound input stays compound.
+
+### F6 — One-dimensional questions
+
+Observed: Sang summarized the overall feel as *"질문이 너무 1차원적이야."*
+Most questions probe a single attribute (which? what? when?) without exploring
+the surrounding semantic neighborhood (why this attribute matters, what depends
+on it, what alternatives exist).
+
+Agora rule: **multidimensional probes preferred over single-attribute lookups.**
+A good question opens a small space of related sub-questions the user can
+respond to selectively, rather than narrowing to one slot.
+
+---
+
+## Forbidden Patterns (derived from F1–F6)
+
+Stage 2 spec must encode these as hard constraints:
+
+1. ❌ Korean (and any non-English) output without locale validation
+2. ❌ Questions without an attached "purpose / fills which seed slot" label
+3. ❌ Abstract questions about abstract concepts
+4. ❌ Questions that don't quote or build on the prior answer
+5. ❌ Forcing rank/selection on user-provided compound input
+6. ❌ Single-attribute drill questions when a multi-dimensional probe is available
+
+---
+
 ## Open Questions (to be answered in Stage 2)
 
 These questions will be resolved during Stage 2-A:
