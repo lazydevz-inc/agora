@@ -117,4 +117,17 @@ Phase 1 open intake algorithm specified. Four key decisions accepted:
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 1 — Open Intake [SPEC]". Editor escape contract specified ($EDITOR with vim/nano/vi fallback, comment-header convention, audit-preserved temp file). Failure modes F2/F3/F8 specifically guarded.
 
-Next task: Stage 2-A.5 — Round ordering (which philosopher operates when, with what triggers).
+### Stage 2-A.5 — DONE (2026-04-27)
+
+Phase 2 round ordering specified. Five key decisions accepted:
+- **R1-A**: Husserl Phase −1 default-on for greenfield, default-off for brownfield (`agora bracket` always available for explicit invocation)
+- **R2-A**: Telos-first invariant is a HARD GATE — no other contributor leads a round until telos reaches NOESIS. Override only via `--accept-low-telos-maturity` flag (recorded as permanent trust warning)
+- **R3-A**: Phase 0 detected_markers auto-fill material_cause as Mode A recommendations; user confirms/edits but never re-types from scratch
+- **R4-A**: AC generation = LLM drafts 3-5 from telos+form, user edits/adds/removes; then each AC enters Socratic case-probing
+- **R5-A**: Backtrack via explicit intent only — `agora seed --edit <field>` command OR in-round natural language "actually let me change..." prefix. Downstream dependent fields flagged stale, history preserved.
+
+Established the **Conductor + Contributor model**: Socrates conducts every Phase 2 round (case-probing wrapper); exactly one Contributor leads each round (Aristotle for cause investigation, Plato.divided_line for maturity check, Plato.dihairesis at handoff). Husserl is one-shot pre-Phase-2; Aquinas is not in Alignment Loop at all.
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 2 — Round Ordering [SPEC]" with full round-planner algorithm pseudo-code, invocation conditions for Husserl, telos-first enforcement, material auto-fill flow, AC drafting bounds (3-5), backtrack mechanics, and failure modes F2/F4/F5 specifically guarded.
+
+Next task: Stage 2-A.4 — Phase 2 round structure (what does a single round actually look like as the user sees it).

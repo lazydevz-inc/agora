@@ -13,10 +13,11 @@
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase −1 — Husserl Epoché | [OPEN] | Stage 2-A.5 (round ordering) |
+| **Phase −1 — Husserl Epoché** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.5: greenfield default-on / brownfield default-off / `agora bracket` always available) |
 | **Phase 0 — Auto-scan** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.2) |
 | **Phase 1 — Open Intake** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.3) |
-| Phase 2 — Iterative Rounds | [OPEN] | Stage 2-A.4 / 2-A.5 / 2-A.6 / 2-A.7 |
+| Phase 2 — Iterative Rounds | [PARTIAL: ordering [SPEC] / round structure [OPEN]] | Stage 2-A.5 (ordering) ✓ / 2-A.4 (structure) next |
+| **Phase 2 — Round Ordering** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.5) |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
 | Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
@@ -340,6 +341,248 @@ When user presses Enter on empty input:
 
 ---
 
+## Phase 2 — Round Ordering [SPEC] (Accepted 2026-04-27)
+
+> **Goal**: Decide which philosopher leads each Phase 2 round, with what trigger,
+> in what order. The shape of any individual round (question construction, options
+> generation, etc.) is Stage 2-A.4's territory. This section answers *which round
+> happens next*, not *what that round looks like in detail*.
+>
+> **Mental model**: Conductor + Contributor.
+
+### Conductor + Contributor model
+
+The five philosophers do not all run in parallel. Each occupies a specific
+moment with a specific role.
+
+| Role | Philosopher | When |
+|------|-------------|------|
+| **Conductor** | Socrates | Every Phase 2 round (no exceptions). Wraps each round's substantive question with case-probing → response → potential aporia. The *rhythm* of the loop. |
+| **Contributor (Lead)** | Aristotle / Plato (Divided Line) | Decides the *topic* of each round (which cause is being investigated, which maturity check is due). |
+| **One-shot pre-Phase-2** | Husserl (Phase −1) | Runs once, before Phase 2 begins, when conditions warrant (greenfield default; brownfield only via `agora bracket`). |
+| **One-shot at handoff** | Plato (Dihairesis) | Runs once, after Alignment Loop closes, decomposing acceptance criteria into the AC tree Ralph will iterate over. (Stage 2-C territory.) |
+| **Not in Alignment Loop** | Aquinas | Ralph Loop only (Gates 3 and 4). |
+
+**Implication**: a single Phase 2 round always has Socrates as conductor,
+plus exactly one contributor providing the substantive topic. There are
+never two contributors leading the same round.
+
+### Round-planner algorithm
+
+```
+phase_2_round_planner(seed_state, phase_0_result, history) -> NextRound | TerminationCheck:
+
+  # 0. Pre-check: Husserl Phase −1 runs ONCE before Phase 2 begins.
+  #    NOT a Phase 2 round. Logic shown here for completeness.
+  if not history.has_husserl AND should_run_husserl(phase_0_result):
+    return PRE_PHASE2_HUSSERL
+
+  # 1. TELOS-FIRST INVARIANT (R2-A: hard gate)
+  #    Until telos reaches NOESIS, no other contributor leads.
+  if seed.telos.maturity < NOESIS:
+    return Round(
+      conductor: Socrates,
+      contributor: pick_telos_subroutine(seed.telos),
+      purpose_label: f"Reaching telos.{next_empty_or_immature_field}",
+    )
+    # Sub-routine progression:
+    #   telos.statement empty             → Aristotle Q1 ("why does this exist?")
+    #   statement set, served_good empty  → Aristotle Q2 ("what good does it serve?")
+    #   above set, failure_signal empty   → Aristotle Q3 ("how do we know it didn't work?")
+    #   all set, maturity < NOESIS        → Plato Q (rejected-alternative test)
+
+  # 2. After telos NOESIS, FORM next
+  if seed.form.maturity < DIANOIA:
+    return Round(
+      conductor: Socrates,
+      contributor: Aristotle.form,
+      purpose_label: "Reaching form.essential_structure",
+    )
+
+  # 3. MATERIAL — auto-populated from Phase 0 markers, user confirms (R3-A)
+  if seed.material.maturity < PISTIS:
+    if not history.material_auto_proposed:
+      return Round(
+        conductor: Socrates,
+        contributor: Aristotle.material,
+        purpose_label: "Confirming material from auto-detection",
+        prefill: phase_0_result.detected_markers,  # Mode A — recommended options
+      )
+    # If auto-proposed and not yet confirmed → re-prompt with same prefill
+
+  # 4. EFFICIENT — usually one-liner for solo projects
+  if seed.efficient.maturity < PISTIS:
+    return Round(
+      conductor: Socrates,
+      contributor: Aristotle.efficient,
+      purpose_label: "Capturing efficient cause (who/when/how)",
+    )
+
+  # 5. ACCEPTANCE CRITERIA generation (R4-A: LLM drafts 3-5, user edits)
+  if seed.acceptance_criteria is empty:
+    return Round(
+      conductor: Socrates,
+      contributor: Aristotle.ac_drafter,
+      purpose_label: "Drafting acceptance criteria",
+      mode: A,  # recommended options + free input
+      payload: {
+        action: "draft 3-5 AC from current telos + form",
+        instruction_to_user: "Edit / add / remove. Each AC will then be probed.",
+      },
+    )
+
+  # 6. AC PROBING — every AC must reach DIANOIA
+  ac_to_probe = next(ac for ac in seed.acceptance_criteria if ac.maturity < DIANOIA)
+  if ac_to_probe:
+    return Round(
+      conductor: Socrates,
+      contributor: Plato.divided_line,
+      purpose_label: f"Probing AC: {ac_to_probe.id}",
+    )
+
+  # 7. CROSS-DOCUMENT DIVERGENCE resolution (from Phase 0 R2-A)
+  divergence = next(d for d in phase_0_result.divergences if not d.resolved)
+  if divergence:
+    return Round(
+      conductor: Socrates,
+      contributor: Socrates.divergence_resolver,
+      purpose_label: f"Resolving doc divergence: {divergence.summary}",
+    )
+
+  # 8. NO MORE WORK — TERMINATION CHECK
+  return TERMINATION_CHECK
+    # → Stage 2-A.8 logic (Y2 + Y3) decides whether to ask
+    #   "anything else?" and offer preview, or loop again.
+```
+
+### Husserl Phase −1 invocation conditions [R1-A]
+
+```
+should_run_husserl(phase_0_result) -> bool:
+  if user invoked `agora bracket` (mid-project explicit):
+    → True
+  if phase_0_result.classification == greenfield:
+    → True (default-on for greenfield)
+  if phase_0_result.classification == brownfield:
+    → False (default-off; user can override with `agora bracket`)
+```
+
+**Why**: Brownfield code IS the frame. Bracketing an already-committed frame
+is over-application of the technique. Greenfield has no frame yet, so
+bracketing the user's mental frame BEFORE Aristotle's telos question
+maximizes value.
+
+The `agora bracket` command is always available — even mid-Ralph — for the
+user to explicitly invoke a re-bracketing when something feels wrong.
+
+### Telos-first invariant [R2-A]
+
+The hardest rule in Round Ordering: **until telos reaches NOESIS, no
+other contributor leads a round.**
+
+This is enforced at the planner level. The planner cannot return a Round
+with a non-telos contributor while `seed.telos.maturity < NOESIS`. There is
+no override flag, no "skip telos for now" option in the standard flow.
+
+Override path (if absolutely needed):
+
+- `--accept-low-telos-maturity` flag at `agora new` invocation.
+  Recorded in `seed.metadata.overrides[]` as a permanent trust warning.
+  Surfaced at every subsequent `agora ralph` start and in Gate 5 (Alignment Check).
+
+### Material auto-fill [R3-A]
+
+When the planner reaches step 3 (material cause), it does NOT ask the user
+to type the material from scratch. Instead:
+
+1. Pull `detected_markers` from `phase_0_result`
+2. Present as Mode A (recommended options + free input):
+   ```
+   ⓘ Detected from your project files:
+     ◉ Vercel        (.vercel/project.json)
+     ◉ Supabase      (supabase/config.toml)
+     ◉ GitHub Actions (.github/workflows/)
+     ◉ Stripe        (package.json deps)
+
+   Confirm these as material cause, or edit:
+     [Enter] to confirm all
+     [number] to toggle one off
+     [+] to add what's missing (free text)
+   ```
+3. User's choice is recorded as `seed.material` directly.
+
+This honors the *biased product* principle (we did the detection work) while
+keeping the user as the source of truth.
+
+### AC generation [R4-A]
+
+When acceptance_criteria is empty (step 5), the contributor is `Aristotle.ac_drafter`.
+The LLM is invoked with:
+- Current `seed.telos` (NOESIS-level)
+- Current `seed.form` (DIANOIA-level)
+- `phase_0_result.context_docs` for project-specific phrasing
+
+It produces **3 to 5 draft AC**. Each draft AC is shown to the user with:
+- `[Enter]` to accept all
+- `[number]` to edit one
+- `[d]` followed by number to delete
+- `[+]` to add a new one (free text)
+
+Once the user is satisfied with the AC list, each AC enters step 6 for
+Socratic case-probing until reaching DIANOIA.
+
+The 3-5 range is intentional:
+- Less than 3 → suggests insufficient telos/form coverage; planner refuses to draft.
+- More than 5 → suggests AC is being decomposed too early (Plato Dihairesis territory).
+
+### User backtrack [R5-A]
+
+The user can return to a previously settled field at any point in Phase 2.
+Two paths:
+
+1. **Explicit command**: `agora seed --edit telos.statement` (or any field path)
+2. **In-round natural language**: when answering a round, prefix with
+   *"actually, let me change my earlier answer about X"* — the round planner
+   detects the intent, halts the current round, and re-enters the named field.
+
+In both paths:
+- The named field's maturity is reset to `eikasia`.
+- All downstream fields that *depend on* the changed field are flagged as
+  "potentially-stale" (history preserved, but their maturity is reset to one
+  level lower than before, requiring re-confirmation in subsequent rounds).
+- The change event is appended to `.agora/history/` with a "backtrack" marker.
+
+This honors how human thought actually works — *iterative, recursive, not
+linear*. But silent backtracking is forbidden; the user must signal explicit intent.
+
+### Boundaries
+
+- ❌ Multiple contributors per round (only one leads; Socrates always conducts).
+- ❌ Skipping telos to NOESIS (R2-A).
+- ❌ Husserl on brownfield without explicit invocation.
+- ❌ Material auto-fill without user confirmation step (R3-A).
+- ❌ More than 5 AC drafts at once (forces Dihairesis territory prematurely).
+- ❌ Silent backtracking (R5-A: explicit intent required).
+
+### Output consumed by
+
+- **Phase 2 round structure** (Stage 2-A.4 — next): receives a `NextRound`
+  object and renders the actual question, options, and answer-routing.
+- **Termination Gate** (Stage 2-A.8): receives `TERMINATION_CHECK` signal
+  and runs the Y2/Y3 logic.
+- **Plato Dihairesis (handoff)** (Stage 2-C): receives the locked AC list
+  for decomposition into the AC tree.
+
+### Failure modes specifically guarded
+
+- **F2** (purpose visible): every Round carries a `purpose_label` explicitly.
+- **F4** (build on prior): planner reads `history` and seeds it back into the
+  round; round structure (2-A.4) renders the prior context.
+- **F5** (no false binary): material confirmation is multi-select, AC is
+  multi-edit; nothing forces ranking of compound input.
+
+---
+
 ## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
@@ -548,11 +791,7 @@ Questions resolved are struck through. Open questions are tackled in priority or
 3. **Phase 2 round structure** (Stage 2-A.4) — open
    - One round flow: question construction → presentation → answer → routing
 
-4. **Round ordering** (Stage 2-A.5) — open
-   - Which philosopher operates when, with what triggers
-   - Husserl Phase −1: greenfield default-on / brownfield default-off?
-   - Telos-first invariant
-   - Socrates woven through every round vs gated by maturity
+4. ~~**Round ordering** (Stage 2-A.5)~~ ✅ Resolved 2026-04-27. See "Phase 2 — Round Ordering [SPEC]" above.
 
 5. **Recommended-options generation** (Stage 2-A.6) — open
    - Drawn from auto-scan (codebase patterns)
