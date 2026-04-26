@@ -17,7 +17,7 @@ Agora is built in **seven stages** (Stage 0–6). Stages 0–5 produce documents
 |-------|------|-----------|
 | **0** | Foundation | Skeleton compiles, CLI runs, GitHub repo exists, ADR-0001 to -0004 written |
 | **1** | Philosophy + North Star | `MANIFESTO.md` and `docs/north-star.md` accepted by Sang. Includes hybrid interview (Ouroboros baseline + Aristotle four-cause deepening) |
-| **2** | Two-Loop Specification | `docs/loops/interview-loop.md` and `docs/loops/ralph-loop.md` accepted. Includes verification-gate design (lint / functional QA / Aquinas Disputatio) |
+| **2** | Two-Loop Specification | `docs/loops/alignment-loop.md` and `docs/loops/ralph-loop.md` accepted. Includes verification-gate design (lint / functional QA / Aquinas Disputatio) |
 | **3** | CLI Surface Detailed Design | `docs/cli/spec.md` covers every command, every flag, every screen mockup, JSON output mode for AI agents |
 | **4** | Infrastructure + LLM Integration + Install | `docs/infra/install.md`, `docs/infra/llm-integration.md`, MCP server registration plan, AI agent friendly install (`npx`, `pnpm dlx`) |
 | **5** | Internal Architecture + Philosopher Runbooks + Prompts | Module dependency graph, per-philosopher runbooks (when called, what prompt, what output), prompt library |

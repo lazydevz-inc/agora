@@ -91,7 +91,8 @@
 **Agora = 고대 철학자들이 모이는 광장. AI 코딩 에이전트의 alignment harness.**
 
 > - License: MIT (provisional, ADR-0007 — Q00의 Ouroboros 저작권 보존, CREDITS.md 참조)
-> - Status: **Stage 1 (Philosophy + North Star) — 닫는 중**
+> - Status: **Stage 2 (Two-Loop Specification) — 진행 중**
+> - Stage 1 closed: 2026-04-27 (`docs/stage-1/CLOSED.md`, tag `v0.1.0-stage-1`)
 > - Repo: github.com/lazydevz-inc/agora (private indefinitely, ADR-0002 + ADR-0007 — public-release는 명시적 전략 결정 시에만)
 > - Package: `@lazydevz/agora` (npm 미공개)
 
@@ -156,7 +157,7 @@ Phase 2 (반복): 다철학자 라운드 (Aristotle 구조 + Socrates 검증 + P
 산출:           X3 시드 (구조 시드 + 산문 요약, 시드가 SoT)
 ```
 
-상세: `docs/loops/interview-loop.md` (Stage 2 산출물 — 일부 placeholder 상태)
+상세: `docs/loops/alignment-loop.md` (Stage 2-A 진행 중)
 
 ### Ralph Loop
 
@@ -258,7 +259,7 @@ agora/
 │   │   ├── 04-plato-divided-line-and-dihairesis.md
 │   │   └── 05-aquinas-disputatio.md
 │   ├── loops/                   # 두 루프 상세 (Stage 2 산출물 — 진행 중)
-│   │   ├── interview-loop.md    # Alignment Loop (구 명칭 유지 — 향후 rename)
+│   │   ├── alignment-loop.md    # Alignment Loop (구 interview-loop.md, Stage 2-A에서 rename)
 │   │   └── ralph-loop.md        # Ralph Loop (placeholder + Gate 0 spec)
 │   └── cli/                     # CLI 표면 상세 설계 (Stage 3 — 미작성)
 ├── src/
@@ -336,7 +337,7 @@ hardcoded defaults            ← 최후
 
 ## Interview UX 핵심 규칙 (Stage 1 합의)
 
-`docs/loops/interview-loop.md`에 8개 forbidden patterns (F1~F8) 명시:
+`docs/loops/alignment-loop.md`에 8개 forbidden patterns (F1~F8) 명시:
 
 1. ❌ 비영어 출력에 locale 검증 없음 (한글 타이포)
 2. ❌ "왜 이 질문" purpose label 없음
@@ -358,8 +359,8 @@ UX expertise-aware split:
 | Stage | 목표 | Done When | 현재 |
 |-------|------|-----------|------|
 | **0** | Foundation | 골격 + 4 ADR + GitHub repo | ✅ 완료 |
-| **1** | Philosophy + North Star | MANIFESTO, north-star, 5 philosophy docs | 🟡 닫는 중 |
-| **2** | Two-Loop Specification | interview-loop, ralph-loop, 검증 게이트 | ⏳ 다음 |
+| **1** | Philosophy + North Star | MANIFESTO, north-star, 5 philosophy docs | ✅ 완료 (2026-04-27, `docs/stage-1/CLOSED.md`) |
+| **2** | Two-Loop Specification | alignment-loop, ralph-loop, handoff 검증 게이트 | 🟡 진행 중 (`docs/stage-2/NOTES.md`) |
 | **3** | CLI Surface Detail | cli/spec, 모든 명령/플래그/스크린 | ⏳ |
 | **4** | Infra + LLM Integration + Install | install, llm-integration, MCP plan | ⏳ |
 | **5** | Internal Architecture + Runbooks | 모듈 그래프, 철학자별 runbook, prompt library | ⏳ |

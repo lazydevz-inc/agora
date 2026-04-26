@@ -52,7 +52,7 @@ This is the cheapest gate ($0 cost, no LLM calls). All Ralph iterations must cle
 **Owner**: Playwright CLI (test files generated once by LLM from the seed's acceptance criteria, then run deterministically)
 **Criterion**: Generated tests pass.
 
-**Why Playwright CLI, not MCP**: deterministic, fast, version-controlled, zero token cost per run. See `docs/loops/interview-loop.md` for the rationale (originally captured during the Stage 1 interview).
+**Why Playwright CLI, not MCP**: deterministic, fast, version-controlled, zero token cost per run. See `docs/loops/alignment-loop.md` for the rationale (originally captured during the Stage 1 interview).
 
 The LLM generates the Playwright test files **once** during Alignment-Ralph handoff, based on the seed's AC. Subsequent Ralph iterations run them via `npx playwright test`. New AC may trigger new test generation.
 

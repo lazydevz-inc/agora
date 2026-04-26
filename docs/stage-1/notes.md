@@ -206,7 +206,7 @@ Mode 3 specifically prevents the nested-LLM-call waste that would happen if Agor
 
 ## Live Failure Modes Observed (Stage 2 hard constraints)
 
-See `docs/loops/interview-loop.md` Failure Modes section. Eight modes (F1–F8) captured with concrete observations. These are the hard constraints Stage 2 must encode.
+See `docs/loops/alignment-loop.md` (renamed from `interview-loop.md` at Stage-2 open) Failure Modes section. Eight modes (F1–F8) captured with concrete observations. These are the hard constraints Stage 2 must encode.
 
 ---
 

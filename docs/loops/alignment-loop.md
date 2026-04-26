@@ -1,17 +1,18 @@
-# Interview Loop — Specification (Stage 2)
+# Alignment Loop — Specification (Stage 2)
 
-> **Status**: Pre-Stage-2 placeholder. This document accumulates inputs from Sang
-> that will be formalized into the full Interview Loop spec when Stage 2 begins.
+> **Status**: Stage 2 in progress. Renamed from `interview-loop.md` on 2026-04-27
+> (Interview is the means; Alignment is the end). Inherited Stage-1 inputs and
+> failure modes are preserved below; Stage 2 promotes them into a formal spec.
 >
 > Per ADR-0004, this document is not "Accepted" until Stage 2 closes its gate.
 
 ---
 
-## Pre-Stage-2 Inputs from Sang
+## Inherited Stage-1 Inputs
 
 ### Input 1 — Phase structure (2026-04-26)
 
-The Interview Loop has three observable phases:
+The Alignment Loop has three observable phases:
 
 **Phase 0 — Auto-scan (no user input)**
 - Scan current working directory for files
