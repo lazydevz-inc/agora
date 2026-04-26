@@ -178,11 +178,29 @@ Plus global flags: `--help`, `--json`, `--version`.
 
 References: `gh`, `vercel`, `supabase`, `stripe` CLIs.
 
-### Claude Code integration (T)
+### Claude Code integration (T) — REVISED 2026-04-27
 
-- **Stage 2-3**: Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) as primary
-- **Stage 4**: Add MCP server export (`agora mcp serve`) for in-Claude-Code use
-- Subprocess parsing of `claude` CLI is **forbidden** (fragility)
+> **Original recommendation retracted.** The Claude Agent SDK cannot use Claude Max
+> subscription auth — it requires API billing. For Max users (Sang included) this
+> would mean double-paying. See ADR-0005 for full reasoning.
+
+**Revised decision** (codified in ADR-0005):
+
+- **Primary path**: `claude --print --output-format json` subprocess
+  - Uses Claude Code CLI's existing auth → Max subscription works
+  - `--output-format json` is the official structured programmatic interface, NOT fragile parsing
+- **Fallback path**: Claude Agent SDK with `ANTHROPIC_API_KEY` (only when no Claude Code CLI installed)
+- **Auto-detect on startup**, prefer Max-using subprocess
+
+### Three I/O Modes (driven by subprocess decision)
+
+Agora must support three operating modes because it's invoked from three contexts:
+
+1. **Interactive TUI** — human in terminal — `@clack/prompts` UI + `claude --print` subprocess
+2. **JSON / Scripted** — Claude Code Bash, CI, other AI agents — JSON I/O + `claude --print` only when LLM judgment needed
+3. **MCP Server** — Claude Code calling Agora as native MCP tool — host session generates LLM responses, Agora provides structured data only (no nested LLM call)
+
+Mode 3 specifically prevents the nested-LLM-call waste that would happen if Agora always called its own subprocess regardless of context.
 
 ---
 

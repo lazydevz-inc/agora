@@ -2,7 +2,7 @@
 
 > *AI surpassed us in execution.*
 > *What remains is taste.*
-> *Philosophy is the technology of taste.*
+> *Philosophy makes taste articulate.*
 
 ---
 
