@@ -31,14 +31,26 @@ The Interview Loop has three observable phases:
 - Validation/order/iteration logic is **not yet finalized**
   → Stage 2-A will design this through structured exploration
 
-### Input 2 — UX: recommended options + free input (2026-04-26)
+### Input 2 — UX: expertise-aware question shape (2026-04-26 + 2026-04-27 refinement)
 
-The user dislikes verbose typing burden. Every interview question should provide:
+The user dislikes verbose typing burden. The form a question takes depends on **whether the user has domain expertise in the area being questioned**:
 
-- **Recommended options** — multiple choices the user can pick by number
-- **Always available**: free input. The user can type their own answer at any time
+**Mode A — User has domain expertise** (e.g. business goals, telos, taste, anti-goals)
+- Provide **recommended options** the user can pick by label
+- Free input always available as a parallel channel (not as an option labeled "free")
+- The user is the expert; we surface plausible structurings for speed
 
-This is non-negotiable. Verbose context-only interviews are the Ouroboros pain point we explicitly fix.
+**Mode B — User lacks domain expertise** (e.g. CLI best practices, MCP integration shape, lower-level technical decisions)
+- Forced multiple choice causes paralysis ("what should I pick? I don't know.")
+- Instead: **single confident recommendation + rationale + 1–2 alternatives + invitation to push back**
+- The user reviews and confirms or asks why; they don't have to choose blind
+
+The interview engine must track which areas the current user is expert in, and switch modes accordingly. Expertise can be:
+- Declared explicitly by the user
+- Inferred from prior answers
+- Defaulted (e.g. for the project owner, business decisions = expert)
+
+**Free input is never an "option" with a label like "Other" or "자유".** It is always available as a parallel response channel. Putting it in the option list is meaningless to the user (F8).
 
 ### Input 3 — End-of-interview UX (2026-04-26)
 
@@ -147,9 +159,36 @@ Agora rule: **multidimensional probes preferred over single-attribute lookups.**
 A good question opens a small space of related sub-questions the user can
 respond to selectively, rather than narrowing to one slot.
 
+### F7 — Single proposal without comparable alternatives (2026-04-27)
+
+Observed: Claude proposed Karl Popper as a 6th philosopher, alone, without
+comparison candidates. Sang's reaction: *"popper말고 더 적합한 사람은없나? 이런
+생각이 들었음."* — the user had no basis to evaluate the proposal.
+
+Root cause hypothesis: presenting a single addition makes the user the
+comparison engine, but they don't have the search space loaded. Decision
+paralysis follows.
+
+Agora rule: **when proposing a new addition (philosopher, library, pattern,
+mechanism), always present 2–3 comparable candidates with rationale for each
+and a recommendation.** Single proposals are forbidden unless the user
+explicitly asked for one specific evaluation.
+
+### F8 — Vague free-input option labels (2026-04-27)
+
+Observed: Claude included options labeled `R_free: 자유` and `S_free: 자유`.
+Sang's reaction: *"R_free: 자유 는 뭔 옵션인지 감이 안와."* The label
+communicates nothing; "자유" is the absence of a structured option, not a
+distinct choice.
+
+Agora rule: **free input is never an option in the choice list.** It is always
+available as a parallel response channel, communicated separately ("자유서술도
+가능합니다" or similar). Pretending it's an enumerated option dilutes the real
+options and confuses the user.
+
 ---
 
-## Forbidden Patterns (derived from F1–F6)
+## Forbidden Patterns (derived from F1–F8)
 
 Stage 2 spec must encode these as hard constraints:
 
@@ -159,6 +198,8 @@ Stage 2 spec must encode these as hard constraints:
 4. ❌ Questions that don't quote or build on the prior answer
 5. ❌ Forcing rank/selection on user-provided compound input
 6. ❌ Single-attribute drill questions when a multi-dimensional probe is available
+7. ❌ Proposing additions without 2–3 comparable alternatives
+8. ❌ Free-input as a listed option (it is a parallel channel, not a choice)
 
 ---
 
