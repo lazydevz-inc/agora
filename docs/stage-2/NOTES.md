@@ -107,4 +107,14 @@ Phase 0 auto-scan algorithm specified. Four key decisions accepted:
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 0 — Auto-scan [SPEC]" section. Time budget: ≤ 2s. No LLM calls, no write ops, no above-cwd reads.
 
-Next task: Stage 2-A.3 — Phase 1 open intake design.
+### Stage 2-A.3 — DONE (2026-04-27)
+
+Phase 1 open intake algorithm specified. Four key decisions accepted:
+- **R1-A**: brownfield prompt explicitly references docs already read (CLAUDE.md, README.md) so user spends words on what we don't know
+- **R2-A**: greenfield prompt suggests 3 dimensions (what / why / shape) without forcing structure
+- **R3-A**: 8 KB soft cap (≈ 1500 words) with gentle notice; 16 KB hard truncate with announcement at echo
+- **R4-A**: mechanical echo back ("Captured N words via {method}") — no LLM-generated summary (avoids F4 violation if summary is wrong)
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 1 — Open Intake [SPEC]". Editor escape contract specified ($EDITOR with vim/nano/vi fallback, comment-header convention, audit-preserved temp file). Failure modes F2/F3/F8 specifically guarded.
+
+Next task: Stage 2-A.5 — Round ordering (which philosopher operates when, with what triggers).

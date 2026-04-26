@@ -13,9 +13,9 @@
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase −1 — Husserl Epoché | [OPEN] | Stage 2-A pending |
+| Phase −1 — Husserl Epoché | [OPEN] | Stage 2-A.5 (round ordering) |
 | **Phase 0 — Auto-scan** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.2) |
-| Phase 1 — Open Intake | [OPEN] | Stage 2-A.3 next |
+| **Phase 1 — Open Intake** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.3) |
 | Phase 2 — Iterative Rounds | [OPEN] | Stage 2-A.4 / 2-A.5 / 2-A.6 / 2-A.7 |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
@@ -176,6 +176,167 @@ This honors F4 (questions build on prior context) and F2 (purpose is visible: "r
 - **F1** (locale): N/A — Phase 0 has no LLM-generated text. The display string is templated and locale-validated.
 - **F2** (purpose visible): the user-facing display shows exactly what was detected, why each piece matters (every line is a fact + implication).
 - **F4** (build on prior): Phase 0 IS the prior context for Phase 1 and Phase 2.
+
+---
+
+## Phase 1 — Open Intake [SPEC] (Accepted 2026-04-27)
+
+> **Goal**: Capture all the context the user is willing to give, in one turn,
+> in a form that maximizes downstream Phase 2 efficiency without burdening the
+> user beyond what they want to give.
+>
+> **Time budget**: bound by user typing/composition speed. No system-imposed
+> timeout; user sets the pace.
+
+### Algorithm (pseudo-code)
+
+```
+phase_1_open_intake(phase_0_result) -> Phase1Result:
+
+  # 1. Compose context-aware prompt (R1-A for brownfield, R2-A for greenfield)
+  prompt = compose_prompt(phase_0_result)
+
+  if phase_0_result.classification == brownfield:
+    # R1-A: explicitly reference what we already read
+    prompt = """
+    What would you like to work on?
+
+    ⓘ I've read your {ingested_doc_list} ({total_kb}). You don't need to
+      re-explain what the project is — just tell me what you want to do here today.
+
+    Press Enter alone to open $EDITOR for longer thoughts.
+    """
+
+    # If low-confidence brownfield, prepend the one-liner from Phase 0 SPEC
+    if phase_0_result.confidence == low:
+      prompt = LOW_CONFIDENCE_BANNER + prompt
+
+  else:  # greenfield
+    # R2-A: suggest 3 dimensions (what + why + shape) without forcing
+    prompt = """
+    What would you like to build?
+
+    ⓘ This looks like a fresh start. Tell me as much as you can — what
+      it is, why you want it, what shape you imagine. The more you say
+      now, the fewer questions later.
+
+    Press Enter alone to open $EDITOR for longer thoughts.
+    """
+
+  # 2. Read input
+  user_input = read_input(prompt)
+    INPUT_RULES:
+      - Single-line typed inline               → intake_method = "inline"
+      - Empty Enter (no text)                  → opens $EDITOR (env $EDITOR
+                                                 or vim/nano fallback);
+                                                 intake_method = "editor"
+      - Paste (multi-line)                     → accepted as-is;
+                                                 intake_method = "paste"
+      - Soft cap: 8 KB (≈ 1500 words)          → user shown gentle notice on
+                                                 reaching:
+                                                 "Long input — that's good.
+                                                  Continue if you want, or
+                                                  run `agora` again to refine."
+      - Hard cap: 16 KB                        → truncated; flag set;
+                                                 user notified at echo-back
+      - Empty after editor open + close        → re-prompt once with
+                                                 "Need at least one sentence."
+      - Empty twice                            → abort Phase 1 with exit code 2
+                                                 (user can `agora resume`)
+
+  # 3. Echo back (R4-A) — mechanical confirmation, no LLM summarization
+  display_echo:
+    """
+    OK. Captured {word_count} words via {intake_method}.
+    About to ask {estimated_rounds} rounds of follow-up to align before
+    we lock the seed.
+
+    Press Enter to continue, Ctrl+C to pause.
+    """
+    # estimated_rounds is computed from intake_word_count + size_signal:
+    #   < 50 words           → "5–8 rounds (lots to clarify)"
+    #   50–300 words         → "3–5 rounds"
+    #   > 300 words          → "2–3 rounds"
+    #   These are estimates only, not commitments. Phase 2 may adjust.
+
+  # 4. Return
+  return Phase1Result(
+    raw_intake: user_input,
+    intake_method: inline | editor | paste,
+    intake_word_count: int,
+    intake_byte_size: int,
+    intake_truncated: bool,
+    intake_duration_ms: int,
+    estimated_rounds: string,  # for telemetry/UI, not a commitment
+  )
+```
+
+### Why each decision
+
+- **R1-A** (brownfield prompt references read docs): Sang's existing CLAUDE.md
+  and README.md represent context the user already invested in producing.
+  Asking them to re-explain those is pure friction. The prompt acknowledges
+  what we know so the user spends words on what we *don't* know.
+- **R2-A** (greenfield prompt suggests 3 dimensions): completely-open prompts
+  produce paralysis. Three dimensions (what / why / shape) cover the bulk of
+  what Aristotle's four causes will need without pre-committing the user to
+  any particular structuring. Phase 2 fills the remainder via Aristotle.
+- **R3-A** (8 KB soft / 16 KB hard cap): 1500 words is far more than most
+  users dump in one sitting; beyond that, additional words are usually
+  unfocused. Hard truncate at 16 KB protects against paste accidents
+  (e.g. accidentally pasting an entire doc) while still allowing large
+  intentional dumps.
+- **R4-A** (mechanical echo, no LLM summary): mechanical "I heard {N} words"
+  builds trust without risking F4 violation (a wrong LLM summary would
+  immediately damage trust). The estimated-rounds line gives the user a
+  rough expectation for the Phase 2 pace.
+
+### Editor escape contract
+
+When user presses Enter on empty input:
+
+1. A temp file is created at `.agora/cache/intake-{timestamp}.md`
+2. Pre-populated with a comment header:
+   ```
+   <!--
+   Type your intake below. Save and exit when done.
+   - Lines starting with <!-- are ignored.
+   - Save empty to abort Phase 1.
+   - Press : (vim) or Ctrl-X (nano) to exit your editor.
+   -->
+   ```
+3. `$EDITOR` env var is honored (`$EDITOR ".agora/cache/intake-*.md"`)
+4. If `$EDITOR` unset, fall back order: `vim`, `nano`, `vi`. If none → error.
+5. After editor closes, file is read, comment lines stripped, content used.
+6. Temp file is moved to `.agora/history/{session_id}/intake.md` for audit.
+
+### Boundaries (what Phase 1 does NOT do)
+
+- ❌ No LLM calls during input collection.
+- ❌ No LLM-generated summary of input (R4-A: mechanical echo only).
+- ❌ No question dialog yet — that's Phase 2.
+- ❌ No silent truncation — soft cap is shown, hard cap is announced at echo.
+- ❌ No persisting input until user has confirmed (Ctrl+C before echo discards).
+- ❌ No reading from stdin in non-TTY mode unless explicit `--non-interactive`
+      flag is set (Mode 2 of the 3-mode I/O — see ADR-0005).
+
+### Output consumed by
+
+- **Phase 2**: `raw_intake` is the primary substantive context for round-1
+  question generation. `intake_word_count` and `estimated_rounds` calibrate
+  Aristotle's depth-of-questioning default.
+- **Seed builder**: `raw_intake` is preserved verbatim in `seed.md` under a
+  "Genesis" section, so the user can always see *what they originally said*
+  separate from *what was distilled*.
+
+### Failure modes specifically guarded
+
+- **F2** (purpose visible): prompt explicitly states "the more you say now,
+  the fewer questions later" — connects this turn to downstream cost.
+- **F3** (no abstract questions): prompt asks about concrete project work,
+  not abstract concepts.
+- **F8** (free input never an option): no enumerated options here at all;
+  the entire turn is free input by design.
 
 ---
 
@@ -382,9 +543,7 @@ Questions resolved are struck through. Open questions are tackled in priority or
 
 1. ~~**Phase 0 auto-scan algorithm** (Stage 2-A.2)~~ ✅ Resolved 2026-04-27. See "Phase 0 — Auto-scan [SPEC]" above.
 
-2. **Phase 1 open intake design** (Stage 2-A.3) — open
-   - Prompt wording, length affordance, editor escape
-   - How Phase 0 result calibrates the prompt
+2. ~~**Phase 1 open intake design** (Stage 2-A.3)~~ ✅ Resolved 2026-04-27. See "Phase 1 — Open Intake [SPEC]" above.
 
 3. **Phase 2 round structure** (Stage 2-A.4) — open
    - One round flow: question construction → presentation → answer → routing
