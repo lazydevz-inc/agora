@@ -1,14 +1,185 @@
 # Alignment Loop — Specification (Stage 2)
 
-> **Status**: Stage 2 in progress. Renamed from `interview-loop.md` on 2026-04-27
-> (Interview is the means; Alignment is the end). Inherited Stage-1 inputs and
-> failure modes are preserved below; Stage 2 promotes them into a formal spec.
+> **Status**: Stage 2-A in progress. Renamed from `interview-loop.md` on 2026-04-27.
+> Sections marked **[SPEC]** are formally accepted Stage 2 outputs.
+> Sections marked **[INHERITED]** are Stage 1 inputs preserved for traceability.
+> Sections marked **[OPEN]** are Stage 2-A open questions.
 >
-> Per ADR-0004, this document is not "Accepted" until Stage 2 closes its gate.
+> Per ADR-0004, this document is not "Accepted" (full file) until Stage 2 closes its gate.
 
 ---
 
-## Inherited Stage-1 Inputs
+## Phase Index
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase −1 — Husserl Epoché | [OPEN] | Stage 2-A pending |
+| **Phase 0 — Auto-scan** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.2) |
+| Phase 1 — Open Intake | [OPEN] | Stage 2-A.3 next |
+| Phase 2 — Iterative Rounds | [OPEN] | Stage 2-A.4 / 2-A.5 / 2-A.6 / 2-A.7 |
+| Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
+| Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
+| Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
+
+---
+
+## Phase 0 — Auto-scan [SPEC] (Accepted 2026-04-27)
+
+> **Goal**: With zero user input, produce a `Phase0Result` that classifies the project (brownfield/greenfield) and ingests the most relevant context documents and infrastructure markers, ready to feed into Phase 1.
+>
+> **Time budget**: ≤ 2 seconds (perceived as instant). On overrun, return a partial result with a "scan_truncated" flag and proceed.
+
+### Algorithm (pseudo-code)
+
+```
+phase_0_scan(cwd) -> Phase0Result:
+
+  # 1. Fast file inventory (deterministic, no LLM)
+  files = walk(cwd, max_depth=3, ignore=[node_modules, .git, dist, .agora/cache, .next, .venv, target, build])
+
+  # 2. Classification rule (R1-A)
+  classification, confidence = classify(files)
+    if (.git exists) AND (code_files >= 5 OR significant_md_files >= 1):
+      → brownfield, high
+    elif (.git exists) AND (sparse content):
+      → brownfield, low      # Phase 1 confirms with one-liner
+    elif (no .git, empty/near-empty):
+      → greenfield, high
+    else:
+      → greenfield, default
+
+  # 3. Context document ingestion in priority order (R2-A)
+  context_docs = []
+  for path in PRIORITY_ORDER:
+    if exists(path):
+      content = read(path, max_size=64KB)
+      context_docs.append({path, content, priority_rank})
+
+  PRIORITY_ORDER = [
+    "CLAUDE.md",          # AI context (highest — likely most-recent SoT)
+    "AGENTS.md",          # synonym
+    "README.md",          # human SoT
+    ".agora/seed.md",     # prior alignment result, if any
+    "docs/CLAUDE.md", "docs/README.md",
+    # Other root MD files: collected to detected_other_md, NOT auto-ingested
+  ]
+  # When CLAUDE.md and README.md are both present and SEMANTICALLY DIVERGENT,
+  # surface the divergence as an explicit Socratic probe in Phase 2 (do NOT
+  # silently merge). See "Cross-document divergence" below.
+
+  # 4. Tech stack + infrastructure markers (feeds ADR-0006 material_cause)
+  markers = detect_markers(files)
+    package.json, pnpm-lock.yaml         → Node.js + pnpm
+    package.json, yarn.lock              → Node.js + yarn
+    package.json, package-lock.json      → Node.js + npm
+    package.json, bun.lock(b)            → Node.js + bun
+    pyproject.toml, uv.lock              → Python + uv
+    pyproject.toml, poetry.lock          → Python + poetry
+    requirements.txt                     → Python + pip
+    Cargo.toml                           → Rust
+    go.mod                               → Go
+    .vercel/project.json                 → Vercel
+    supabase/config.toml                 → Supabase
+    .github/workflows/*.yml              → GitHub Actions
+    Dockerfile, docker-compose.yml       → Docker
+    package.json deps include "stripe"   → Stripe
+    package.json deps include "@clerk/*" → Clerk
+    package.json deps include "@anthropic-ai/*" → Anthropic SDK
+    .env.example                         → declared env-var contract
+    # Registry is community-extensible. Each marker → one or more probes
+    # in Gate 0 (ADR-0006).
+
+  # 5. Project size signal (informs interview default depth)
+  size_signal = compute_size(files)
+    files <= 5  AND  total_loc <= 200    → tiny
+    files <= 50 AND  total_loc <= 5_000  → small
+    files <= 500 AND total_loc <= 50_000 → medium
+    otherwise                            → large
+
+  # 6. Workspace boundary enforcement (R3-A — strict per-folder isolation)
+  # cwd is the absolute boundary. Phase 0 NEVER walks above cwd.
+  # Monorepo workspace expansion requires explicit user flag:
+  #   `agora --workspace-root=../..`
+  # Without that flag, sibling packages in a monorepo are invisible.
+
+  # 7. Result
+  return Phase0Result(
+    classification: brownfield | greenfield,
+    confidence: high | low | default,
+    context_docs: [...],
+    detected_markers: [...],
+    detected_other_md: [...],   # MD files seen but not ingested
+    size_signal: tiny | small | medium | large,
+    cwd: absolute_path,
+    scan_duration_ms: number,
+    scan_truncated: bool,
+  )
+```
+
+### User-facing display (R4-A — always show)
+
+After Phase 0 completes, the result is always shown to the user, immediately
+before Phase 1's open prompt. The display is concise (target ≤ 6 lines):
+
+```
+✓ Detected: brownfield TypeScript project (high confidence)
+✓ Read: CLAUDE.md (12KB), README.md (4KB)
+✓ Markers: Vercel, Supabase, GitHub Actions, Stripe
+✓ Size: medium (~8K LoC)
+
+What would you like to work on?
+> _
+```
+
+For low-confidence brownfield, the message inserts a one-liner confirmation:
+
+```
+✓ Detected: brownfield TypeScript project (low confidence)
+  ⚠ Sparse content. If this is actually a new project, type 'new project' to switch.
+✓ Read: README.md (1KB)
+✓ Markers: Node.js
+✓ Size: tiny (~50 LoC)
+
+What would you like to work on?
+> _
+```
+
+### Cross-document divergence handling
+
+When Phase 0 ingests two or more priority documents (e.g. CLAUDE.md and README.md) that **semantically contradict**, the divergence is **not silently merged**. Instead:
+
+1. Phase 0 records the divergence in `Phase0Result.divergences[]` with offending claims quoted.
+2. Phase 2 generates an explicit Socratic probe in an early round:
+   *"README says X, but CLAUDE.md says Y. Which is the current truth?"*
+3. The user's answer becomes the canonical claim; the contradicting document is flagged for later cleanup (logged to `.agora/state.json`, surfaced in `agora doctor`).
+
+This honors F4 (questions build on prior context) and F2 (purpose is visible: "resolve documentation divergence").
+
+### Boundaries (what Phase 0 does NOT do)
+
+- ❌ No LLM calls. Phase 0 is fully deterministic.
+- ❌ No write operations to the user's project (read-only filesystem access).
+- ❌ No reading above `cwd` (R3-A strict isolation).
+- ❌ No reading file contents > 64KB (truncated, flagged).
+- ❌ No silent miscategorization — low-confidence brownfield always confirmed.
+- ❌ No silent merging of contradictory context documents.
+
+### Output consumed by
+
+- **Phase 1**: uses `classification`, `context_docs`, `detected_markers`, `size_signal` to calibrate the open-intake prompt's tone and default depth.
+- **Phase 2**: uses `context_docs` content for elenchus case generation; `detected_markers` for material_cause auto-population (Aristotle's third cause); `divergences[]` for explicit early-round probes.
+- **Ralph Loop Gate 0** (ADR-0006): uses `detected_markers` to construct the probe checklist for pre-flight infra check.
+- **`agora doctor`**: re-runs the marker portion as a standalone diagnostic.
+
+### Failure modes specifically guarded
+
+- **F1** (locale): N/A — Phase 0 has no LLM-generated text. The display string is templated and locale-validated.
+- **F2** (purpose visible): the user-facing display shows exactly what was detected, why each piece matters (every line is a fact + implication).
+- **F4** (build on prior): Phase 0 IS the prior context for Phase 1 and Phase 2.
+
+---
+
+## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
 
@@ -204,36 +375,51 @@ Stage 2 spec must encode these as hard constraints:
 
 ---
 
-## Open Questions (to be answered in Stage 2)
+## Open Questions (Stage 2-A remaining) [OPEN]
 
-These questions will be resolved during Stage 2-A:
+Questions resolved are struck through. Open questions are tackled in priority order
+(see `docs/stage-2/NOTES.md`).
 
-1. **Validation gates** — How does Agora know a claim is settled?
-   - Maturity-based (Plato's divided line) — telos must reach Noesis?
-   - Implication-based (Socratic elenchus) — claim must survive case probing?
-   - Coverage-based (Aristotle's four causes) — all four causes must be addressed?
-   - Combination of the above with weights?
+1. ~~**Phase 0 auto-scan algorithm** (Stage 2-A.2)~~ ✅ Resolved 2026-04-27. See "Phase 0 — Auto-scan [SPEC]" above.
 
-2. **What gets re-asked, when, and why** — When does an answer trigger a follow-up?
-   - When new information contradicts an earlier answer
-   - When maturity is below threshold for a load-bearing field
-   - When an alternative is implied but not considered
+2. **Phase 1 open intake design** (Stage 2-A.3) — open
+   - Prompt wording, length affordance, editor escape
+   - How Phase 0 result calibrates the prompt
 
-3. **Round ordering** — Which philosopher acts when?
-   - Husserl Phase −1 (greenfield only? always optional?)
-   - Aristotle four causes — telos first, always
-   - Socrates elenchus — woven through, on every claim
-   - Plato dihairesis — when AC decomposition starts (handoff to Ralph Loop)
+3. **Phase 2 round structure** (Stage 2-A.4) — open
+   - One round flow: question construction → presentation → answer → routing
 
-4. **Recommended-options generation** — How does the system propose options?
+4. **Round ordering** (Stage 2-A.5) — open
+   - Which philosopher operates when, with what triggers
+   - Husserl Phase −1: greenfield default-on / brownfield default-off?
+   - Telos-first invariant
+   - Socrates woven through every round vs gated by maturity
+
+5. **Recommended-options generation** (Stage 2-A.6) — open
    - Drawn from auto-scan (codebase patterns)
    - Drawn from common cases (Aristotle category exemplars)
    - Drawn from the user's earlier answers (consistency check)
+   - Drawn from prior similar projects (anonymized priors)
 
-5. **Brownfield vs greenfield branch** — Where do they diverge?
-   - Greenfield: Husserl Phase −1 may be more useful (frame-questioning)
-   - Brownfield: Phase 0 auto-scan is critical; existing code constrains telos
+6. **Validation gates per claim** (Stage 2-A.7) — open
+   - Maturity-based (Plato's Divided Line) — telos must reach Noesis
+   - Implication-based (Socratic elenchus) — claim must survive case probing
+   - Coverage-based (Aristotle's four causes) — all four causes addressed
+   - Composition rule between the three
+
+7. **Termination Gate Y2 + Y3** (Stage 2-A.8) — open
+   - Precise algorithm for "I think we have enough to proceed"
+   - Preview generation quality threshold (when to show, when to suppress)
+
+8. **Brownfield vs greenfield branching** (Stage 2-A.9) — partially resolved
+   - Phase 0 classification rule is now SPEC (R1-A)
+   - Remaining: how Phase −1 and Phase 2 differ between the two
+
+9. **Mini-alignment re-entry from Ralph (Z2)** (Stage 2-A.10) — open
+   - Shorter form of alignment loop for re-entry mid-Ralph
+   - How much context to re-confirm vs trust-from-prior-seed
 
 ---
 
-*This document will be expanded during Stage 2 with the resolved spec.*
+*This document is being incrementally promoted from placeholder to formal spec
+across Stage 2-A rounds. See `docs/stage-2/NOTES.md` for the running plan.*

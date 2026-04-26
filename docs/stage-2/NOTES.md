@@ -91,8 +91,20 @@ Stage 2 close requires the same gate as Stage 1: deliverables exist, Sang explic
 
 ---
 
-## Stage 2-A.1 — DONE
+## Progress Log
 
-Rename `interview-loop.md` → `alignment-loop.md` completed at Stage 2 open. All references updated. The file's internal title and inherited input headings now use "Alignment Loop" terminology.
+### Stage 2-A.1 — DONE (2026-04-27)
 
-Next task: Stage 2-A.2 — Phase 0 auto-scan algorithm (the first substantive design question).
+Rename `interview-loop.md` → `alignment-loop.md` completed at Stage 2 open. All references updated.
+
+### Stage 2-A.2 — DONE (2026-04-27)
+
+Phase 0 auto-scan algorithm specified. Four key decisions accepted:
+- **R1-A**: low-confidence brownfield gets a Phase 1 one-liner confirmation
+- **R2-A**: CLAUDE.md > AGENTS.md > README.md priority; semantic divergence surfaces as explicit Phase 2 probe (never silent merge)
+- **R3-A**: strict per-folder isolation; never walk above `cwd`; monorepo expansion requires explicit `--workspace-root` flag
+- **R4-A**: Phase 0 result always displayed to user immediately before Phase 1 prompt
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 0 — Auto-scan [SPEC]" section. Time budget: ≤ 2s. No LLM calls, no write ops, no above-cwd reads.
+
+Next task: Stage 2-A.3 — Phase 1 open intake design.
