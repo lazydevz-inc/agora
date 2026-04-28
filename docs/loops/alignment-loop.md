@@ -19,6 +19,7 @@
 | **Phase 2 — Iterative Rounds** | **[SPEC]** | Both ordering and structure accepted (Stage 2-A.5 + 2-A.4) |
 | **Phase 2 — Round Ordering** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.5) |
 | **Phase 2 — Round Structure** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.4) |
+| **Phase 2 — Recommended-options Generation** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.6) |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
 | Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
@@ -898,6 +899,272 @@ MCP call. No nested LLM cost (host session does the work).
 
 ---
 
+## Phase 2 — Recommended-options Generation [SPEC] (Accepted 2026-04-28)
+
+> **Goal**: Define how Mode A round options are produced — where they come from,
+> in what priority, with what fallbacks. Option quality directly determines
+> alignment efficiency: good options = single-keystroke accuracy, bad options =
+> constant fallback to free input (defeats the UX promise).
+>
+> **Constraint**: Round Structure SPEC requires 2–4 options per Mode A round.
+> Below 2 → automatic Mode B fallback (R5-A).
+
+### Algorithm
+
+```
+generate_options(round: NextRound, seed_state, phase_0_result, history) -> Options:
+
+  candidates = []
+
+  # ─── SOURCE 1 — Project-specific (highest weight) ───
+  # LLM extracts candidates from auto-scanned context docs (R1-A)
+  if phase_0_result.context_docs:
+    project_candidates = llm_extract_from_context(
+      target_field: round.target_field,
+      docs: phase_0_result.context_docs,
+      mode: "extract semantic units relevant to target_field",
+    )
+    candidates += [tag(c, source=PROJECT_SPECIFIC) for c in project_candidates]
+
+  # ─── SOURCE 2 — Aristotle exemplars (universal categories) ───
+  # Curated YAML library, version-controlled (R2-A)
+  exemplars = load_exemplars(
+    path: f"src/agora/philosophers/aristotle/exemplars/{round.cause}.yaml",
+    field: round.target_field,
+  )
+  candidates += [tag(e, source=EXEMPLAR) for e in exemplars]
+
+  # ─── SOURCE 3 — Prior consistency (LLM-derived from recent history) ───
+  # LLM reads last N=3 answers and derives 1-2 candidates that maintain
+  # semantic consistency with the user's emerging shape (R3-A)
+  if len(history.recent_answers) >= 1:
+    prior_candidates = llm_derive_consistent(
+      target_field: round.target_field,
+      recent_answers: history.recent_answers[-3:],
+      seed_state: seed_state,
+    )
+    candidates += [tag(c, source=PRIOR) for c in prior_candidates]
+
+  # ─── SOURCE 4 — LLM creative fill (only if needed) ───
+  # Trigger ONLY when sources 1-3 produced fewer than 3 candidates (R4-A)
+  if len(candidates) < 3:
+    needed = 3 - len(candidates)
+    creative = llm_generate_novel(
+      target_field: round.target_field,
+      existing: candidates,
+      target_count: needed,
+    )
+    candidates += [tag(c, source=CREATIVE) for c in creative]
+
+  # ─── RANK + DEDUP ───
+  ranked = score_and_dedup(candidates)
+    score = (
+      0.5 * is_source(PROJECT_SPECIFIC)
+      + 0.2 * is_source(EXEMPLAR)
+      + 0.2 * is_source(PRIOR)
+      + 0.1 * is_source(CREATIVE)
+    )
+    # Dedup by semantic similarity (cosine on embeddings or LLM judgment),
+    # preserving the highest-scored representative.
+
+  # ─── COUNT ENFORCEMENT ───
+  # Round Structure SPEC: Mode A = 2-4 options
+  options = ranked[:4]
+
+  if len(options) < 2:
+    # Mode A → Mode B automatic fallback (R5-A)
+    return convert_to_mode_b(round, ranked, original_intent="too_few_options")
+
+  return Options(
+    items: options,
+    source_breakdown: {p: count for source p in candidates},
+    mode: A,
+  )
+```
+
+### Source priority rationale
+
+| Source | Weight | Why this rank |
+|--------|--------|----------------|
+| 1. Project-specific | 0.5 | The user's own materials → highest trust. F4 (build on prior) naturally satisfied. The user can recognize the option immediately because they wrote (or live with) the source. |
+| 2. Aristotle exemplars | 0.2 | Universal-category fallback that guarantees we always have *something* sensible. Curated, deterministic, inspectable. |
+| 3. Prior consistency | 0.2 | F4 reinforcement + builds a coherent seed. Catches the pattern "if you said X about telos, the natural form would be Y." |
+| 4. LLM creative | 0.1 | Bridge only when sources 1–3 are thin. Pure invention has hallucination risk and no anchor in user materials. Last resort. |
+
+### Source 1 extraction details (R1-A)
+
+LLM is invoked with a strict prompt:
+
+```
+You are extracting candidate options for a Phase 2 alignment round.
+
+Target field: {round.target_field}
+Field meaning: {field_definition_from_4_causes_or_AC}
+
+Read the following project documents:
+{phase_0_result.context_docs}
+
+Identify 0-4 candidate options for the target field that are PRESENT or
+IMPLIED in these documents. Each candidate must be:
+- A single-clause statement (the user will see it as a one-line option)
+- Concretely traceable to a passage in the source docs
+- NOT a paraphrase that adds meaning the source did not contain
+
+Respond in JSON:
+[
+  {"label": "<option label>", "source_passage": "<verbatim quote from source>"},
+  ...
+]
+
+If the source documents do not contain or imply candidates for this field,
+return an empty array. NEVER fabricate.
+```
+
+The `source_passage` is verified against the actual document content
+(string match) before being added to candidates. Hallucinated passages are
+rejected silently.
+
+### Source 2 — Aristotle exemplar library (R2-A)
+
+Lives in `src/agora/philosophers/aristotle/exemplars/` with one file per cause:
+
+```
+exemplars/
+├── telos.yaml         # canonical telos category exemplars
+├── form.yaml          # canonical form exemplars
+├── material.yaml      # canonical tech-stack archetypes
+├── efficient.yaml     # canonical process patterns
+└── acceptance_criteria.yaml  # AC archetype templates
+```
+
+Example `telos.yaml`:
+
+```yaml
+field: telos.statement
+exemplars:
+  - label: "self-knowledge tool — primarily for the user themselves"
+    archetype: introspective
+  - label: "audience-relationship tool — connection with specific others"
+    archetype: relational
+  - label: "external-impact tool — change something in the world"
+    archetype: instrumental
+  - label: "credibility / brand tool — public visibility for trust building"
+    archetype: reputational
+  - label: "operational tool — automate or streamline existing work"
+    archetype: utilitarian
+```
+
+The library is **community-extensible**. New exemplars require:
+1. PR with the candidate exemplar
+2. Justification: why is this NOT covered by existing exemplars
+3. Maintainer review for redundancy
+
+The library starts small (5–8 exemplars per field) and grows only on demand.
+
+### Source 3 — Prior consistency LLM prompt (R3-A)
+
+```
+You are deriving consistent option candidates for the next alignment round.
+
+The user's recent answers (in chronological order):
+{history.recent_answers[-3:]}
+
+The current target field: {round.target_field}
+
+Generate 1-2 option candidates that would be SEMANTICALLY CONSISTENT with
+the user's pattern so far. Do NOT introduce new directions; only extend
+the existing trajectory.
+
+If no consistent candidate exists (e.g. the prior answers don't constrain
+the current field), return an empty array.
+
+Respond in JSON:
+[
+  {"label": "<option label>", "consistency_link": "<which prior answer it extends>"}
+]
+```
+
+The `consistency_link` is rendered in the option's hover/expand text so the
+user understands *why* this option appeared.
+
+### Source 4 — Creative fill trigger (R4-A)
+
+```
+if len(candidates) < 3:
+  needed = 3 - len(candidates)
+  ...
+```
+
+The threshold is 3 (not 2) because a 2-option round, while technically valid,
+feels narrow. Creative fill targets a healthy 3-option floor before Stage 2-A.7
+deduplication.
+
+If creative fill itself returns 0 (the LLM cannot invent valid candidates),
+the count proceeds to the Mode B fallback path (R5-A) without retry.
+
+### Mode A → Mode B automatic fallback (R5-A)
+
+When `len(options) < 2` after all sources and ranking:
+
+```
+convert_to_mode_b(round, ranked, original_intent) -> ModeBRound:
+  best_candidate = ranked[0] if ranked else llm_generate_single_recommendation(round)
+  alternatives = ranked[1:3] if len(ranked) > 1 else llm_generate_alternatives(round, best=best_candidate, count=2)
+
+  return ModeBRound(
+    recommendation: best_candidate,
+    alternatives: alternatives,
+    rationale: "Limited project-specific signal for this field; falling back to expert recommendation.",
+    user_responses: ["accept", "pick alternative", "free input"],
+  )
+```
+
+The fallback is announced to the user inline:
+
+```
+ⓘ This round is showing fewer options than usual — your project doesn't
+  yet have strong signal for {target_field}. Going with my best guess:
+
+  → {best_candidate.label}
+
+  [Enter] accept this  ·  [a] see 2 alternatives  ·  [type] free input
+```
+
+Honesty about limited signal is a feature, not a flaw. The user knows when
+Agora is high-confidence vs guessing.
+
+### Boundaries
+
+- ❌ Source 1 LLM extraction without `source_passage` verification (no fabrication).
+- ❌ Source 4 firing when sources 1-3 already gave 3+ candidates (token waste).
+- ❌ Aristotle exemplars added without PR + justification (avoid library bloat).
+- ❌ Silent Mode A → Mode B fallback (always announced inline).
+- ❌ Options without `source` tag (every option carries provenance for telemetry and inspectability).
+- ❌ Dedup that loses provenance — when two sources produce semantically identical options, keep highest-weighted source's provenance.
+
+### Output consumed by
+
+- **Round Structure renderer**: receives `Options.items[]` and renders to
+  TUI / JSON / MCP per the round structure SPEC.
+- **Telemetry / `agora doctor`**: `source_breakdown` is logged per round
+  for analyzing where options come from in real use (informs library
+  expansion priorities).
+- **Validation gates** (Stage 2-A.7): the `source` tag of the chosen option
+  contributes to the maturity calculation (e.g. user picking a PROJECT_SPECIFIC
+  option lands at higher maturity faster than picking a CREATIVE one).
+
+### Failure modes specifically guarded
+
+- **F2** (purpose): each option carries `source` provenance, surfacing why
+  it appeared.
+- **F4** (build on prior): Source 1 and Source 3 both encode this directly.
+- **F7** (no single proposal without alts): Mode B fallback always provides
+  alternatives, never solo.
+- **F8** (free input not as option): free input is the channel, never an
+  enumerated item — the action line announces it.
+
+---
+
 ## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
@@ -1107,11 +1374,7 @@ Questions resolved are struck through. Open questions are tackled in priority or
 
 4. ~~**Round ordering** (Stage 2-A.5)~~ ✅ Resolved 2026-04-27. See "Phase 2 — Round Ordering [SPEC]" above.
 
-5. **Recommended-options generation** (Stage 2-A.6) — open
-   - Drawn from auto-scan (codebase patterns)
-   - Drawn from common cases (Aristotle category exemplars)
-   - Drawn from the user's earlier answers (consistency check)
-   - Drawn from prior similar projects (anonymized priors)
+5. ~~**Recommended-options generation** (Stage 2-A.6)~~ ✅ Resolved 2026-04-28. See "Phase 2 — Recommended-options Generation [SPEC]" above.
 
 6. **Validation gates per claim** (Stage 2-A.7) — open
    - Maturity-based (Plato's Divided Line) — telos must reach Noesis

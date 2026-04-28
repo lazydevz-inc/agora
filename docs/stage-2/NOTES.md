@@ -149,4 +149,28 @@ Established the **Conductor + Contributor model**: Socrates conducts every Phase
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 2 — Round Ordering [SPEC]" with full round-planner algorithm pseudo-code, invocation conditions for Husserl, telos-first enforcement, material auto-fill flow, AC drafting bounds (3-5), backtrack mechanics, and failure modes F2/F4/F5 specifically guarded.
 
-Next task: Stage 2-A.6 — Recommended-options generation (how Agora produces the option lists shown in Mode A rounds).
+### Stage 2-A.6 — DONE (2026-04-28)
+
+Recommended-options generation algorithm specified. Five key decisions accepted:
+- **R1-A**: Source 1 (project-specific) extraction by LLM with strict prompt + verbatim source_passage verification (no fabrication)
+- **R2-A**: Source 2 (Aristotle exemplars) lives in `src/agora/philosophers/aristotle/exemplars/{cause}.yaml` — version-controlled, community-extensible via PR with justification
+- **R3-A**: Source 3 (prior consistency) — LLM derives 1-2 options from recent N=3 answers; consistency_link rendered for user understanding
+- **R4-A**: Source 4 (LLM creative) triggers only `if len(candidates) < 3` — token economy + Source 1-3 priority
+- **R5-A**: Automatic Mode A → Mode B fallback when `len(options) < 2` — announced inline ("limited project-specific signal"), honest about confidence level
+
+Source priority ranking with weights:
+- Source 1 (project-specific): 0.5  — user's own materials, highest trust
+- Source 2 (Aristotle exemplars): 0.2 — curated universal fallback
+- Source 3 (prior consistency): 0.2 — F4 reinforcement, coherent seed building
+- Source 4 (LLM creative): 0.1 — bridge only when needed
+
+Aristotle exemplars library specified:
+- File layout: `exemplars/{telos,form,material,efficient,acceptance_criteria}.yaml`
+- Example telos.yaml shape with archetype tags (introspective, relational, instrumental, reputational, utilitarian)
+- Starts small (5-8 per field), grows on demand via PR + justification
+
+Failure modes F2/F4/F7/F8 specifically guarded. Provenance preserved on every option (source tag).
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 2 — Recommended-options Generation [SPEC]".
+
+Next task: Stage 2-A.7 — Validation gates per claim (when is a claim "settled" — composition of Plato Divided Line + Socratic case-survival + Aristotle four-cause coverage).
