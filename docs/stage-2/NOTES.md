@@ -262,5 +262,65 @@ Sang's question that drove the refinement:
 This question split R3-A's overly-simple recommendation into the 4-case
 hybrid that captures real user states.
 
-Next task: Stage 2-A.10 — Mini-alignment re-entry from Ralph (Z2 escalation
-path; shorter form of alignment loop for re-entry mid-Ralph).
+### Stage 2-A.10 — DONE (2026-04-28)
+
+Mini-alignment re-entry from Ralph (Z2 escalation) specified.
+Five key decisions accepted:
+
+- **R1-A**: Z1 → Z2 escalation threshold = 3 self-correction failures.
+  3 is noise/signal threshold; 1-2 may be LLM statistical noise.
+- **R2-A**: Z2 entry always pauses Ralph + announces 3-option entry dialog
+  ([Enter] proceed / [c] cancel-keep-paused / [a] abort-to-full).
+  Silent Z2 forbidden (Sang's non-negotiable extends here).
+- **R3-A**: Mini-alignment scope = `affected_fields + axis-3 cascade`.
+  Reuses Validation Gates SPEC's `SIBLING_REQUIREMENTS` table for natural expansion.
+  Surgical not wholesale; cascade ensures consistency.
+- **R4-A**: Mini-alignment SKIPS Phase −1, Phase 0, Phase 1.
+  Only Phase 2 round-planner runs, bounded to reset_targets.
+  Reasons: codebase context unchanged, intake unchanged, frame already bracketed.
+  User who needs more can choose "Abort to full" from mini-termination dialog.
+- **R5-A**: Mini-termination dialog = 3 options.
+  [Resume Ralph from checkpoint with replay] /
+  [Discard last 3 iterations + restart Ralph fresh] /
+  [Abort + return to full agora new flow]
+
+Z3 (silent override + push forward) remains structurally forbidden per Sang's
+Stage 1 input: every Ralph iteration definitionally includes alignment verification.
+
+After-action handlers specified:
+- **Resume**: replay 3 paused iterations against refined seed (automatic gate
+  re-run); user sees "↻ Replaying..." then result
+- **Discard + restart**: counter reset, ralph fresh from iteration 1
+- **Abort to full**: state transitions to `in_alignment`, mini-alignment
+  refinements preserved, full Phase 2 re-opens (no Phase -1/0/1 per Case C)
+
+Failure modes F2/F4/F5/F-Aquinas-4 + Sang's non-negotiable all guarded.
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Mini-Alignment
+Re-entry from Ralph (Z2) [SPEC]".
+
+---
+
+## Stage 2-A — ALL SUB-QUESTIONS RESOLVED (2026-04-28)
+
+All 10 sub-questions (2-A.1 through 2-A.10) are now SPEC-accepted in
+`docs/loops/alignment-loop.md`. The document is ready to be marked
+**Accepted** as a whole upon Sang's review.
+
+Summary of Stage 2-A SPECs:
+- 2-A.1: Rename interview-loop → alignment-loop
+- 2-A.2: Phase 0 auto-scan algorithm
+- 2-A.3: Phase 1 open intake design
+- 2-A.4: Phase 2 round structure (4 mockups)
+- 2-A.5: Round ordering (Conductor + Contributor model)
+- 2-A.6: Recommended-options generation (4-source ranking)
+- 2-A.7: Validation gates per claim (3-axis composition)
+- 2-A.8: Termination Gate Y2 + Y3 (preview quality threshold)
+- 2-A.9: Brownfield/greenfield branching (per-phase table + 4-case state branching)
+- 2-A.10: Mini-alignment re-entry from Ralph (Z2 escalation)
+
+**Stage 2-A is ready for close. Proceeding to Stage 2-B (Ralph Loop full spec)
+upon Sang's approval.**
+
+Next: ask Sang to review alignment-loop.md as a whole, mark it Accepted,
+then enter Stage 2-B.

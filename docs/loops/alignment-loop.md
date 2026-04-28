@@ -23,6 +23,7 @@
 | **Validation Gates per Claim** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.7) |
 | **Termination Gate (Y2 + Y3)** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.8) |
 | **Brownfield/Greenfield Branching** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.9) — supersedes Phase 0 partial |
+| **Mini-Alignment Re-entry (Z2)** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.10) |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
 | Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
@@ -1868,6 +1869,290 @@ equivalent to having run `agora resume` directly from the start.
 
 ---
 
+## Mini-Alignment Re-entry from Ralph (Z2) [SPEC] (Accepted 2026-04-28)
+
+> **Goal**: Define what happens when Ralph Gate 5 (Alignment Check) repeatedly
+> fails and self-correction (Z1) cannot close the gap. The Z2 escalation pauses
+> Ralph and re-enters a *focused* alignment loop limited to the drifting fields,
+> then resumes Ralph from checkpoint. Z3 (silent override / push forward) remains
+> forbidden — Ralph must close alignment, not paper over it.
+>
+> **Mental model**: Mini-alignment is the **smallest possible re-alignment** to
+> resolve specific drift, NOT a full restart of the alignment loop. Surgical, not
+> wholesale.
+
+### Algorithm
+
+```
+ralph_gate_5_failure_handler(iteration_id, drift_signal):
+
+  z1_count = state.z1_attempt_count_for_current_drift
+
+  # ── Z1: self-correction (default; first N attempts) ──
+  if z1_count < Z1_THRESHOLD:    # R1-A: 3
+    state.z1_attempt_count_for_current_drift += 1
+    next_iteration_addendum = render_drift_summary(drift_signal)
+    return Z1_SELF_CORRECT(addendum: next_iteration_addendum)
+
+  # ── Z2: mini-alignment re-entry (after Z1 exhausted) ──
+  return Z2_TRIGGER(
+    triggering_drift: drift_signal,
+    affected_fields: drift_signal.implicated_fields,
+  )
+
+
+Z2_TRIGGER → mini_alignment_entry_dialog():
+
+  # Always pause Ralph + announce (R2-A: never silent)
+  state.phase = "in_ralph_paused"
+  state.ralph_pause_reason = "z2_mini_alignment"
+  checkpoint = save_ralph_iteration_state(iteration_id)
+  state.ralph_iteration_progress.checkpoint_id = checkpoint.id
+
+  display_dialog:
+    """
+    ⚠ Ralph Gate 5 (Alignment Check) failed 3 iterations in a row.
+      The implementation appears to have drifted from the seed's telos
+      in a way Ralph cannot self-correct.
+
+      Specific drift:           {drift_signal.summary}
+      Affected seed fields:     {drift_signal.implicated_fields}
+      Last 3 iteration attempts: {brief_diff_summaries}
+
+      Starting mini-alignment session to refine the affected fields.
+      Ralph progress will resume from checkpoint after re-alignment.
+
+      ◯  [Enter] proceed to mini-alignment
+      ◯  [c] cancel — keep Ralph paused, decide later
+      ◯  [a] abort Ralph — discard checkpoint + return to full `agora new` flow
+
+      > _
+    """
+
+  on_user_choice:
+    "proceed" → invoke_mini_alignment(affected_fields)
+    "cancel"  → state remains in_ralph_paused; user can `agora resume` later
+                → next `agora resume` re-shows this dialog
+    "abort"   → discard checkpoint + state.phase = "ready_for_ralph" (or
+                "in_alignment" if user chooses) + clear z1 counter
+```
+
+### Mini-alignment loop — what runs, what's skipped [R3-A + R4-A]
+
+```
+invoke_mini_alignment(affected_fields):
+
+  # Phase −1, Phase 0, Phase 1 are SKIPPED (R4-A)
+  # Reasons:
+  #   - Phase 0 already ran in original alignment; codebase has not changed
+  #     in any way that needs re-scan (Ralph iteration changes are tracked
+  #     internally, not new context to ingest)
+  #   - Phase 1 intake is unchanged from original session (the user already
+  #     told us what they want; mini-alignment is fixing HOW we understood it)
+  #   - Husserl Phase −1 frame was bracketed once; re-bracketing every Z2
+  #     would be excessive
+
+  # Compute cascade — affected_fields + their dependents (R3-A)
+  reset_targets = expand_with_axis_3_cascade(affected_fields)
+
+  for field in reset_targets:
+    seed_state.set_field_maturity(field, EIKASIA)
+    # The field's value is preserved (history retains it)
+    # but its maturity is reset → forces re-confirmation/re-probing
+
+  # Phase 2 round-planner runs but bounded to reset_targets only
+  while any(not is_field_settled(f, seed_state, history) for f in reset_targets):
+    next_round = round_planner.next_for_field_in_set(reset_targets)
+    execute_round(next_round)
+
+  # Mini-termination dialog (subset of full Termination Gate)
+  return show_mini_termination_dialog(
+    refined_fields: reset_targets,
+    surviving_fields: [f for f in seed_state if f not in reset_targets],
+    aporia_summary_delta: history.delta_since_z2_entry(),
+  )
+```
+
+### Cascade rule [R3-A]
+
+`expand_with_axis_3_cascade(affected_fields)` uses the same `SIBLING_REQUIREMENTS`
+table from Validation Gates SPEC:
+
+```
+expand_with_axis_3_cascade(seeds: set[FieldPath]) -> set[FieldPath]:
+  result = set(seeds)
+  changed = True
+  while changed:
+    changed = False
+    for field in list(result):
+      for dependent in fields_that_require(field, SIBLING_REQUIREMENTS):
+        if dependent not in result:
+          result.add(dependent)
+          changed = True
+  return result
+```
+
+Example: drift implicates `telos.statement`. Cascade pulls in
+`telos.served_good` (mutual sibling), then `form.essential_structure`
+(requires telos.statement), then `acceptance_criteria.*` (require both
+telos.statement and form.essential_structure). Mini-alignment becomes
+moderate-sized rather than narrow.
+
+If `affected_fields = {material.tech_stack}`, cascade yields just
+`{material.tech_stack}` (no dependents in `SIBLING_REQUIREMENTS`).
+Mini-alignment is single-round.
+
+This *natural* expansion ensures consistency without forcing a full
+realignment.
+
+### Mini-termination dialog — UX
+
+```
+─────────────────────────────────────────────────────────────────
+  ✅ Mini-alignment ready
+  Refined fields: telos.statement, telos.served_good, AC[2]
+─────────────────────────────────────────────────────────────────
+
+  📊 Refined fields (re-settled to required floor):
+     telos.statement       NOESIS  (was DIANOIA — was kept-with-tension)
+     telos.served_good     NOESIS  (cascade refresh, re-affirmed)
+     acceptance_criteria[2] DIANOIA (refined wording)
+
+  📊 Untouched fields: 8 (stayed as locked in main alignment)
+
+  🎯 Aporia delta (this mini-session): +1 (refined cleanly, no new tensions)
+  📎 Tension-acknowledged delta: 0
+
+  📄 Drift was:
+     "Implementation served audience-relationship goal but telos was
+      self-knowledge. Iteration 7-9 added share buttons that didn't
+      align with refined-self-knowledge telos."
+
+  ── Resume Ralph from checkpoint? ──   (R5-A: 3 options)
+
+     ◯  Yes — resume Ralph with refined seed
+                (last 3 iterations replayed against refined seed
+                 to verify they still pass — automatic Gate 1-5 re-run)
+     ◯  Discard last 3 Ralph iterations + restart Ralph from scratch
+                (clean break; Ralph re-iterates from the refined seed)
+     ◯  Abort — return to full `agora new` flow
+                (mini-alignment changes preserved; full session re-opens)
+
+     > _
+─────────────────────────────────────────────────────────────────
+```
+
+### After "Resume Ralph from checkpoint"
+
+```
+on_resume_with_refined_seed():
+  # Replay the 3 paused iterations against the refined seed
+  for iteration in checkpoint.last_3_iterations:
+    re_run_gates_1_to_5(iteration, refined_seed)
+    if all_gates_pass:
+      mark_iteration_validated_against_refinement
+    else:
+      mark_iteration_for_redo
+
+  # Continue Ralph from the next iteration after checkpoint
+  state.phase = "in_ralph"
+  state.z1_attempt_count_for_current_drift = 0   # reset counter
+  resume_ralph_loop(starting_at: checkpoint.next_iteration)
+```
+
+The replay is automatic but not silent — the user sees a brief `↻ Replaying
+3 paused iterations against refined seed...` line, then either
+`✓ All replays pass — resuming` or `⚠ N iterations need redo — Ralph will
+re-iterate them first`.
+
+### After "Discard last 3 iterations + restart Ralph from scratch"
+
+```
+on_discard_and_restart():
+  state.ralph_iteration_progress.discarded += 3
+  state.ralph_iteration_progress.checkpoint_id = null
+  state.z1_attempt_count_for_current_drift = 0
+  state.phase = "ready_for_ralph"
+  # Ralph starts fresh from iteration 1 (against the refined seed)
+```
+
+This is cleaner when the drift was deep enough that the discarded
+iterations would be more confusing than helpful.
+
+### After "Abort — return to full agora new flow"
+
+```
+on_abort_to_full_alignment():
+  # Mini-alignment refinements are preserved in seed
+  # But full alignment loop is re-opened — user can refine ANY field, not just
+  # the affected ones.
+  state.phase = "in_alignment"
+  state.ralph_iteration_progress.discarded += iteration_count_so_far
+  # User runs full Phase 2 (no Phase −1/0/1 — those still skip on existing seed
+  # via Brownfield/Greenfield SPEC Case C)
+```
+
+Selected when the user realizes the drift signaled something deeper than
+the affected_fields — e.g. the entire form might need rethinking.
+
+### Z3 remains forbidden
+
+There is no path that allows Ralph to "ignore the gate failure and push
+forward." Z3 was explicitly rejected during Stage 1:
+
+> *"ralph loop가 있다는건 이 loop하나 안에는 작업 → 검증 → 개선 이 loop가
+> 돈다는건데. alignment내용과 잘 맞게 가고있는지를 검증하고 개선하지
+> 않느다면 이건 말이 안되는거같아."* — Sang, Stage 1
+
+Gate 5 failure that exhausts Z1 *must* result in either Z2 (mini-alignment)
+or full abort. Z3 is structurally unavailable.
+
+### Boundaries
+
+- ❌ Z1 → Z2 below 3 attempts (R1-B rejected): too early; LLM noise can be
+  one-off. Three failures is the noise/signal threshold.
+- ❌ Z1 → Z2 above 5 attempts (R1-C rejected): wastes iterations on noise that
+  proven not to self-correct.
+- ❌ Silent Z2 entry (R2-B rejected): violates Sang's non-negotiable.
+- ❌ Z2 only on explicit user command (R2-C rejected): would let alignment
+  drift become permanent because users might not notice.
+- ❌ Mini-alignment touching unaffected fields (R3-C rejected): wastes user
+  time on settled work.
+- ❌ Mini-alignment without cascade (R3-B rejected): violates Validation
+  Gates axis-3 consistency.
+- ❌ Full Phase −1 / 0 / 1 on Z2 entry (R4-B/C rejected): Z2 is surgical, not
+  a full restart. User can choose "Abort to full" if they want full.
+- ❌ Auto-resume Ralph after mini-alignment (R5-B rejected): user must
+  confirm the resume strategy (replay vs restart vs abort).
+- ❌ More than 3 resume options (R5-C rejected): cognitive overflow at a
+  decision point already loaded with information.
+
+### Output consumed by
+
+- **Ralph Loop** (`docs/loops/ralph-loop.md`): Z2 trigger and resume strategies
+  define how Ralph reacts to Gate 5 escalation.
+- **State store** (`.agora/state.json`): `phase`, `ralph_pause_reason`,
+  `checkpoint_id`, `z1_attempt_count_for_current_drift` are written.
+- **History** (`.agora/history/`): mini-alignment session is recorded as a
+  sub-session under the original alignment session, with linkage to the
+  triggering Ralph iteration.
+- **Brownfield/Greenfield Case D**: provides the abort-to-full path that
+  this SPEC's "Abort" option transitions into.
+
+### Failure modes specifically guarded
+
+- **F2** (purpose visible): the entry dialog states the drift summary and
+  affected fields explicitly.
+- **F4** (build on prior): drift summary references specific iteration diffs.
+- **F5** (no false binary): both dialogs (entry + mini-termination) are 3-option.
+- **F-Aquinas-4** (silent overruling): no path silently dismisses Gate 5
+  failure. Either Z1 (transparent retry with addendum) or Z2 (announced
+  pause + user-controlled mini-alignment).
+- **Sang's non-negotiable**: extends to "never silently re-enter alignment" —
+  the user is always informed and chooses the path.
+
+---
+
 ## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
@@ -2085,9 +2370,15 @@ Questions resolved are struck through. Open questions are tackled in priority or
 
 8. ~~**Brownfield vs greenfield branching** (Stage 2-A.9)~~ ✅ Resolved 2026-04-28. See "Brownfield / Greenfield Branching [SPEC]" above.
 
-9. **Mini-alignment re-entry from Ralph (Z2)** (Stage 2-A.10) — open
-   - Shorter form of alignment loop for re-entry mid-Ralph
-   - How much context to re-confirm vs trust-from-prior-seed
+9. ~~**Mini-alignment re-entry from Ralph (Z2)** (Stage 2-A.10)~~ ✅ Resolved 2026-04-28. See "Mini-Alignment Re-entry from Ralph (Z2) [SPEC]" above.
+
+---
+
+## All Stage 2-A questions resolved (2026-04-28)
+
+Every Stage 2-A.X sub-question has been promoted from OPEN to SPEC. The
+Alignment Loop document is now ready to be marked **Accepted** as a whole
+upon Sang's review.
 
 ---
 
