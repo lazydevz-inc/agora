@@ -193,4 +193,30 @@ F-Aquinas-4 (silent overruling) specifically guarded.
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Validation Gates per Claim [SPEC]".
 
-Next task: Stage 2-A.8 — Termination Gate Y2 + Y3 (when does the loop offer to end, when does it generate preview, what does the preview look like).
+### Stage 2-A.8 — DONE (2026-04-28)
+
+Termination Gate (Y2 + Y3) algorithm specified. Five key decisions accepted:
+- **R1-A**: Y2 = 3 AND-ed conditions (all REQUIRED_FLOORS settled + no unresolved divergences + no pending backtracks)
+- **R2-A**: Y3 preview gated by quality ≥ 0.75 — bad preview suppressed entirely (omitted, not announced)
+- **R3-A**: 3-option dialog (Yes refine / No lock / Show full seed). 3 is the sweet spot — binary too thin, 4+ overflow
+- **R4-A**: "Yes refine" → free input → LLM parses intent to field path → R5-A backtrack. Disambiguation flow if confidence < 0.8
+- **R5-A**: Maturity + aporia summary always shown in termination dialog (the most consequential decision moment needs full info)
+
+Critical Sang non-negotiable preserved: **termination is never silent**. Y2 satisfaction only unblocks the dialog, never bypasses it. Every alignment session ends with explicit user assent.
+
+Preview generation specified:
+- 4-8 lines, first-person summary, no bullets, no jargon, no timelines
+- Must reference telos.statement + telos.served_good + form.essential_structure
+- Quality scored on 5 signals (coherence, seed_alignment, specificity, length, no_forbidden_patterns)
+- Weighted average; threshold default 0.75
+
+Termination acceptance flow:
+- Seed metadata write (locked_at, alignment_session_id, round_count, aporia_count, tension_acknowledged_fields)
+- Plato Dihairesis decomposition runs (handoff — Stage 2-C territory)
+- State transition to `ready_for_ralph`
+
+Failure modes F2/F4/F7/F8 + Sang's non-negotiable all guarded.
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Termination Gate (Y2 + Y3) [SPEC]".
+
+Next task: Stage 2-A.9 — Brownfield/greenfield branching (where the two paths diverge in detail beyond what Phase 0 SPEC already covers).

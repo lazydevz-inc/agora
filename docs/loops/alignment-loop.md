@@ -21,6 +21,7 @@
 | **Phase 2 — Round Structure** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.4) |
 | **Phase 2 — Recommended-options Generation** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.6) |
 | **Validation Gates per Claim** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.7) |
+| **Termination Gate (Y2 + Y3)** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.8) |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
 | Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
@@ -1391,6 +1392,280 @@ The history of the backtracked field's previous state is preserved in
 
 ---
 
+## Termination Gate (Y2 + Y3) [SPEC] (Accepted 2026-04-28)
+
+> **Goal**: Decide when the Alignment Loop is allowed to end, and how the
+> termination moment is presented to the user. Y2 = structural readiness
+> (composition of `is_field_settled()` results across all required fields).
+> Y3 = optional preview generation when quality threshold met.
+>
+> **Critical UX rule** (Sang's Stage-1 input, non-negotiable): termination
+> is **never silent**. Even when Y2 is satisfied and Y3 preview quality is
+> high, the system always asks *"anything else to refine?"* and waits for
+> explicit user assent.
+
+### Algorithm
+
+```
+check_termination(seed_state, history, phase_0_result) -> TerminationDecision:
+
+  # ─── Y2 — Structural readiness (R1-A: 3 conditions, all required) ───
+  all_required_settled = all(
+    is_field_settled(field, seed_state, history)
+    for field in REQUIRED_FLOORS.keys()
+  )
+
+  no_unresolved_divergences = all(
+    d.resolved for d in phase_0_result.divergences
+  )
+
+  no_pending_backtracks = not history.has_pending_backtrack
+
+  y2_satisfied = all_required_settled \
+                 AND no_unresolved_divergences \
+                 AND no_pending_backtracks
+
+  if not y2_satisfied:
+    return CONTINUE_LOOP   # round-planner picks next round to address gap
+
+  # ─── Y3 — Preview generation (R2-A: quality-gated) ───
+  preview = generate_preview(seed_state, history)
+  preview_quality = score_preview_quality(preview, seed_state)
+
+  show_preview = preview_quality >= PREVIEW_QUALITY_THRESHOLD  # default 0.75
+
+  # ─── Termination dialog (NEVER silent — Sang's non-negotiable) ───
+  return TERMINATION_DIALOG(
+    show_preview: show_preview,
+    preview: preview if show_preview else None,
+    seed_summary: render_seed_summary(seed_state),
+    maturity_table: render_maturity_table(seed_state),
+    aporia_summary: render_aporia_summary(history),
+  )
+
+
+PREVIEW_QUALITY_THRESHOLD = 0.75   # configurable via .agora/config.toml later
+```
+
+### Preview generation
+
+```
+generate_preview(seed_state, history) -> Preview:
+  # 4-8 line natural-language summary of what implementation will look like.
+  # NOT a feature list. NOT a technical spec.
+  # First-person sentence-style description.
+
+  return llm_render_preview(
+    inputs: seed_state,
+    style: "first-person summary, 4-8 lines, no jargon",
+    forbidden: [
+      "bullet lists",                    # we have the maturity table for that
+      "technical details beyond material",  # this is intent preview, not impl
+      "promises about timeline",         # never
+      "promises about completeness",     # never
+    ],
+    must_reference: [
+      "telos.statement",                 # the why must appear
+      "telos.served_good",               # the good must appear
+      "form.essential_structure",        # the shape must appear
+    ],
+  )
+```
+
+Example preview:
+
+```
+You're building a personal note-taking tool that captures what you read with
+enough context for future-self to reconnect with the ideas. The shape is a
+local-first CLI with a small set of commands; structure favors retrievability
+over presentation. Material cause is settled (Node + SQLite). The first
+Ralph iterations will scaffold the capture command and the link primitives;
+audience-relationship features (the small-circle aspect) are deferred to
+later iterations and tagged as such in the AC tree.
+```
+
+### Preview quality scoring
+
+```
+score_preview_quality(preview, seed_state) -> float [0.0, 1.0]:
+  signals = {
+    coherence:           llm_judge(preview, "is this internally coherent?"),
+    seed_alignment:      llm_judge(preview, seed_state, "matches seed?"),
+    specificity:         ratio(specific_terms, total_words),  # > 0.15 = specific
+    length_appropriate:  4 <= line_count <= 8,                # boolean → 1.0/0.0
+    no_forbidden_patterns:  no bullet lists, no jargon, no timelines,
+  }
+
+  weights = {
+    coherence: 0.30,
+    seed_alignment: 0.30,
+    specificity: 0.20,
+    length_appropriate: 0.10,
+    no_forbidden_patterns: 0.10,
+  }
+
+  return weighted_avg(signals, weights)
+```
+
+### Termination dialog UX
+
+```
+─────────────────────────────────────────────────────────────────
+  ✅ Alignment ready
+─────────────────────────────────────────────────────────────────
+
+  All load-bearing claims are settled to the required maturity.
+  No unresolved divergences. No pending backtracks.
+
+  📊 Maturity summary:                     (R5-A: always in dialog)
+     telos.statement       NOESIS    (3 alts examined)
+     telos.served_good     NOESIS    (1 probe, refined once)
+     telos.failure_signal  DIANOIA   (above floor)
+     form.essential_*      DIANOIA   (1 probe, affirmed)
+     form.irreducible_parts PISTIS   (above floor)
+     material.*            PISTIS    (4 markers, all confirmed)
+     efficient.*           PISTIS    (solo project, 1-line)
+     acceptance_criteria   DIANOIA   (4 ACs probed)
+
+  🎯 Aporia history: 2  (telos.statement: 1, form: 1) — both refined
+  📎 Tension-acknowledged: 0
+
+  📄 Preview — what Ralph will likely build:    (Y3, only if quality ≥ 0.75)
+     You're building a personal note-taking tool that captures what
+     you read with enough context for future-self to reconnect with
+     the ideas. The shape is a local-first CLI with a small set of
+     commands; structure favors retrievability over presentation.
+     The first Ralph iterations will scaffold the capture command
+     and the link primitives.
+
+  ── Anything else you want to refine before we lock the seed? ──
+
+     ◯  Yes — let me address something
+     ◯  No — lock it and proceed to Ralph
+     ◯  Show me the full seed (read-only) before deciding
+
+     [Enter a number] · [Ctrl+C pause]
+
+  > _
+─────────────────────────────────────────────────────────────────
+```
+
+When preview quality < threshold, the `📄 Preview` section is **omitted entirely** (not shown at low quality — bad preview is worse than no preview). The dialog still proceeds; the user is not told *why* preview was suppressed (avoids cognitive load), only the maturity table and aporia summary inform their decision.
+
+### "Yes — refine something" handling [R4-A]
+
+```
+on_user_chooses_yes() -> RefinementFlow:
+  prompt: "What would you like to refine?"
+  user_input: free text
+
+  parsed_target = llm_parse_refinement_intent(
+    input: user_input,
+    seed_state: seed_state,
+    options: [field_path for field_path in seed_state],
+  )
+
+  if parsed_target.confidence >= 0.8:
+    # Direct backtrack into named field via Round Ordering R5-A mechanism
+    return Backtrack(target_field: parsed_target.field)
+
+  if parsed_target.confidence < 0.8:
+    # Disambiguate
+    follow_up = "I'm not sure which field you mean. Did you mean:"
+    show: top 3 candidates with quotes from user_input
+    return user_picks_one_or_clarifies()
+
+  # After backtrack completes, check_termination() runs again from the top
+```
+
+The natural-language refinement entry path mirrors Round Ordering R5-A
+("actually let me change..." prefix). Two paths to backtrack: `agora seed --edit`
+explicitly, OR through the termination dialog's "Yes" branch.
+
+### "Show me the full seed" handling
+
+```
+on_user_chooses_show_seed() -> ReadOnlyView:
+  rendered_seed = render_full_seed_markdown(seed_state, history)
+  open_in_pager(rendered_seed)   # less / more / pager-of-choice
+  # On pager exit, return to termination dialog (re-render with same data)
+```
+
+The full-seed view is the locked-in artifact preview, with maturity per
+field, all rejected_alternatives, all probe records, all aporia events.
+This is the "are you sure?" moment.
+
+### Termination acceptance — what happens
+
+```
+on_user_chooses_no_lock_it() -> SeedLocked:
+  # 1. Final write of seed.md and seed.json
+  # 2. seed.metadata.locked_at = now()
+  # 3. seed.metadata.alignment_session_id = current_session
+  # 4. seed.metadata.alignment_round_count = len(history.rounds)
+  # 5. seed.metadata.aporia_count = total
+  # 6. seed.metadata.tension_acknowledged_fields = list
+
+  # 7. Plato Dihairesis runs (handoff — Stage 2-C)
+  ac_tree = plato_dihairesis_decompose(seed.acceptance_criteria)
+  write(".agora/ac_tree.json", ac_tree)
+
+  # 8. State transition
+  state.phase = "ready_for_ralph"
+
+  # 9. User-facing confirmation
+  display:
+    """
+    ✅ Seed locked.
+
+    Next: `agora ralph` to begin implementation.
+    Or: `agora seed --edit <field>` to re-open alignment.
+    """
+```
+
+### Boundaries
+
+- ❌ Silent termination (Sang's non-negotiable). Always shows dialog.
+- ❌ Dialog with 2 options (R3-B rejected). 3 is the sweet spot.
+- ❌ Dialog with 4+ options (R3-C rejected). Edit-specific-field belongs to
+  `agora seed --edit`, not dialog.
+- ❌ Always-show preview regardless of quality (R2-B rejected). Bad preview
+  damages trust more than its absence.
+- ❌ Preview always suppressed (R2-C rejected). When quality is high, preview
+  is the most useful trust-building artifact in the loop.
+- ❌ Forced field-selector for "Yes refine" (R4-B rejected). Free input + LLM
+  parsing is lighter on the user.
+- ❌ Maturity summary in `agora status` only (R5-C rejected). The termination
+  moment needs full information at hand.
+
+### Output consumed by
+
+- **CONTINUE_LOOP** result: handed back to Round Ordering planner for next
+  round selection.
+- **TERMINATION_DIALOG** "No, lock it": triggers seed.metadata write,
+  Plato Dihairesis decomposition (Stage 2-C handoff), state transition to
+  `ready_for_ralph`.
+- **TERMINATION_DIALOG** "Yes, refine": triggers backtrack into the
+  parsed field via R5-A mechanism, then re-runs check_termination.
+- **TERMINATION_DIALOG** "Show full seed": pager view, then re-renders dialog.
+- **Ralph Loop entry**: reads `seed.metadata.locked_at` to know the seed is
+  ready; reads `seed.metadata.tension_acknowledged_fields` to flag fields
+  needing stricter Gate 5 monitoring.
+
+### Failure modes specifically guarded
+
+- **F2** (purpose visible): the dialog announces what each option does
+  ("lock it and proceed to Ralph" — explicit consequence).
+- **F4** (build on prior): maturity summary, aporia summary, and preview
+  all explicitly reference the alignment session's history.
+- **F7** (no single proposal without alts): three explicit options always.
+- **F8** (free input not as option): "Yes refine" path uses free input
+  *after* the user chooses that option, not as an enumerated dialog item.
+- Sang's non-negotiable: silent termination is structurally impossible —
+  Y2 satisfaction *only* unblocks the dialog, never bypasses it.
+
+---
+
 ## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
@@ -1604,9 +1879,7 @@ Questions resolved are struck through. Open questions are tackled in priority or
 
 6. ~~**Validation gates per claim** (Stage 2-A.7)~~ ✅ Resolved 2026-04-28. See "Validation Gates per Claim [SPEC]" above.
 
-7. **Termination Gate Y2 + Y3** (Stage 2-A.8) — open
-   - Precise algorithm for "I think we have enough to proceed"
-   - Preview generation quality threshold (when to show, when to suppress)
+7. ~~**Termination Gate Y2 + Y3** (Stage 2-A.8)~~ ✅ Resolved 2026-04-28. See "Termination Gate (Y2 + Y3) [SPEC]" above.
 
 8. **Brownfield vs greenfield branching** (Stage 2-A.9) — partially resolved
    - Phase 0 classification rule is now SPEC (R1-A)
