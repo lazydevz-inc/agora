@@ -219,4 +219,48 @@ Failure modes F2/F4/F7/F8 + Sang's non-negotiable all guarded.
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Termination Gate (Y2 + Y3) [SPEC]".
 
-Next task: Stage 2-A.9 — Brownfield/greenfield branching (where the two paths diverge in detail beyond what Phase 0 SPEC already covers).
+### Stage 2-A.9 — DONE (2026-04-28)
+
+Brownfield/greenfield branching consolidated into a single SPEC table.
+Three key decisions made/refined:
+
+- **R1-A**: low-confidence brownfield → user replies "new project" → eager re-routing
+  (classification flips to greenfield + Husserl invoked immediately + context_docs/markers cleared + reclassification recorded)
+- **R2-B (Sang revision of R2-A)**: greenfield Husserl Phase −1 has NO skip flag.
+  Biased-product principle commits to the most valuable single phase. Escape valve =
+  rapid affirmation through brackets (≈30s if frame is sturdy). Removing `--no-bracket`
+  prevents lazy-skip from defeating the phase that justifies greenfield UX.
+- **R3 hybrid (Sang's question expanded into 4 cases)**: existing `.agora/` directory
+  on `agora new` is handled by reading `state.json` and branching:
+  - **Case A (no prior)**: Fresh start
+  - **Case B (in-progress unfinished)**: Warning dialog (Resume / Discard / Cancel)
+  - **Case C (locked seed)**: Auto-ingest prior seed as context + Phase 1 variant prompt
+    ("Add feature / Refine seed / Something different")
+  - **Case D (Ralph in progress)**: Confirmation dialog (Pause + new alignment / Continue Ralph / Cancel)
+
+Per-phase divergence consolidated into a single comparison table covering
+Husserl, Phase 0, Phase 1, Phase 2 (Husserl gating, Material round,
+Divergence rounds, Options Source 1), Validation gates, Termination dialog,
+estimated round count.
+
+`state.json` schema implications captured (phase enum, seed_locked,
+alignment_started_at, rounds_completed, etc.) — Stage 2-A.10 and Stage 4
+will further constrain.
+
+`agora resume` defined as the natural mate to Case B — either invoked directly
+or selected from the Case B warning dialog. Behavior across all state.phase
+values enumerated.
+
+Failure modes F2/F5/F-Aquinas-4 + Sang's non-negotiable all guarded.
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Brownfield / Greenfield Branching [SPEC]".
+
+Sang's question that drove the refinement:
+> "이전 seed가 끝나지 않은 상태로 있는 경우가 어떤경우가 있을까?
+>  하다 중간에 멈추고. 다시 들어와서 새로 시작하고싶은 경우가 있을까?
+>  그렇다면 C안으로 가야할까?"
+This question split R3-A's overly-simple recommendation into the 4-case
+hybrid that captures real user states.
+
+Next task: Stage 2-A.10 — Mini-alignment re-entry from Ralph (Z2 escalation
+path; shorter form of alignment loop for re-entry mid-Ralph).

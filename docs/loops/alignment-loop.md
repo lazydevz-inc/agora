@@ -22,6 +22,7 @@
 | **Phase 2 — Recommended-options Generation** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.6) |
 | **Validation Gates per Claim** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.7) |
 | **Termination Gate (Y2 + Y3)** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.8) |
+| **Brownfield/Greenfield Branching** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.9) — supersedes Phase 0 partial |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
 | Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
@@ -1666,6 +1667,207 @@ on_user_chooses_no_lock_it() -> SeedLocked:
 
 ---
 
+## Brownfield / Greenfield Branching [SPEC] (Accepted 2026-04-28)
+
+> **Goal**: Consolidate the divergences between brownfield and greenfield
+> paths into a single source of truth. Phase 0 SPEC determines the
+> classification; this SPEC defines what that classification *means* across
+> every subsequent phase. Implementation referencing this table prevents
+> divergence-handling bugs scattered across phases.
+>
+> Also defines Agora's response when `agora new` is invoked over an existing
+> `.agora/` directory (the four prior-state cases A/B/C/D).
+
+### Per-phase divergence table
+
+| Phase | Brownfield | Greenfield |
+|-------|------------|------------|
+| **Phase −1 (Husserl)** | **Default OFF.** `agora bracket` always available for explicit invocation. Reason: the existing code IS the frame; bracketing an already-committed frame is over-application. | **MANDATORY.** No skip flag. Reason: the frame is undefined; bracketing is the most valuable single phase for greenfield. Rapid affirmation through brackets is the only escape (≈ 30s if frame is sturdy). |
+| **Phase 0 (Auto-scan)** | **Critical.** Produces full `context_docs` (CLAUDE.md, README.md, etc.) + `detected_markers` (Vercel, Supabase, etc.) + possible `divergences[]`. | **Minimal.** `context_docs` and `detected_markers` typically empty. Classification is the primary output. |
+| **Phase 1 (Open intake)** | Prompt template: *"I've read your X. You don't need to re-explain what the project is — just tell me what you want to do here today."* (Phase 1 SPEC R1-A) | Prompt template: *"This looks like a fresh start. Tell me as much as you can — what / why / shape."* (Phase 1 SPEC R2-A) |
+| **Phase 2 — Husserl gating** | Skipped entirely (default-off). | Runs first, before any other Phase 2 round (mandatory pre-check). |
+| **Phase 2 — Material round** | Auto-fill from `phase_0_result.detected_markers` as Mode A multi-select confirmation panel. (Round Ordering R3-A) | Elicited fresh via Mode A exemplars (Aristotle exemplars from `material.yaml`). No auto-fill source. |
+| **Phase 2 — Divergence rounds** | May run if `phase_0_result.divergences[]` is non-empty (e.g. CLAUDE.md vs README.md disagree). Round Ordering step 7. | Never runs (no prior docs to clash). |
+| **Phase 2 — Options Source 1** | Strongest source — project_specific extraction from `context_docs` provides candidates with verified `source_passage`. | Yields 0 candidates (no docs). Sources 2 (Aristotle exemplars), 3 (prior consistency), and 4 (LLM creative) carry the load. Source 4 fires more often. |
+| **Validation gates** | Same algorithm both sides. Same axes, same `REQUIRED_FLOORS`. | Same. |
+| **Termination dialog** | Same UX both sides. Maturity summary lists "detected from project: N" alongside settled fields. | Same UX. "Detected from project: 0" indicates greenfield context. |
+| **Estimated round count** | Typically 3–5 rounds. Existing context provides shortcuts; users spend words on what's new, not on re-explaining. | Typically 5–8 rounds. All context is elicited fresh; Phase −1 plus full four-cause coverage takes more turns. |
+
+### Decision: low-confidence brownfield → user reclassifies as greenfield [R1-A]
+
+When Phase 0 returns `(brownfield, low_confidence)` and the user responds *"new project"* in Phase 1's confirmation line:
+
+```
+on_user_reclassifies_to_greenfield():
+  # 1. Update classification immediately
+  phase_0_result.classification = greenfield
+  phase_0_result.confidence = high  # user confirmed
+  phase_0_result.context_docs = []  # discard; user said this isn't context
+  phase_0_result.detected_markers = []  # same — they may apply to a previous attempt
+  
+  # 2. RE-ROUTE the entire path
+  # Husserl Phase −1 is now mandatory — start it immediately
+  if not history.has_husserl:
+    invoke_husserl_phase_minus_1()
+  
+  # 3. Phase 1 prompt is replayed using the greenfield template (R2-A from Phase 1 SPEC)
+  
+  # 4. Subsequent Phase 2 rounds use greenfield contributors
+  #    (no material auto-fill, no divergence rounds, etc.)
+  
+  # 5. Record the reclassification in seed.metadata
+  seed.metadata.reclassified_at_phase_1 = true
+```
+
+The reclassification is **eager** — re-routing happens immediately, not deferred. Reason: the user has the most context about whether this is a fresh start; their declaration overrides the auto-detection.
+
+### Decision: greenfield Husserl Phase −1 has no skip flag [R2-B]
+
+Per the discussion of biased-product principle, `--no-bracket` is **not provided**. The escape valve is the bracket itself — a user with a sturdy frame can affirm through the three brackets in ~30 seconds. Lazy-skip would defeat the most valuable phase for greenfield.
+
+```
+greenfield Husserl Phase −1 invocation:
+  default: ON, MANDATORY
+  skip mechanism: NONE (no --no-bracket flag, no env var)
+  user escape: rapid affirmation through brackets (typically 30s if frame is sturdy)
+  reason: the lazy-skip path would defeat the most valuable single phase
+```
+
+Brownfield Husserl Phase −1 remains default-off as before. Brownfield user who wants frame-bracketing on an existing project: `agora bracket` (mid-session command).
+
+### Decision: existing `.agora/` directory handling on `agora new` [R3 hybrid]
+
+When `agora new [name]` is invoked, the system reads `.agora/state.json` and branches based on the prior state:
+
+```
+on_invoke_agora_new(cwd, args):
+  state = read_state_json(cwd)
+
+  # ── Case A: No prior `.agora/` directory ──
+  if state is None:
+    → Fresh alignment start (default flow)
+
+  # ── Case B: In-progress alignment (UNFINISHED, NOT YET LOCKED) ──
+  elif state.phase == "in_alignment" AND not state.seed_locked:
+    → SHOW WARNING DIALOG (3 options):
+      """
+      ⚠ 진행 중인 alignment session 발견:
+        시작:           {state.alignment_started_at}
+        완료된 라운드:  {state.rounds_completed} / 예상 ~{state.estimated_rounds}
+        마지막 답변:    {state.last_answered_field}
+
+      어떻게 할까요?
+        ◯  Resume — 이어서 계속 (= `agora resume`)
+        ◯  Discard — 버리고 새로 시작 (이전 답변 .agora/history/ 에 보존)
+        ◯  Cancel — 이 명령 취소
+      """
+
+  # ── Case C: Locked seed (alignment complete; Ralph not yet started, or done) ──
+  elif state.phase in ["ready_for_ralph", "ralph_complete"] AND state.seed_locked:
+    → AUTO-INGEST prior seed as context (per Phase 0 PRIORITY_ORDER which already
+       includes `.agora/seed.md` near the top)
+    → Phase 1 prompt VARIANT for "second alignment session":
+      """
+      Last alignment locked: {seed.telos.statement_short}.
+      What would you like to do today?
+
+        ◯  Add a new feature on top of {project_name}
+        ◯  Refine some part of the locked seed
+        ◯  Something completely different (treat as new project)
+
+        [Enter a number] · [type free description]
+      """
+
+  # ── Case D: Ralph in progress (seed locked, Ralph mid-iteration) ──
+  elif state.phase == "in_ralph":
+    → SHOW CONFIRMATION DIALOG (3 options):
+      """
+      ⚠ Ralph가 진행 중입니다 (iteration {n}/~{est}).
+        새 alignment를 시작하면 현재 Ralph가 일시 중단됩니다.
+
+      어떻게 할까요?
+        ◯  Pause Ralph + start new alignment (Ralph 진행상황 보존)
+        ◯  Continue Ralph (= `agora ralph resume`)
+        ◯  Cancel — 이 명령 취소
+      """
+```
+
+### State.json schema implications
+
+The branching logic above requires `state.json` to track:
+
+```json
+{
+  "phase": "in_alignment | in_alignment_paused | ready_for_ralph | in_ralph | in_ralph_paused | ralph_complete",
+  "seed_locked": false,
+  "alignment_started_at": "2026-04-28T03:14:00Z",
+  "alignment_session_id": "session_20260428_031400",
+  "rounds_completed": 4,
+  "estimated_rounds": 6,
+  "last_answered_field": "telos.served_good",
+  "ralph_iteration_count": 0,
+  "ralph_estimated_total": 0,
+  "last_active_at": "2026-04-28T12:34:00Z"
+}
+```
+
+Stage 2-A.10 (mini-alignment re-entry from Ralph) and Stage 4 (storage layer)
+will further constrain this schema, but the above fields are required for
+brownfield/greenfield branching to function.
+
+### `agora resume` — the natural mate to Case B
+
+`agora resume` is implicitly defined by Case B above: when `agora new`
+encounters an in-progress alignment and the user picks "Resume," it is
+equivalent to having run `agora resume` directly from the start.
+
+`agora resume` outside the `agora new` warning dialog:
+- If `state.phase == "in_alignment"` → resume the alignment loop from
+  `last_answered_field`'s next round
+- If `state.phase == "in_alignment_paused"` (Ctrl+C exit) → same as above
+- If `state.phase == "in_ralph"` or `"in_ralph_paused"` → resume Ralph
+- If `state.phase == "ready_for_ralph"` → start Ralph
+- If `state.phase == "ralph_complete"` → "Nothing to resume; alignment
+  is locked and Ralph completed. Run `agora new` for a new session."
+- If no `.agora/` → "Nothing to resume; run `agora new` to start."
+
+### Boundaries
+
+- ❌ Greenfield Husserl skip via flag (R2-B: no escape valve outside brackets themselves).
+- ❌ Silent discard of in-progress alignment (Case B requires explicit user choice).
+- ❌ Cross-folder context bleed when ingesting prior seed (Case C ingestion stays
+  bounded to the same `cwd` per ADR-0007 / P5+ rule).
+- ❌ Auto-pausing Ralph without explicit user choice (Case D requires confirmation).
+- ❌ Treating low-confidence brownfield as silent greenfield (always confirmed via
+  Phase 1 one-liner; reclassification is eager but explicit).
+
+### Output consumed by
+
+- **Phase 0 SPEC**: low-confidence path's reclassification handler defined here.
+- **Round Ordering planner**: reads classification (potentially reclassified) to
+  decide Husserl invocation, material auto-fill, divergence rounds.
+- **Phase 2 Options generator**: reads classification to know which Source mix
+  to expect (Source 1 vs Sources 2-4 dominant).
+- **Termination dialog**: reads classification to render the maturity summary's
+  "detected from project: N" line accurately.
+- **CLI dispatch (`agora new`, `agora resume`)**: branches on `state.phase`
+  per the four-case logic above.
+
+### Failure modes specifically guarded
+
+- **F2** (purpose visible): every dialog (Cases B and D) explicitly states the
+  consequence of each option ("Resume", "Discard with history preserved", etc.).
+- **F5** (no false binary): Cases B and D are 3-option, not yes/no.
+- **F-Aquinas-4** (silent overruling): silent reclassification, silent discard,
+  silent Ralph pause are all forbidden — every state-changing transition is
+  user-confirmed.
+- **Sang's non-negotiable**: per Stage 1 — "agora가 내부적으로 판단해서 마쳐도
+  될 때 항상 유저에게 더 이야기할 게 있는지 묻고 없을 때만 끝낸다" — the
+  same principle applies to *starting over*, not just *finishing*. Cases B
+  and D both honor it explicitly.
+
+---
+
 ## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
@@ -1881,9 +2083,7 @@ Questions resolved are struck through. Open questions are tackled in priority or
 
 7. ~~**Termination Gate Y2 + Y3** (Stage 2-A.8)~~ ✅ Resolved 2026-04-28. See "Termination Gate (Y2 + Y3) [SPEC]" above.
 
-8. **Brownfield vs greenfield branching** (Stage 2-A.9) — partially resolved
-   - Phase 0 classification rule is now SPEC (R1-A)
-   - Remaining: how Phase −1 and Phase 2 differ between the two
+8. ~~**Brownfield vs greenfield branching** (Stage 2-A.9)~~ ✅ Resolved 2026-04-28. See "Brownfield / Greenfield Branching [SPEC]" above.
 
 9. **Mini-alignment re-entry from Ralph (Z2)** (Stage 2-A.10) — open
    - Shorter form of alignment loop for re-entry mid-Ralph
