@@ -20,6 +20,7 @@
 | **Phase 2 — Round Ordering** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.5) |
 | **Phase 2 — Round Structure** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.4) |
 | **Phase 2 — Recommended-options Generation** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.6) |
+| **Validation Gates per Claim** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.7) |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
 | Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
@@ -1165,6 +1166,231 @@ Agora is high-confidence vs guessing.
 
 ---
 
+## Validation Gates per Claim [SPEC] (Accepted 2026-04-28)
+
+> **Goal**: Decide when a claim (a value assigned to a seed field) is
+> "settled enough" to count toward termination. Too loose → immature seed →
+> Ralph drift compounds (the 0.9^10 problem). Too strict → loop never
+> terminates → user abandons.
+>
+> **Mental model**: three independent axes; the weakest determines effective
+> maturity. A claim cannot bootstrap to Noesis on the strength of one axis.
+
+### Algorithm
+
+```
+compute_claim_maturity(field, current_state, history) -> Maturity:
+  axis_1 = plato_divided_line_score(field, current_state)
+  axis_2 = socratic_survival_score(field, history)
+  axis_3 = aristotelian_coverage_score(field, current_state, sibling_fields)
+
+  return min(axis_1, axis_2, axis_3)   # R1-A: chain-of-strength
+
+
+is_field_settled(field, state, history) -> bool:
+  required_floor = REQUIRED_FLOORS[field]
+  computed = compute_claim_maturity(field, state, history)
+  return computed >= required_floor
+
+
+REQUIRED_FLOORS = {
+  "telos.statement":          NOESIS,
+  "telos.served_good":        NOESIS,
+  "telos.failure_signal":     DIANOIA,    # R2-A: not Noesis-required
+  "form.essential_structure": DIANOIA,
+  "form.irreducible_parts":   PISTIS,
+  "material.*":               PISTIS,
+  "efficient.*":              PISTIS,
+  "acceptance_criteria.*":    DIANOIA,
+  "ontology.*":               DIANOIA,
+}
+```
+
+### Axis 1 — Plato Divided Line
+
+```
+plato_divided_line_score(field, state) -> Maturity:
+  if state.value is empty/null:
+    return EIKASIA               # nothing yet
+
+  if state.value exists, no justification:
+    return PISTIS                # belief without justification
+
+  if state.justification exists:
+    return DIANOIA               # reasoned
+
+  if state.justification AND state.rejected_alternatives (≥1) AND
+     each alternative has why_rejected reason:
+    return NOESIS                # understood — alternatives examined
+```
+
+The Noesis test is operational: *"What alternative did you consider for this
+claim, and why did you reject it?"* No alternative articulated → not Noesis.
+Period. (Per `docs/philosophy/04-plato-...md`.)
+
+### Axis 2 — Socratic survival
+
+```
+socratic_survival_score(field, history) -> Maturity:
+  if field NOT in LOAD_BEARING_FIELDS:
+    return NOESIS                # axis not applicable; never the bottleneck
+
+  probes = [r for r in history if r.target_field == field and r.was_probe]
+
+  if no probes yet:
+    return DIANOIA               # claim exists but unprobed → cannot certify
+
+  if any probe ended in unresolved aporia (user kept original
+     with tension_acknowledged):
+    return DIANOIA               # R3-A: tension is honest signal, not Noesis
+
+  if probes ≥ 1 AND all resolved (refined or affirmed):
+    return NOESIS
+```
+
+Round Structure SPEC defined `LOAD_BEARING_FIELDS = telos.*, form.essential_structure, AC.*`.
+For non-load-bearing fields (material, efficient), this axis returns NOESIS
+(does not constrain). For load-bearing, the axis enforces Socratic discipline.
+
+### Axis 3 — Aristotelian coverage
+
+```
+aristotelian_coverage_score(field, state, siblings) -> Maturity:
+  required_siblings = SIBLING_REQUIREMENTS.get(field, [])
+
+  if any required sibling is empty:
+    return cap_at_DIANOIA        # cannot reach Noesis with incomplete siblings
+
+  return NOESIS
+
+
+SIBLING_REQUIREMENTS = {
+  # R4-A: load-bearing field interdependencies only
+  "telos.statement":           ["telos.served_good"],          # mutual
+  "telos.served_good":         ["telos.statement"],            # mutual
+  "form.essential_structure":  ["telos.statement"],            # form needs telos
+  "acceptance_criteria.*":     ["telos.statement", "form.essential_structure"],
+  # material.*, efficient.*: no sibling requirements
+  # telos.failure_signal:    no sibling requirement (it's nice-to-have)
+}
+```
+
+The coverage axis encodes ADR-0006's "telos primary" principle structurally:
+no claim downstream of telos can reach Noesis until telos is settled.
+
+### Composition rule [R1-A]
+
+```
+effective_maturity = min(axis_1, axis_2, axis_3)
+```
+
+The weakest axis determines the result. **The strong axes do not compensate
+for a weak one.** This is conservative by design — the cost of false-positive
+maturity (premature Ralph entry) compounds as 0.9^N. The cost of one extra
+round in alignment is one round.
+
+Example: `telos.statement` with
+- axis_1 = NOESIS (rejected_alternatives present)
+- axis_2 = DIANOIA (probed but kept-with-tension)
+- axis_3 = NOESIS (siblings settled)
+- effective = DIANOIA → does NOT meet REQUIRED_FLOORS[telos.statement]=NOESIS
+- claim is NOT settled; further round needed
+
+### Tension-acknowledged claims [R3-A]
+
+When the user explicitly chooses `[k] keep original with tension_acknowledged`
+during aporia handling (Round Structure R5-A):
+
+- Axis 1 (Plato): can still reach NOESIS if rejected_alternatives are
+  documented separately (the kept-original claim itself is unchanged)
+- Axis 2 (Socratic): caps at DIANOIA (probe ended in unresolved aporia)
+- Axis 3 (Aristotelian): unaffected
+- Composition: caps at DIANOIA via axis 2
+
+This means **a tension-acknowledged claim cannot reach Noesis**. Honest signal
+preserved; user must take action (re-probe, refine, or accept that the field
+will remain at DIANOIA — relevant only for fields with a Noesis floor like
+`telos.statement`).
+
+### Maturity display to user [R5-A]
+
+Maturity is **not displayed during normal rounds**. Showing it per-round
+would gamify the loop — users would optimize for "moving the meter" rather
+than for clarity.
+
+Maturity IS displayed in two specific contexts:
+
+1. **`agora status`** — the user explicitly asks for current state. Output
+   includes a per-field maturity table:
+
+   ```
+   Telos
+     statement       NOESIS    ✓ floor met (NOESIS required)
+     served_good     NOESIS    ✓ floor met (NOESIS required)
+     failure_signal  PISTIS    ✗ below floor (DIANOIA required)
+   Form
+     essential_structure  DIANOIA  ✓ floor met (DIANOIA required)
+     irreducible_parts    PISTIS   ✓ floor met (PISTIS required)
+   ...
+   ```
+
+2. **Termination preview (Y3)** — when termination becomes possible, the
+   pre-lock preview shows the maturity table so the user knows exactly
+   what state they're locking in.
+
+Otherwise, maturity is internal to the planner. Users see the *effects*
+(round happens / round skipped) not the *measurement*.
+
+### Backtrack interaction [from Round Ordering R5-A]
+
+When a user backtracks via `agora seed --edit <field>`:
+
+- The named field's maturity resets to EIKASIA (its `value` is blanked).
+- All fields that name the backtracked field in their `SIBLING_REQUIREMENTS`
+  drop to `cap_at_DIANOIA` automatically (axis 3 effect).
+- Their other axes are unchanged; the user does not re-probe everything,
+  only re-confirms the dependent claims.
+
+The history of the backtracked field's previous state is preserved in
+`.agora/history/` for audit. The new state starts fresh.
+
+### Boundaries
+
+- ❌ Composition by max (R1-C rejected): a single strong axis would let
+  premature Noesis through.
+- ❌ Composition by weighted average (R1-B rejected): adds noise without
+  changing the conservative-vs-permissive axis.
+- ❌ NOESIS floor on telos.failure_signal (R2-B rejected): predicts user
+  cannot make.
+- ❌ Tension-acknowledged → NOESIS (R3-C rejected): silently accepting
+  unresolved tension is exactly what F-Aquinas-4 (silent overruling) is.
+- ❌ Sibling requirements for material/efficient (R4-B rejected): would
+  block valid solo-project shapes where these are loosely defined.
+- ❌ Per-round maturity display (R5-B rejected): gamification risk.
+
+### Output consumed by
+
+- **Round Ordering planner**: calls `is_field_settled()` to decide which
+  field is the next round's contributor target. The first field whose
+  REQUIRED_FLOOR is not met becomes the next round's focus.
+- **Termination Gate (Y2)** (Stage 2-A.8 next): aggregates `is_field_settled()`
+  across all required fields. All required fields settled → Y2 condition met.
+- **`agora status`** and **Termination preview Y3**: display the per-field
+  maturity table.
+- **Ralph Gate 5 (Alignment Check)**: load-bearing field maturities are part
+  of the seed's "trust signal" carried into Ralph. Tension-acknowledged
+  claims trigger stricter Gate 5 monitoring during Ralph iterations.
+
+### Failure modes specifically guarded
+
+- **F2** (purpose visible): when `is_field_settled()` returns false during
+  planning, the next round's `purpose_label` includes which axis caused
+  the gating ("axis 2: needs Socratic probe").
+- **F-Aquinas-4** (silent overruling): tension-acknowledged claims explicitly
+  cap maturity rather than silently inheriting the original Noesis assessment.
+
+---
+
 ## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
@@ -1376,11 +1602,7 @@ Questions resolved are struck through. Open questions are tackled in priority or
 
 5. ~~**Recommended-options generation** (Stage 2-A.6)~~ ✅ Resolved 2026-04-28. See "Phase 2 — Recommended-options Generation [SPEC]" above.
 
-6. **Validation gates per claim** (Stage 2-A.7) — open
-   - Maturity-based (Plato's Divided Line) — telos must reach Noesis
-   - Implication-based (Socratic elenchus) — claim must survive case probing
-   - Coverage-based (Aristotle's four causes) — all four causes addressed
-   - Composition rule between the three
+6. ~~**Validation gates per claim** (Stage 2-A.7)~~ ✅ Resolved 2026-04-28. See "Validation Gates per Claim [SPEC]" above.
 
 7. **Termination Gate Y2 + Y3** (Stage 2-A.8) — open
    - Precise algorithm for "I think we have enough to proceed"

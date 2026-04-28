@@ -173,4 +173,24 @@ Failure modes F2/F4/F7/F8 specifically guarded. Provenance preserved on every op
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 2 — Recommended-options Generation [SPEC]".
 
-Next task: Stage 2-A.7 — Validation gates per claim (when is a claim "settled" — composition of Plato Divided Line + Socratic case-survival + Aristotle four-cause coverage).
+### Stage 2-A.7 — DONE (2026-04-28)
+
+Validation gates per claim specified. Five key decisions accepted:
+- **R1-A**: composition by `min(3 axes)` — chain-of-strength. Strong axis cannot compensate for weak one. Conservative by design (0.9^10 cost > one extra round)
+- **R2-A**: telos.failure_signal floor = DIANOIA (not NOESIS). Honest "I don't know" allowed; Ralph Gate 5 absorbs the slack
+- **R3-A**: tension-acknowledged claim caps at DIANOIA (axis 2 enforcement). Honest signal preserved, not silently rounded to NOESIS
+- **R4-A**: SIBLING_REQUIREMENTS only for load-bearing field interdependencies (telos↔served_good mutual; form needs telos; AC needs both). Material/efficient have no sibling constraints
+- **R5-A**: maturity displayed in `agora status` and Y3 termination preview only — never per-round (avoids gamification)
+
+Three-axis composition model:
+- Axis 1: Plato Divided Line (4 levels: EIKASIA→PISTIS→DIANOIA→NOESIS)
+- Axis 2: Socratic survival (probe history; load-bearing fields only)
+- Axis 3: Aristotelian coverage (sibling requirements; encodes telos-primary)
+
+REQUIRED_FLOORS table specified per field with defensible justifications.
+Backtrack interaction specified (axis 3 cascade to dependent claims).
+F-Aquinas-4 (silent overruling) specifically guarded.
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Validation Gates per Claim [SPEC]".
+
+Next task: Stage 2-A.8 — Termination Gate Y2 + Y3 (when does the loop offer to end, when does it generate preview, what does the preview look like).
