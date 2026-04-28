@@ -1,11 +1,14 @@
 # Alignment Loop — Specification (Stage 2)
 
-> **Status**: Stage 2-A in progress. Renamed from `interview-loop.md` on 2026-04-27.
-> Sections marked **[SPEC]** are formally accepted Stage 2 outputs.
-> Sections marked **[INHERITED]** are Stage 1 inputs preserved for traceability.
-> Sections marked **[OPEN]** are Stage 2-A open questions.
+> **Status**: **Accepted (Stage 2-A closed 2026-04-28).**
+> All 10 sub-questions of Stage 2-A have been promoted from OPEN to SPEC.
+> This document is the formal specification of the Alignment Loop.
+> Renamed from `interview-loop.md` on 2026-04-27.
 >
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 2 closes its gate.
+> Sections marked **[SPEC]** are formally accepted.
+> Sections marked **[INHERITED]** are Stage 1 inputs preserved for traceability.
+>
+> Stage 2-B (Ralph Loop) and Stage 2-C (Handoff ceremony) are separate documents.
 
 ---
 

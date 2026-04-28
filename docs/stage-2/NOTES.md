@@ -319,8 +319,52 @@ Summary of Stage 2-A SPECs:
 - 2-A.9: Brownfield/greenfield branching (per-phase table + 4-case state branching)
 - 2-A.10: Mini-alignment re-entry from Ralph (Z2 escalation)
 
-**Stage 2-A is ready for close. Proceeding to Stage 2-B (Ralph Loop full spec)
-upon Sang's approval.**
+**Stage 2-A — CLOSED on 2026-04-28** (explicit Sang approval).
 
-Next: ask Sang to review alignment-loop.md as a whole, mark it Accepted,
-then enter Stage 2-B.
+`docs/loops/alignment-loop.md` Status header updated to:
+> **Accepted (Stage 2-A closed 2026-04-28).**
+
+---
+
+## Stage 2-B — Ralph Loop full spec (ENTERING NOW)
+
+7 open questions inherited from `docs/loops/ralph-loop.md`:
+
+1. **Gate 0 — Probe registry initial coverage** (Stage 2-B.1)
+   Which CLIs/tools ship probes in v1? Initial set from ADR-0006 needs commitment.
+
+2. **Gate 1-2 — Test regeneration trigger** (Stage 2-B.2)
+   When do Playwright CLI tests get regenerated vs incrementally updated?
+
+3. **Gates 3-4 — Critic persona selection** (Stage 2-B.3)
+   Which UI/UX and code-quality personas run Aquinas Disputatio?
+
+4. **Gate 5 — Drift score numeric threshold** (Stage 2-B.4)
+   What value of "drift score" triggers Z1 fail? (Z1 → Z2 escalation count is 3 from 2-A.10; this is per-iteration threshold.)
+
+5. **Engine — Iteration cap** (Stage 2-B.5)
+   Hard cap on iterations per session? Token-budget-based stopping? Both?
+
+6. **Engine — Parallel iterations** (Stage 2-B.6)
+   Should Ralph try multiple iteration paths in parallel and Disputatio between?
+
+7. **Cross-cutting — Bypass UX** (Stage 2-B.7)
+   Details of `--skip-gate-0=<list>` and which other gates have bypass at all.
+
+### Stage 2-B priority order
+
+Gate-by-gate (Ralph execution order), then engine cross-cutting:
+
+```
+2-B.1  Gate 0 probe registry initial coverage    ← unblocks gate execution
+2-B.2  Gate 1-2 test regen trigger               ← Gate 2 depends on this
+2-B.3  Gates 3-4 critic personas                 ← Aquinas operational detail
+2-B.4  Gate 5 drift score threshold              ← Z1 fail criterion
+2-B.5  Engine iteration cap                      ← when does Ralph give up entirely
+2-B.6  Engine parallelism                        ← architecture choice
+2-B.7  Cross-cutting bypass UX                   ← consolidates all gate skip rules
+```
+
+Working principle: same as Stage 2-A. Mode B (single recommendation + alternatives) for Sang's non-expert areas; Mode A (recommended options + free input) for product decisions.
+
+Stage 2-B will produce: `docs/loops/ralph-loop.md` promoted from placeholder + 5+1-gate skeleton to full SPEC, plus possible new ADR(s) for any structural decisions.
