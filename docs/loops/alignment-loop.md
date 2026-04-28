@@ -16,8 +16,9 @@
 | **Phase −1 — Husserl Epoché** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.5: greenfield default-on / brownfield default-off / `agora bracket` always available) |
 | **Phase 0 — Auto-scan** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.2) |
 | **Phase 1 — Open Intake** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.3) |
-| Phase 2 — Iterative Rounds | [PARTIAL: ordering [SPEC] / round structure [OPEN]] | Stage 2-A.5 (ordering) ✓ / 2-A.4 (structure) next |
+| **Phase 2 — Iterative Rounds** | **[SPEC]** | Both ordering and structure accepted (Stage 2-A.5 + 2-A.4) |
 | **Phase 2 — Round Ordering** | **[SPEC]** | Accepted 2026-04-27 (Stage 2-A.5) |
+| **Phase 2 — Round Structure** | **[SPEC]** | Accepted 2026-04-28 (Stage 2-A.4) |
 | Termination Gate (Y2 + Y3) | [OPEN] | Stage 2-A.8 |
 | Brownfield/Greenfield branching | [PARTIAL — see Phase 0 SPEC] | Stage 2-A.9 |
 | Mini-alignment re-entry from Ralph (Z2) | [OPEN] | Stage 2-A.10 |
@@ -583,6 +584,320 @@ linear*. But silent backtracking is forbidden; the user must signal explicit int
 
 ---
 
+## Phase 2 — Round Structure [SPEC] (Accepted 2026-04-28)
+
+> **Goal**: Define exactly how a single Phase 2 round is rendered, how the user
+> interacts, and how the answer flows back into the seed. The Round Ordering
+> SPEC (above) decides *which* round comes next; this SPEC defines what *that*
+> round looks like and how it behaves.
+>
+> **Three I/O modes** (per ADR-0005): the same round engine renders to
+> Interactive TUI, JSON CLI, or MCP host depending on context.
+
+### Engine algorithm
+
+```
+phase_2_round(next_round: NextRound, ui_mode: tui|json|mcp) -> RoundResult:
+
+  # 1. Render per ui_mode (single engine, three facades)
+  if ui_mode == tui:
+    rendered = render_tui_round(next_round)        # @clack/prompts
+  elif ui_mode == json:
+    rendered = render_json_round(next_round)       # stdout structured payload
+  elif ui_mode == mcp:
+    return mcp_payload(next_round)                 # host LLM renders + responds
+
+  # 2. Collect answer (with backtrack detection)
+  answer = collect_answer(rendered, ui_mode)
+  if is_backtrack_intent(answer):                  # R5-A from Round Ordering
+    return BacktrackRequest(target_field=detect_field(answer))
+
+  # 3. Socratic case-probe (R3-A: load-bearing fields only)
+  if next_round.target_field in LOAD_BEARING_FIELDS:
+    case = generate_implied_case(answer, current_seed_state)
+    probe_response = present_probe_to_user(case, ui_mode)
+    answer, aporia = refine_via_probe(answer, case, probe_response)
+
+  # 4. Update seed + history
+  apply_to_seed(next_round.target_field, answer)
+  append_to_history(round_id, next_round, answer, probe_metadata)
+
+  return RoundResult(
+    answer,
+    maturity_after,
+    aporia_count: 0|1,
+    time_taken_ms,
+  )
+
+LOAD_BEARING_FIELDS = [
+  "telos.statement", "telos.served_good", "telos.failure_signal",
+  "form.essential_structure",
+  "acceptance_criteria.*",
+  # NOT: material.*, efficient.*  (R3-A: probe overhead not justified)
+]
+```
+
+### TUI rendering — exact mockups
+
+These mockups define the visual contract. The implementation in
+`@clack/prompts` must match this layout. Whitespace, dividers, icon
+choices, and label placement are all spec, not suggestion.
+
+#### Mockup A: Mode A round (user is expert in this domain)
+
+```
+─────────────────────────────────────────────────────────────────
+  Round 3 of ~5  ·  Aristotle · Telos
+─────────────────────────────────────────────────────────────────
+
+  ⓘ  Why this question?
+     Filling: seed.telos.statement (currently empty)
+     Without telos, every other choice has no anchor.
+
+  📎 Building on your last answer:
+     "I want to remember what I read with a few people occasionally engaging"
+                           ↑ from Phase 1 intake
+
+  ?  Why does this exist? What good does it serve?
+
+     ◯  Help me remember and connect ideas (self-knowledge tool)
+     ◯  Build a personal brand / professional credibility
+     ◯  Have small-circle conversations with thoughtful people
+     ◯  Serve a specific external audience (clients, students)
+
+     [Enter a number to pick] · [type your own answer to override] · [Ctrl+C pause]
+
+  > _
+─────────────────────────────────────────────────────────────────
+```
+
+#### Mockup B: Mode B round (user lacks expertise; recommended path)
+
+```
+─────────────────────────────────────────────────────────────────
+  Round 7 of ~9  ·  Aristotle · Material
+─────────────────────────────────────────────────────────────────
+
+  ⓘ  Why this question?
+     Filling: seed.material from your project's detected stack
+     Material cause feeds Gate 0 pre-flight checks.
+
+  📎 Detected from your project (Phase 0):
+     ◉ Vercel        (.vercel/project.json found)
+     ◉ Supabase      (supabase/config.toml found)
+     ◉ GitHub Actions (.github/workflows/ found)
+     ◉ Stripe        (package.json deps include "stripe")
+
+     [Enter] confirm all  ·  [number] toggle one  ·  [+] add free-form item
+
+  > _
+─────────────────────────────────────────────────────────────────
+```
+
+#### Mockup C: Socratic case-probe (after a load-bearing answer)
+
+```
+─────────────────────────────────────────────────────────────────
+  Round 3 · case probe
+─────────────────────────────────────────────────────────────────
+
+  📎 You said:
+     "I want to remember what I read so I can connect ideas later"
+
+  🔍 Quick test:
+     If no one ever read your notes — not even one person — would you
+     still write them?
+
+     ◯  Yes — the writing IS the remembering, audience irrelevant
+     ◯  No — having even one reader changes what's worth writing
+     ◯  Yes but less consistently (audience adds discipline, not direction)
+
+     [Enter a number] · [type to elaborate]  ·  [skip]
+
+  > _
+─────────────────────────────────────────────────────────────────
+```
+
+#### Mockup D: Aporia detected — refinement proposal (R5-A)
+
+```
+─────────────────────────────────────────────────────────────────
+  🔄 Aporia detected
+─────────────────────────────────────────────────────────────────
+
+  Your answer suggests audience is part of telos.
+
+  Proposed refinement of telos.statement:
+     "...remember what I read AND have a small audience to ground it"
+
+     [Enter] accept refined version
+     [e]     edit the wording yourself
+     [k]     keep the original (mark as deliberately retained despite tension)
+
+  > _
+─────────────────────────────────────────────────────────────────
+```
+
+### Layout contract (every round)
+
+Every TUI round MUST include, in this order from top to bottom:
+
+1. **Divider** (`─` line, terminal width)
+2. **Round header**: `Round {N} of ~{estimate}  ·  {Contributor} · {sub-topic}`
+3. **Empty line**
+4. **Purpose block** (`ⓘ  Why this question?`) — R1-A
+   - Line 1: `Filling: seed.{field} ({current_state})` — what this round resolves
+   - Line 2: one-sentence rationale tying to telos or to a prior settled claim
+5. **Empty line**
+6. **Continuity block** (`📎 Building on your last answer:` OR `📎 Detected from your project:` OR `📎 You said:`) — R2-A
+   - Quoted prior answer or detected fact, with provenance arrow
+7. **Empty line**
+8. **Question block** (`?  {question text}`)
+9. **Options block** (when applicable):
+   - `◯` for single-select (Mode A); `◉/◯` for multi-select with checkboxes (Mode B material flow)
+   - Always 2–4 options when shown (per Mode A rules)
+   - **Free-input is NEVER an option** — it's a parallel channel announced in the action line below (F8)
+10. **Action line** with bracketed shortcuts: `[Enter] ... · [number] ... · [type] ... · [Ctrl+C]`
+11. **Input prompt**: `> _`
+12. **Bottom divider**
+
+### Round header — progress display [R4-A]
+
+The `~{estimate}` is intentional:
+
+- `~5` (with tilde) signals **estimated, not promised**
+- The estimate is computed at the start of each round from:
+  - Current `seed_state` maturity coverage
+  - `phase_0_result.size_signal` (informs typical depth)
+  - `phase_1_result.intake_word_count` (longer intakes → fewer rounds typically)
+- The estimate may *increase* or *decrease* between rounds. When it changes by
+  >2, a one-line note is shown: `(estimate revised — current state suggests
+  more depth needed)`.
+- Never displayed as exact `Round 3 of 5` — that creates false-promise pressure.
+
+### Socratic case-probe trigger [R3-A]
+
+A round triggers a case-probe IFF:
+
+```
+should_probe(next_round.target_field, answer) -> bool:
+  if target_field in LOAD_BEARING_FIELDS:
+    return True
+  if target_field is custom AND user explicitly opted-in via `--probe-all`:
+    return True
+  return False
+```
+
+Load-bearing = `telos.*`, `form.essential_structure`, `acceptance_criteria.*`.
+Material and efficient are confirm/edit, no probe — over-probing is F-Socrates-2.
+
+The case is generated by the LLM with a strict prompt:
+- Use the user's own answer as the input
+- Construct ONE concrete scenario the answer *implies*
+- Draw scenarios from `phase_0_result.context_docs` if brownfield, else
+  generic-but-specific
+- NEVER strawman; the implied case must be a fair extension of what the
+  user said
+
+### Aporia handling [R5-A]
+
+When the user answers a probe in a way that contradicts their original claim:
+
+1. The contradiction is detected (LLM judgment + structural check on whether
+   the implied scenario was rejected)
+2. A **refined version** is proposed (LLM rewrite of the original claim,
+   accommodating the contradiction)
+3. The refined version is shown to the user with three explicit options:
+   - `[Enter] accept refined` — refined version replaces the original
+   - `[e] edit yourself` — opens inline editor with refined version pre-loaded
+   - `[k] keep original` — original claim preserved, but tagged with
+     `tension_acknowledged: true` in the seed (the user knows about the
+     tension and chose to keep the original anyway)
+4. `aporia_count` for the round is incremented (telemetry that surfaces
+   in the Y3 termination preview)
+
+**Never auto-apply** the refinement. User control is preserved at every step.
+
+### JSON / MCP rendering — schema
+
+For Mode 2 (JSON) and Mode 3 (MCP), the same round payload is serialized:
+
+```json
+{
+  "round_id": "round_003",
+  "round_number": 3,
+  "estimated_total": "~5",
+  "contributor": "aristotle",
+  "subtopic": "telos.statement",
+  "purpose": {
+    "filling": "seed.telos.statement",
+    "current_state": "empty",
+    "rationale": "Without telos, every other choice has no anchor."
+  },
+  "continuity": {
+    "type": "prior_answer",
+    "quote": "I want to remember what I read with a few people occasionally engaging",
+    "provenance": "phase_1_intake"
+  },
+  "question": "Why does this exist? What good does it serve?",
+  "options": [
+    {"id": 1, "label": "Help me remember and connect ideas (self-knowledge tool)"},
+    {"id": 2, "label": "Build a personal brand / professional credibility"},
+    {"id": 3, "label": "Have small-circle conversations with thoughtful people"},
+    {"id": 4, "label": "Serve a specific external audience (clients, students)"}
+  ],
+  "input_modes": ["select", "free_text"],
+  "actions": {
+    "select_by_number": "Pick by option ID",
+    "free_text": "Type your own answer to override",
+    "pause": "Ctrl+C or send {action: 'pause'}"
+  }
+}
+```
+
+In MCP mode, this payload is returned to the host LLM, which renders the
+question to the human user and submits the answer back via a follow-up
+MCP call. No nested LLM cost (host session does the work).
+
+### Boundaries
+
+- ❌ Free input as a listed option (F8). Always a parallel channel.
+- ❌ Purpose label hidden behind a flag (R1-A: always top).
+- ❌ Continuity block missing (F4: always present, even round 1 references intake).
+- ❌ Options count > 4 in Mode A (forces user to scan; degrades to text dump).
+- ❌ Options count = 1 (a "pick this" with no alternative is not a question).
+- ❌ Auto-applied aporia refinement (R5-A: user always confirms).
+- ❌ Probe on non-load-bearing field by default (R3-A; opt-in only).
+- ❌ Exact `Round X of Y` (R4-A: always `~estimate`).
+
+### Output consumed by
+
+- **Round Ordering planner**: receives `RoundResult` to update `seed_state`
+  for the next round's planning input.
+- **Termination Gate** (Stage 2-A.8): reads `aporia_count` aggregate to
+  inform Y3 preview decision.
+- **History store** (`.agora/history/{session}/rounds/`): every round's full
+  payload + answer is appended for audit and backtrack.
+
+### Failure modes specifically guarded
+
+- **F1** (locale): templated layout strings are locale-validated; question
+  text is LLM-generated and must pass locale check before rendering.
+- **F2** (purpose): top of every round, mandatory.
+- **F3** (no abstract): every question must reference at least one of: a file,
+  a prior answer, a detected marker, or a measurable outcome.
+- **F4** (build on prior): continuity block required.
+- **F5** (no false binary): compound input stays compound; the multi-select
+  Mode B round demonstrates this directly.
+- **F6** (multidim): each round opens a small space (3-4 options), not a
+  single yes/no slot.
+- **F7** (no single proposal without alts): aporia refinement always offers
+  three explicit responses (accept / edit / keep).
+- **F8** (free input not as option): action line announces free input as a
+  *channel*, not as a listed option.
+
+---
+
 ## Inherited Stage-1 Inputs [INHERITED]
 
 ### Input 1 — Phase structure (2026-04-26)
@@ -788,8 +1103,7 @@ Questions resolved are struck through. Open questions are tackled in priority or
 
 2. ~~**Phase 1 open intake design** (Stage 2-A.3)~~ ✅ Resolved 2026-04-27. See "Phase 1 — Open Intake [SPEC]" above.
 
-3. **Phase 2 round structure** (Stage 2-A.4) — open
-   - One round flow: question construction → presentation → answer → routing
+3. ~~**Phase 2 round structure** (Stage 2-A.4)~~ ✅ Resolved 2026-04-28. See "Phase 2 — Round Structure [SPEC]" above.
 
 4. ~~**Round ordering** (Stage 2-A.5)~~ ✅ Resolved 2026-04-27. See "Phase 2 — Round Ordering [SPEC]" above.
 

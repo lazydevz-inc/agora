@@ -117,6 +117,25 @@ Phase 1 open intake algorithm specified. Four key decisions accepted:
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 1 — Open Intake [SPEC]". Editor escape contract specified ($EDITOR with vim/nano/vi fallback, comment-header convention, audit-preserved temp file). Failure modes F2/F3/F8 specifically guarded.
 
+### Stage 2-A.4 — DONE (2026-04-28)
+
+Phase 2 round structure specified. Five key decisions accepted:
+- **R1-A**: "Why this question?" purpose label always at top of every round (mandatory, F2 enforcement)
+- **R2-A**: "📎 Building on..." continuity block always at top, quoting prior answer or detected fact (mandatory, F4 enforcement)
+- **R3-A**: Socratic case-probe only on load-bearing fields (telos, form.essential_structure, AC) — material/efficient confirm-only (avoids F-Socrates-2 over-probing)
+- **R4-A**: Round header shows `Round N of ~estimate` (tilde signals not-a-promise); estimate may revise mid-loop with explicit notice
+- **R5-A**: Aporia → LLM proposes refined version + user explicitly chooses [Enter accept] / [e edit] / [k keep with tension_acknowledged]; never auto-apply
+
+Round structure spec includes:
+- Engine algorithm with three I/O modes (TUI / JSON / MCP) per ADR-0005
+- Four exact TUI mockups (Mode A round, Mode B round, Socratic probe, Aporia refinement) — implementation contract
+- Layout contract: 12-section round template with mandatory ordering
+- LOAD_BEARING_FIELDS enumerated explicitly
+- JSON/MCP payload schema for Mode 2/3 facades
+- Eight failure modes (F1-F8) all specifically guarded with implementation rules
+
+Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 2 — Round Structure [SPEC]".
+
 ### Stage 2-A.5 — DONE (2026-04-27)
 
 Phase 2 round ordering specified. Five key decisions accepted:
@@ -130,4 +149,4 @@ Established the **Conductor + Contributor model**: Socrates conducts every Phase
 
 Full SPEC committed to `docs/loops/alignment-loop.md` under "Phase 2 — Round Ordering [SPEC]" with full round-planner algorithm pseudo-code, invocation conditions for Husserl, telos-first enforcement, material auto-fill flow, AC drafting bounds (3-5), backtrack mechanics, and failure modes F2/F4/F5 specifically guarded.
 
-Next task: Stage 2-A.4 — Phase 2 round structure (what does a single round actually look like as the user sees it).
+Next task: Stage 2-A.6 — Recommended-options generation (how Agora produces the option lists shown in Mode A rounds).
