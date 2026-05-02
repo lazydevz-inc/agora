@@ -449,7 +449,7 @@ Probes detected but not bundled (community PR welcome)
 
 These resolve in Stage 2-B (full Ralph spec):
 
-1. **Probe registry initial coverage** — which CLIs/tools ship with v1? Likely: gh, vercel, supabase, stripe, claude, node, git. Others added per demand.
+1. ~~**Probe registry initial coverage**~~ ✅ Resolved 2026-04-28 (Stage 2-B.1). See "Gate 0 — Probe Registry [SPEC]" above. v1 ships 19 probes.
 2. **Drift score threshold** — what numeric value triggers Z1 vs Z2? (Currently: Z1 every fail, Z2 after 3 consecutive Z1 fails.)
 3. **Critic persona selection** — which UI/UX and code-quality personas run for Gate 3 and 4? Project-overridable?
 4. **Test regeneration trigger** — when do Playwright tests get regenerated vs. updated incrementally?
