@@ -111,5 +111,57 @@ Failure modes guarded:
 Full SPEC committed to `docs/infra/install.md` with Distribution Channels,
 First-Run UX, Update+Uninstall, Version Output sections.
 
-Next task: Stage 4-A.2 — Claude integration runtime (subprocess wrapper API,
-retry policy, error handling for `claude --print` per ADR-0005).
+### Stage 4-A.2 — DONE (2026-05-03)
+
+Claude Integration Runtime specified. Five decisions accepted:
+
+- **R1-A**: Single ClaudeRunner interface with call(opts) method. Composition (CachedRunner wraps ClaudeCliRunner / ClaudeSdkRunner). Caller-side complexity prevented.
+- **R2-A**: 3 attempts (1+2 retries), exponential backoff (1s, 4s). Rate-limit special case (10s, 30s or API-suggested). Non-transient errors bubble immediately.
+- **R3-A**: 60s default timeout, opts.timeout_ms override. SIGTERM → 5s grace → SIGKILL escalation.
+- **R4-A**: Per-project cache (.agora/cache/) default, global (~/.agora/cache/) for non-project calls. Cross-project pollution prevented.
+- **R5-A**: SDK fallback warning once per session via stderr + always in JSON warnings[]. Process-level dedup via sdk_warning_shown flag.
+
+Wrapper API: ClaudeRunner / ClaudeCallOptions / ClaudeResponse / ClaudeError types specified.
+
+Runtime selection algorithm (per ADR-0005):
+  1. Try `claude --print "ping"` — if works, ClaudeCliRunner (Max)
+  2. Try ANTHROPIC_API_KEY — if present + sk-ant- pattern, ClaudeSdkRunner (API)
+  3. Else throw no_runner_available
+
+Selection runs once per process; re-detect requires restart.
+
+Subprocess invocation:
+  - Stdin for prompts > 1024 chars OR multi-line
+  - Argv for short single-line
+  - --output-format json by default; result field extracted
+  - Exit code → ClaudeError mapping
+
+Retry classification:
+  Transient (retry): timeout, rate_limited, invalid_response (json), network errors
+  Non-transient (bubble): auth_failed, no_runner_available, internal_error
+
+Cache layer:
+  .agora/cache/llm_responses.json schema with version + entries
+  TTL expiry passive; --refresh active
+  Cache key conventions: "subsystem:input_fingerprint"
+  Soft limit 100 entries, LRU eviction 20%
+  source: "cache" substituted on hit for telemetry
+
+SDK fallback notification:
+  TUI: stderr warning once per session
+  JSON: warnings[] every command (not deduplicated — AI agents need billing context)
+
+Boundaries enforced (rejections by name).
+
+Failure modes guarded:
+  - Silent billing surprise → R5-A explicit notification
+  - Retry storm → bounded attempts + classification
+  - Stuck UI → 60s timeout + SIGTERM/SIGKILL
+  - Cache cross-pollution → per-project default
+  - Auth state confusion → process-restart for re-detect
+
+Full SPEC committed to `docs/infra/llm-integration.md` with Claude Runner API,
+Runtime Selection, Subprocess Invocation, Retry Policy, Default Timeout,
+Cache Layer, SDK Fallback Notification sections.
+
+Next task: Stage 4-A.3 — Config loading (per-project + global per ADR-0002).
