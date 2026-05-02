@@ -17,7 +17,7 @@
 | **Auto-suggest "Next:" Pattern** (3-A.2) | **[SPEC]** Accepted 2026-05-03 |
 | **Global Flags + Precedence** (3-A.3) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora doctor`** (3-B.1) | **[SPEC]** Accepted 2026-05-03 |
-| `agora status` (3-B.2) | [OPEN] |
+| **`agora status`** (3-B.2) | **[SPEC]** Accepted 2026-05-03 |
 | `agora seed` (3-B.3) | [OPEN] |
 | `agora new` (3-B.4) | [OPEN] |
 | `agora resume` (3-B.5) | [OPEN] |
@@ -1169,5 +1169,443 @@ Plus command-specific additions:
 3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
 4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
 
-5. **Per-command specs (remaining)** (Stage 3-B.2 through 3-B.7) — open
-   - In order: status → seed → new → resume → ralph → agora
+## `agora status` [SPEC] (Accepted 2026-05-03, Stage 3-B.2)
+
+> **Goal**: Single-command snapshot of project progress. Different from
+> `agora doctor` (environment diagnostic) — `status` answers "where am I
+> in this project's lifecycle?" Maturity table + Ralph progress + recent
+> gate sparkline in one view.
+
+### CLI signature
+
+```
+agora status [--leaf=<id>] [--history [--count=N]] [--json] [--locale=...]
+             [-q | --verbose] [--no-color] [--config=<path>]
+```
+
+Universal flags inherited from Stage 3-A.3.
+
+Command-specific flags:
+
+| Flag | Effect |
+|------|--------|
+| `--leaf=<id>` | Drill into specific AC leaf (test results, drift history) |
+| `--history` | List recent sessions instead of current state |
+| `--count=N` | Used with `--history`; defaults to 5 (per R4-A) |
+
+### Phase-aware default output
+
+The default (no flag) output adapts to `state.phase` from `.agora/state.json`:
+
+| state.phase | Default output focus |
+|-------------|----------------------|
+| `null` (no .agora/) | "No project. Run `agora new` to start." |
+| `in_alignment` | Phase 2 round progress, last answered field, ambiguity trend, next contributor |
+| `in_alignment_paused` | "Paused at round N. Last answered: <field>." + resume hint |
+| `alignment_complete` | "Seed locked. Awaiting handoff." |
+| `in_handoff` | Tree review status (decomposition done, awaiting user accept) |
+| `ready_for_ralph` | Tree summary + "ready for `agora ralph`" |
+| `in_ralph` / `in_ralph_paused` | Maturity + Ralph progress + recent gate sparkline (full mockup below) |
+| `ralph_complete` | Final session summary + post-completion next actions |
+
+The `in_ralph` mockup is the most-information-rich case and is shown below
+as the canonical example. Other phases use the same layout structure but
+hide/replace sections inappropriate to their phase.
+
+### Mockup — in_ralph state [R1-A: full info on one screen]
+
+```
+─────────────────────────────────────────────────────────────────
+  agora status                              [Stage: in_ralph]
+─────────────────────────────────────────────────────────────────
+
+  Project:           screenflow (lazydevz-inc)
+  Session:           session_xyz789 (started 2h 14m ago)
+  Phase:             in_ralph
+  Parallelism:       1 (sequential)
+
+  📊 Maturity (locked seed)
+     telos.statement       NOESIS    (3 alts examined)
+     telos.served_good     NOESIS
+     form.essential_*      DIANOIA
+     acceptance_criteria   DIANOIA   (4 ACs)
+
+  📊 Ralph progress (4 leaves)
+     ✓ leaf_001  capture_command       (iter 1-3, passed)
+     ✓ leaf_002  link_primitives       (iter 4-6, passed)
+     ◐ leaf_003  search_durability     (iter 7, in progress)
+     ○ leaf_004  cooccurrence_display  (queued)
+
+  📈 Recent gate signals (last 5 iterations)
+     drift_score:    0.12  0.18  0.09  0.21  0.14
+     Gate 1 (det):   ✓ ✓ ✓ ✓ ✓
+     Gate 2 (qa):    ✓ ✓ ✓ ✓ ✓
+     Gate 3 (ui):    — — — — —     (no UI changes)
+     Gate 4 (tech):  ✓ ✓ ⚠ ✓ ✓     (1 minor objection refined)
+     Gate 5 (align): ✓ ✓ ✓ ✓ ✓
+
+  🎯 Aporia delta this session: +1
+  📎 Active bypasses: 1 (probe disabled: stripe)
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora resume
+      Continue Ralph iteration
+
+    ▸ agora doctor
+      Diagnose environment if Ralph feels stuck
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Mockup — `--leaf=<id>` drill-down
+
+```
+─────────────────────────────────────────────────────────────────
+  agora status --leaf=leaf_003           [Stage: in_ralph]
+─────────────────────────────────────────────────────────────────
+
+  Leaf: leaf_003 (search_durability)
+  Content: "Search results show co-occurring notes within 100ms"
+  Parent: node_root.children[1] (associations)
+  Status: in progress (iteration 7)
+
+  📊 Iteration history for this leaf
+     iter 7: in progress (started 12m ago)
+
+  📊 Test file
+     .agora/tests/leaf_003.spec.ts (4 cases)
+     Last run: 3m ago, 2/4 passing
+
+  📈 Drift score history for this leaf
+     iter 7 (current): 0.21 (PASS_WITH_WARNING)
+     ⓘ Gate 4 raised concern about index re-build cost
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora resume
+      Continue iteration
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Mockup — `--history` (R4-A: 5 sessions default)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora status --history                            [Sessions]
+─────────────────────────────────────────────────────────────────
+
+  Recent sessions (last 5):
+
+  session_xyz789  active           started 2h ago
+                  in_ralph (4 leaves: 2 done, 1 active, 1 queued)
+
+  session_uvw456  completed        2026-04-29 (4d ago)
+                  ralph_complete (12 iterations, 0 skipped)
+                  Telos refined once via Z2
+
+  session_rst123  aborted          2026-04-25 (8d ago)
+                  in_alignment_paused (5 rounds, user Ctrl+C)
+
+  session_opq890  completed        2026-04-22 (11d ago)
+                  ralph_complete (8 iterations, 1 auto-skipped)
+
+  session_lmn567  completed        2026-04-19 (14d ago)
+                  ralph_complete (6 iterations, 0 skipped)
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora resume
+      Continue active session
+
+    ▸ agora status
+      View current session detail
+
+─────────────────────────────────────────────────────────────────
+```
+
+When `--history --count=10` is set, list shows up to 10 sessions.
+
+### Ralph progress display rules [R2-A]
+
+Each leaf rendered as one line with status marker:
+
+| Marker | Meaning |
+|--------|---------|
+| `✓` | Completed (all gates passed in some iteration) |
+| `◐` | In progress (currently iterating) |
+| `○` | Queued (not yet started) |
+| `✗` | Auto-skipped (after 3 Z2 + 2 user-aborts per Stage 2-C.2) |
+
+Format per line: `{marker} {leaf_id}  {short_label}  ({iteration_range, status})`
+
+Leaves shown in `leaf_order` from ralph_state.json (DFS pre-order per Stage 2-C.2).
+
+For trees with > 20 leaves, default truncates to first 10 + "... (N more)" hint.
+`--verbose` shows all.
+
+### Recent gate signals — sparkline [R3-A: ASCII numeric + markers]
+
+```
+drift_score:    0.12  0.18  0.09  0.21  0.14
+Gate 1 (det):   ✓ ✓ ✓ ✓ ✓
+Gate 2 (qa):    ✓ ✓ ✓ ✓ ✓
+Gate 3 (ui):    — — — — —     (no UI changes)
+Gate 4 (tech):  ✓ ✓ ⚠ ✓ ✓     (1 minor objection refined)
+Gate 5 (align): ✓ ✓ ✓ ✓ ✓
+```
+
+Rules:
+- 5 most-recent iterations across the session (or fewer if session has < 5)
+- drift_score: numeric to 2 decimals, space-separated
+- Each gate: 5 markers separated by single space
+  - `✓` = PASS
+  - `⚠` = PASS_WITH_WARNING (drift 0.15-0.30 or Disputatio conditional)
+  - `✗` = FAIL
+  - `—` = N/A (gate didn't run for that iteration)
+- Trailing annotation: short summary if any non-✓ markers ("(1 minor objection refined)")
+
+Block characters (R3-B `▂▃▅▇▆`) and pure numbers (R3-C) rejected: ASCII reads
+on every terminal, the marker conveys gate-result semantics that pure numbers lose.
+
+### JSON output schema
+
+```json
+{
+  "command": "agora status",
+  "result": {
+    "ok": true,
+    "data": {
+      "project": {
+        "name": "screenflow",
+        "owner": "lazydevz-inc",
+        "cwd": "/Users/sang/Developer/screenflow"
+      },
+      "session": {
+        "id": "session_xyz789",
+        "started_at": "2026-05-03T04:00:00Z",
+        "elapsed_minutes": 134,
+        "phase": "in_ralph",
+        "parallelism": 1
+      },
+      "maturity": {
+        "fields": [
+          {"path": "telos.statement", "level": "NOESIS", "alts_examined": 3},
+          {"path": "telos.served_good", "level": "NOESIS"},
+          {"path": "form.essential_structure", "level": "DIANOIA"},
+          {"path": "acceptance_criteria.*", "level": "DIANOIA", "count": 4}
+        ]
+      },
+      "ralph_progress": {
+        "total_leaves": 4,
+        "leaves": [
+          {"id": "leaf_001", "label": "capture_command", "status": "completed",
+           "iteration_range": "1-3"},
+          {"id": "leaf_002", "label": "link_primitives", "status": "completed",
+           "iteration_range": "4-6"},
+          {"id": "leaf_003", "label": "search_durability", "status": "in_progress",
+           "current_iteration": 7},
+          {"id": "leaf_004", "label": "cooccurrence_display", "status": "queued"}
+        ]
+      },
+      "recent_gates": {
+        "iterations_window": 5,
+        "drift_scores": [0.12, 0.18, 0.09, 0.21, 0.14],
+        "gates": {
+          "gate_1": ["pass", "pass", "pass", "pass", "pass"],
+          "gate_2": ["pass", "pass", "pass", "pass", "pass"],
+          "gate_3": ["na", "na", "na", "na", "na"],
+          "gate_4": ["pass", "pass", "warn", "pass", "pass"],
+          "gate_5": ["pass", "pass", "pass", "pass", "pass"]
+        },
+        "annotations": [
+          {"gate": "gate_4", "iteration_offset": -3, "note": "1 minor objection refined"}
+        ]
+      },
+      "aporia_delta_this_session": 1,
+      "active_bypasses_count": 1
+    }
+  },
+  "next": [...],
+  "warnings": [],
+  "errors": []
+}
+```
+
+For `--leaf=<id>`, `data` shape is leaf-focused:
+
+```json
+{
+  "leaf": {
+    "id": "leaf_003",
+    "label": "search_durability",
+    "content": "Search results show co-occurring notes within 100ms",
+    "parent_node_id": "node_root.children[1]",
+    "parent_label": "associations",
+    "status": "in_progress",
+    "current_iteration": 7
+  },
+  "iteration_history": [
+    {"iteration": 7, "status": "in_progress", "started_at": "..."}
+  ],
+  "test_file": {
+    "path": ".agora/tests/leaf_003.spec.ts",
+    "case_count": 4,
+    "last_run_at": "...",
+    "last_run_result": "2/4 passing"
+  },
+  "drift_history": [
+    {"iteration": 7, "drift_score": 0.21, "classification": "PASS_WITH_WARNING",
+     "concern": "Gate 4 raised concern about index re-build cost"}
+  ]
+}
+```
+
+For `--history`:
+
+```json
+{
+  "sessions_window": 5,
+  "sessions": [
+    {
+      "id": "session_xyz789",
+      "started_at": "...",
+      "ended_at": null,
+      "phase": "in_ralph",
+      "outcome": "active",
+      "summary": "in_ralph (4 leaves: 2 done, 1 active, 1 queued)"
+    },
+    ...
+  ]
+}
+```
+
+### Exit code
+
+- `0`: status read successfully (regardless of project health)
+- `1`: cannot read state (corrupt .agora/, missing required file)
+
+`agora status` is informational; project being in a degraded state (failing
+gates, etc.) does not produce non-zero exit. That's `agora doctor`'s job.
+
+### `--verbose` mode additions
+
+- Ralph progress: shows ALL leaves (not just first 10)
+- Recent gate signals: extends to last 10 iterations (not 5)
+- Adds: per-gate avg pass rate over session
+- Adds: per-leaf drift_score history (compact)
+
+### `-q / --quiet` mode reductions
+
+- Skips: aporia delta, bypass count, recent gate signals
+- Output: project name + phase + Ralph progress only
+- Useful for: scripts, status bar integration
+
+### Phase-specific layout variations
+
+For `in_alignment` phase:
+
+```
+─────────────────────────────────────────────────────────────────
+  agora status                          [Stage: in_alignment]
+─────────────────────────────────────────────────────────────────
+
+  Project:    screenflow
+  Session:    session_xyz789 (started 12m ago)
+  Phase:      in_alignment, round 4 of ~6
+
+  📊 Current ambiguity trend
+     Round 1: 0.85 → Round 2: 0.62 → Round 3: 0.41 → Round 4: 0.23
+
+  Last answered: telos.served_good
+  Last contributor: Aristotle (Telos)
+  Next contributor: Plato (Divided Line — Noesis test)
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora resume
+      Continue alignment
+
+─────────────────────────────────────────────────────────────────
+```
+
+For `ralph_complete`:
+
+```
+─────────────────────────────────────────────────────────────────
+  agora status                        [Stage: ralph_complete]
+─────────────────────────────────────────────────────────────────
+
+  Project:           screenflow
+  Session:           session_xyz789 (completed 12m ago)
+  Phase:             ralph_complete
+
+  📊 Final summary
+     Total leaves: 4
+     Completed:    4 (100%)
+     Auto-skipped: 0
+     Iterations:   12 (avg 3 per leaf)
+     Aporia events this session: 2 (both refined)
+
+  Session-end dialog awaits acknowledgment.
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora resume
+      Re-show session-end dialog
+
+    ▸ agora new
+      Start a new project workflow
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Boundaries
+
+- ❌ Single-line / compact-only default (R1-B rejected): hides too much; user
+  has to drill repeatedly for normal operations.
+- ❌ Verbose-as-default (R1-C rejected): overwhelms; verbose is opt-in.
+- ❌ Progress bar visualization (R2-B rejected): per-leaf granularity lost;
+  AC tree iteration isn't a smooth percentage.
+- ❌ Tree visualization (R2-C rejected): trees with > 5 leaves become noisy;
+  list form scales better.
+- ❌ Block-character sparklines (R3-B rejected): font rendering inconsistent
+  across terminals.
+- ❌ Numbers-only without markers (R3-C rejected): loses gate-result semantics
+  (PASS vs WARN vs FAIL distinction).
+- ❌ History default > 5 (R4-B rejected): scroll burden without proportional
+  value; --count=N for those who want more.
+- ❌ History default < 5 (R4-C rejected): too short to see meaningful trend.
+- ❌ Status reporting unhealthy state via exit code (that's doctor's role,
+  not status').
+- ❌ Status running probes (only doctor runs probes; status reads cached state).
+
+### Output consumed by
+
+- **AI agents**: parse `--json` output to know "what's currently happening";
+  next[] guides their next CLI call.
+- **Scripts / status bar**: `--quiet --json` gives minimal phase + progress info.
+- **`agora resume`**: shares phase enum with status (status surfaces what
+  resume will do).
+- **`agora` (default command)**: relies on status's logic for "what's next" suggestions.
+
+### Failure modes specifically guarded
+
+- **Confusion vs doctor**: `agora doctor` = environment health; `agora status`
+  = project progress. No overlap (doctor surfaces env issues, status surfaces
+  workflow position).
+- **Stale data**: status reads from disk on every call (no caching); always
+  reflects current `.agora/state.json` and `ralph_state.json`.
+- **Missing tree**: phases before `ready_for_ralph` show alignment-flavored
+  sections; phases after show Ralph-flavored sections; never both at once.
+- **Truncation surprise**: if leaves > 10 are truncated, the "... (N more)"
+  hint is explicit, not silent.
+
+---
+
+## Open Questions for Stage 3
+
+1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
+2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
+3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
+4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
+5. ~~**`agora status`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.2).
+
+6. **Per-command specs (remaining)** (Stage 3-B.3 through 3-B.7) — open
+   - In order: seed → new → resume → ralph → agora

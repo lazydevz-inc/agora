@@ -288,4 +288,43 @@ Failure modes guarded:
 
 Full SPEC committed to `docs/cli/spec.md` under "`agora doctor` [SPEC]".
 
-Next task: Stage 3-B.2 — `agora status` (read-only inspection of current state).
+### Stage 3-B.2 — DONE (2026-05-03)
+
+`agora status` SPEC accepted. Four decisions:
+
+- **R1-A**: Default = full info on one screen (project + session + maturity + ralph progress + recent gates + aporia + bypasses).
+- **R2-A**: Ralph progress as leaf-list with status markers (✓ ◐ ○ ✗). DFS pre-order from Stage 2-C.2.
+- **R3-A**: Recent gate signals = ASCII numeric drift_score row + per-gate marker rows. Block chars / pure numbers rejected.
+- **R4-A**: --history default 5 sessions. --count=N override.
+
+Phase-aware default output table covering all 8 state.phase values.
+Mockups for in_ralph (canonical), --leaf drill-down, --history, in_alignment phase, ralph_complete phase.
+
+Truncation rules: leaves > 10 collapse to first 10 + "(N more)" hint; --verbose shows all.
+--quiet reduces to project name + phase + Ralph progress only.
+
+Exit code: 0 always (informational); 1 only on corrupt state. Health judgment is doctor's job, not status'.
+
+JSON shape with default / --leaf / --history schemas specified.
+
+Boundaries (rejections by name):
+- Compact default (R1-B): hides too much
+- Verbose default (R1-C): overwhelms
+- Progress bar (R2-B): granularity lost
+- Tree visualization (R2-C): noisy at > 5 leaves
+- Block-char sparkline (R3-B): font dependent
+- Numbers only (R3-C): loses gate semantics
+- History > 5 default (R4-B): scroll burden
+- History < 5 default (R4-C): too short for trend
+- Status as health gate (doctor's role)
+- Status running probes (doctor only)
+
+Failure modes guarded:
+- Confusion with doctor → clear scope separation (doctor=env, status=workflow)
+- Stale data → fresh read every call
+- Missing tree → phase-appropriate sections only
+- Truncation surprise → explicit "(N more)" hint
+
+Full SPEC committed to `docs/cli/spec.md` under "`agora status` [SPEC]".
+
+Next task: Stage 3-B.3 — `agora seed` (view + edit operations: --edit, --override-gate5, --regen-tests).
