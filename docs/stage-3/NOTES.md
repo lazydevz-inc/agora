@@ -177,4 +177,74 @@ Failure modes guarded: F2 (purpose visible via description), push fatigue (max 3
 
 Full SPEC committed to `docs/cli/spec.md` under "Auto-suggest 'Next:' Pattern [SPEC]".
 
-Next task: Stage 3-A.3 — Global Flags + Precedence (universal --help/--json/--version/--locale inventory, multi-source precedence, forbidden combinations).
+### Stage 3-A.3 — DONE (2026-05-03)
+
+Global Flags + Precedence specified. Four decisions accepted:
+
+- **R1-A**: 8 universal flags (--help, --version, --json, --locale, --quiet, --verbose, --no-color, --config). Lean set; per-command flags are right home for narrow features.
+- **R2-A**: Standard precedence — CLI > env > project config > global config > default. Matches vercel/supabase/gh/stripe convention.
+- **R3-A**: Parse-time fail-fast validation of forbidden combinations. User sees error before any I/O / LLM call / state change.
+- **R4-A**: Power-user flags (currently just --config) visible in command --help under "Power user options" section — distinct from universal flags but not hidden.
+
+Per-command flag inventory documented (preview; Stage 3-B will confirm/refine):
+  agora new, agora resume — no flags planned
+  agora seed — --edit, --override-gate5, --regen-tests
+  agora ralph — --parallel*, --skip-gate-*, --reset-*
+  agora status — --leaf, --history
+  agora doctor — --refresh, --include-disabled
+
+Forbidden combinations table (11 rules) with exact error messages:
+  --json + --verbose / --json + --no-color
+  --quiet + --verbose
+  --skip-gate-1, --skip-gate-5 (any value)
+  --parallel=0/negative
+  --parallel > 5 without --parallel-force
+  --skip-gate-{2,3,4} without --reason
+  --locale outside en/ko
+
+Help system shape:
+  agora --help → top-level commands + universal flags
+  agora <cmd> --help → command spec + universal summary + power-user section + examples
+  Power-user flags visible but visually distinct (separate heading)
+
+Top-level help template specified verbatim.
+
+--config=<path> semantics:
+  Replaces project-level config slot in precedence
+  Absolute or relative path (relative resolved from cwd)
+  Missing path → exit code 20 (config error per 3-A.1)
+
+Boundaries enforced (rejections by name):
+  - Flags > 8 universal (R1-C): cognitive overhead
+  - Remove --config (R1-B): legitimate power use
+  - Env-over-CLI (R2-B): CLI must win as most explicit signal
+  - Config-over-everything (R2-C): blocks ad-hoc overrides
+  - Lazy validation (R3-B): mid-execution discovery worse UX
+  - Warning-only invalidity (R3-C): errors aren't warnings
+  - Hidden --config (R4-B): hidden-knowledge culture
+  - Power-user inline mixing (R4-C): overwhelms new users
+
+Failure modes guarded:
+  - Silent flag conflict ignore → parse-time validation
+  - Multiple-source confusion → standard precedence table
+  - Unsupported locale → explicit error + v1 list
+  - Power flag discoverability → separate section
+
+Full SPEC committed to `docs/cli/spec.md` under "Global Flags + Precedence [SPEC]".
+
+---
+
+## Stage 3-A — ALL SUB-QUESTIONS RESOLVED (2026-05-03)
+
+  3-A.1  Output Format Framework
+  3-A.2  Auto-suggest "Next:" Pattern
+  3-A.3  Global Flags + Precedence
+
+Cross-cutting framework now established. Stage 3-B (per-command specs) entering.
+
+Each Stage 3-B sub-question is mostly mechanical given the framework — define
+the command's specific flags (most already inventoried in 3-A.3), happy-path
+TUI mockup, error mockup(s), JSON data payload shape, command-specific Next
+candidates.
+
+Next task: Stage 3-B.1 — `agora doctor` (simplest standalone, good first per-command spec).

@@ -15,7 +15,7 @@
 |---------|--------|
 | **Output Format Framework** (3-A.1) | **[SPEC]** Accepted 2026-05-03 |
 | **Auto-suggest "Next:" Pattern** (3-A.2) | **[SPEC]** Accepted 2026-05-03 |
-| Global Flags + Precedence (3-A.3) | [OPEN] |
+| **Global Flags + Precedence** (3-A.3) | **[SPEC]** Accepted 2026-05-03 |
 | `agora doctor` (3-B.1) | [OPEN] |
 | `agora status` (3-B.2) | [OPEN] |
 | `agora seed` (3-B.3) | [OPEN] |
@@ -513,16 +513,254 @@ JSON: "next": []   — array always present, just empty
 
 ---
 
+## Global Flags + Precedence [SPEC] (Accepted 2026-05-03, Stage 3-A.3)
+
+> **Goal**: Consolidate every global flag, environment variable, and config
+> source. Define precedence when same setting appears in multiple sources.
+> Define forbidden flag combinations and their error messages.
+
+### Universal flags inventory [R1-A]
+
+Available on every command:
+
+| Flag | Short | Description | Sources |
+|------|-------|-------------|---------|
+| `--help` | `-h` | Show command/subcommand help; exit | CLI only |
+| `--version` | `-v` | Show Agora version; exit | CLI only |
+| `--json` | — | Force JSON output mode (per 3-A.1) | CLI / `AGORA_JSON=1` |
+| `--locale=<code>` | — | Force locale (`ko` or `en`, per 3-A.1 R5-A) | CLI / `AGORA_LOCALE` / `LANG` |
+| `--quiet` | `-q` | Suppress warnings; errors only (TUI only) | CLI / `AGORA_QUIET=1` |
+| `--verbose` | — | Extra debug output (TUI only) | CLI / `AGORA_VERBOSE=1` |
+| `--no-color` | — | Disable ANSI color (CI / piped output) | CLI / `NO_COLOR=1` (standard) |
+| `--config=<path>` | — | Override `.agora/config.toml` path | CLI only |
+
+The 8-flag set is intentionally lean. Anything beyond this is a per-command flag.
+
+### Per-command flag inventory (preview — Stage 3-B will detail each)
+
+```
+agora new [name]
+  no command-specific flags planned (Stage 3-B.4 confirms)
+
+agora resume
+  no command-specific flags planned (Stage 3-B.5 confirms)
+
+agora seed
+  --edit <field>                      view+edit specific field
+  --override-gate5 <iter> <score>     manual drift score override
+  --regen-tests [--all]               trigger test regeneration
+
+agora ralph
+  --parallel=<N>                      1-5 (ADR-0008)
+  --parallel-force=<N>                required for N > 5
+  --skip-gate-0=<list>                gh,vercel,supabase,...
+  --skip-gate-2 --reason="..."        conditional bypass with rationale
+  --skip-gate-3 --reason="..."        same pattern
+  --skip-gate-4 --reason="..."        same pattern
+  --reset-bypasses                    clear all persistent bypasses
+  --reset-bypass=<id>                 clear specific
+  --reset-cap                         restore default iteration cap
+
+agora status
+  --leaf=<id>                         drill into specific AC node
+  --history                           show recent sessions
+
+agora doctor
+  --refresh                           bust Gate 0 probe cache
+  --include-disabled                  run disabled probes anyway
+```
+
+These are placeholders — Stage 3-B per-command SPECs may add/remove individual flags.
+
+### Precedence order [R2-A]
+
+When the same setting appears in multiple sources, the higher-priority source wins:
+
+```
+HIGHEST                                                          LOWEST
+  ↓                                                                ↓
+
+  CLI flag > env variable > project .agora/config.toml > global ~/.agora/config.toml > hardcoded default
+```
+
+This is the standard pattern across `vercel`, `supabase`, `gh`, `stripe`, etc.
+
+Examples:
+
+```
+agora ralph --parallel=3
+  → 3 (CLI wins, ignores config and env)
+
+env AGORA_PARALLELISM=5
+agora ralph
+  → 5 (env wins over config and default)
+
+# .agora/config.toml has [ralph].parallelism = 2
+# ~/.agora/config.toml has [ralph].parallelism = 4
+agora ralph
+  → 2 (project config beats global config)
+
+# .agora/config.toml has nothing about parallelism
+# ~/.agora/config.toml has [ralph].parallelism = 4
+agora ralph
+  → 4 (global config beats default)
+
+# nothing anywhere
+agora ralph
+  → 1 (default per ADR-0008)
+```
+
+The rule applies uniformly to every setting that has multiple sources.
+
+### Forbidden flag combinations [R3-A: parse-time fail-fast]
+
+Validated **immediately after argv parse**, before any command logic runs.
+Error format: `agora: error: <message>` to stderr, exit code 1.
+
+| Forbidden combination | Error message |
+|------------------------|----------------|
+| `--json` + `--verbose` | `--verbose has no effect with --json (output is always batched).` |
+| `--json` + `--no-color` | `--no-color has no effect with --json (color already absent).` |
+| `--quiet` + `--verbose` | `Cannot combine --quiet and --verbose.` |
+| `--skip-gate-1` (any value) | `Gate 1 (deterministic) is not bypassable. Use 'agora ralph abort' to end the session.` |
+| `--skip-gate-5` (any value) | `Gate 5 (alignment) is not bypassable. Use 'agora ralph abort' to end the session.` |
+| `--parallel=0` or `--parallel=-N` | `Parallelism must be >= 1.` |
+| `--parallel=N` (N > 5) without `--parallel-force=N` | `Parallelism > 5 requires --parallel-force=N for cost guardrail.` |
+| `--skip-gate-2` without `--reason` | `--skip-gate-2 requires --reason='...' (mandatory rationale).` |
+| `--skip-gate-3` without `--reason` | (same pattern) |
+| `--skip-gate-4` without `--reason` | (same pattern) |
+| `--locale=fr` (or any non-`en`/`ko`) | `Locale '<code>' not bundled. v1 supports: en, ko.` |
+
+Validation function structure:
+
+```
+on_argv_parsed(parsed):
+  for rule in FORBIDDEN_RULES:
+    if rule.matches(parsed):
+      print_to_stderr(f"agora: error: {rule.message}")
+      exit(1)
+  return parsed
+```
+
+The fail-fast contract: user sees the error before any I/O, before any
+LLM call, before any state change. Cheapest correction loop possible.
+
+### `--config=<path>` semantics
+
+Power-user flag. When present:
+- Loads `.toml` from given path INSTEAD of `.agora/config.toml`
+- Project-level slot in precedence is replaced (global / default still apply)
+- Useful for: environment simulation, A/B testing of configs, CI variation
+
+```
+agora ralph --config=./config.staging.toml
+agora ralph --config=./config.production.toml --parallel-force=8
+```
+
+Path resolution:
+- Absolute path: used as-is
+- Relative path: resolved from `cwd`
+- Path doesn't exist: error code 20 (config error per 3-A.1)
+
+### Help system shape [R4-A]
+
+```
+agora --help                       → top-level command list + universal flags
+
+agora <command> --help             → command-specific:
+                                       Description
+                                       Usage line
+                                       Command-specific flags
+                                       Universal flags (compact summary)
+                                       Power-user options (separate section)
+                                       Examples (1-3)
+                                       Next: hint to related commands
+```
+
+Power-user flags (in v1: just `--config=<path>`) appear in `agora <command> --help`
+under a `Power user options` heading, separated by an extra blank line.
+They're visible (not hidden) but visually distinct.
+
+Top-level `agora --help`:
+
+```
+Agora — agent harness where ancient philosophers gather to refine intent into reality.
+
+Usage: agora [command] [options]
+
+Commands:
+  agora               (default) status + suggested next action
+  agora new [name]    Start a new project workflow
+  agora resume        Resume paused work
+  agora seed          View / edit the locked seed
+  agora ralph         Start / resume implementation
+  agora status        View current project state
+  agora doctor        Diagnose environment
+
+Universal flags:
+  -h, --help          Show this message
+  -v, --version       Show Agora version
+      --json          JSON output mode
+      --locale=<code> ko or en (default: env LANG or en)
+  -q, --quiet         Suppress warnings
+      --verbose       Extra debug output
+      --no-color      Disable ANSI color
+
+Power user options:
+      --config=<path> Override .agora/config.toml path
+
+Documentation:
+  https://github.com/lazydevz-inc/agora (private during Stage 0-5)
+
+Run 'agora <command> --help' for detailed help on each command.
+```
+
+### Boundaries
+
+- ❌ Universal flags exceeding 8 (R1-C rejected): every additional flag becomes
+  cognitive overhead; per-command flags are the right home for narrow features.
+- ❌ Removing `--config` (R1-B rejected): power-user environment override is
+  legitimate; visibility-tier handles the discoverability concern.
+- ❌ Env-over-CLI precedence (R2-B rejected): CLI is the most explicit signal
+  and must win; env is for ambient defaults.
+- ❌ Config-over-everything (R2-C rejected): would make ad-hoc CLI overrides
+  impossible.
+- ❌ Lazy validation of forbidden combinations (R3-B rejected): user discovers
+  the error mid-execution after partial state writes — worse UX.
+- ❌ Warning-only on forbidden combinations (R3-C rejected): "errors are not
+  warnings" — incorrect invocations should fail, not silently succeed with caveats.
+- ❌ Hidden `--config` in help (R4-B rejected): hiding power options breeds
+  hidden-knowledge culture; the visibility-tier (separate section) is the
+  correct middle ground.
+- ❌ Mixing power-user flags inline with universal (R4-C rejected): visual
+  separation prevents new users from being overwhelmed.
+
+### Output consumed by
+
+- **Every command**: inherits the universal flag set + the precedence engine.
+- **CLI parser** (Stage 6): implements forbidden-combination validation as a
+  post-parse pass before dispatching to command handler.
+- **Help generator** (Stage 6): renders `--help` per the help-system shape.
+- **Stage 3-B per-command specs**: each command's per-command flags are
+  appended to the universal set; this SPEC's precedence rules apply uniformly.
+
+### Failure modes specifically guarded
+
+- **Flag conflicts silently ignored**: parse-time validation prevents.
+- **Multiple sources confusion**: explicit precedence table + standard pattern
+  matches user expectation from other CLIs.
+- **Unsupported locale**: explicit error with v1-supported list (no silent
+  fallback to `en` when user asked for something unsupported).
+- **Power user flag discoverability**: separate section in help (visible but
+  distinct) — neither hidden nor noise.
+
+---
+
 ## Open Questions for Stage 3
 
 1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
-
 2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
-
-3. **Global Flags + Precedence** (Stage 3-A.3) — open
-   - Inventory of universal flags (`--help`, `--json`, `--version`, `--locale`, ...)
-   - Flag precedence when multiple sources (CLI > env > config > default)
-   - Forbidden flag combinations + error messages
+3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
 
 4. **Per-command specs** (Stage 3-B.1 through 3-B.7) — open
    - In order: doctor → status → seed → new → resume → ralph → agora
