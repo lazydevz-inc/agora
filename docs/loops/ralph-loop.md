@@ -1,12 +1,14 @@
 # Ralph Loop — Specification (Stage 2)
 
-> **Status**: Stage 2-B in progress (opened 2026-04-28, after Stage 2-A close).
-> Sections marked **[SPEC]** are formally accepted Stage 2-B outputs.
+> **Status**: **Accepted (Stage 2-B closed 2026-05-03).**
+> All 7 sub-questions of Stage 2-B have been promoted from OPEN to SPEC.
+> This document is the formal specification of the Ralph Loop.
+>
+> Sections marked **[SPEC]** are formally accepted.
 > Sections marked **[INHERITED]** are foundational decisions captured in Stage 1
 > or earlier (5+1 gate structure, Z1/Z2 escalation).
 >
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 2-B
-> closes its gate.
+> Stage 2-C (Handoff ceremony — Plato Dihairesis decomposition) is a separate document.
 
 ---
 
@@ -1499,7 +1501,230 @@ sequential default" and what triggers reconsideration.
 
 ---
 
-## Open Questions for Stage 2-B
+## Cross-cutting — Bypass UX [SPEC] (Accepted 2026-05-03, Stage 2-B.7)
+
+> **Goal**: Consolidate the bypass mechanisms scattered across prior SPECs
+> (Gate 0 in ADR-0006, Gate 5 in 2-B.4, iteration cap in 2-B.5, critic
+> personas in 2-B.3) into a single coherent policy. Decide which gates can
+> be bypassed at all, in what form, with what guardrails.
+>
+> **Stage 2-B's final SPEC.** Closes Stage 2-B upon acceptance.
+
+### Bypass policy by gate
+
+| Gate | Bypass? | Mechanism | Recorded where |
+|------|---------|-----------|-----------------|
+| **Gate 0 — Pre-flight Infra** | ✅ Yes | `--skip-gate-0=gh,vercel` flag + per-probe `disabled` config | seed.metadata + .agora/state.json |
+| **Gate 1 — Deterministic** | ❌ NO | (none) — bypass meaningless | — |
+| **Gate 2 — Functional QA** | ⚠ Conditional | `--skip-gate-2 --reason="..."` (reason required, 1-iteration scope) | iteration metadata |
+| **Gate 3 — UI/UX Quality** | ⚠ Conditional | Per-critic `disabled` config OR `--skip-gate-3 --reason="..."` (reason required, 1-iteration scope) | iteration metadata |
+| **Gate 4 — Technical Quality** | ⚠ Conditional | Same pattern as Gate 3 | iteration metadata |
+| **Gate 5 — Alignment Check** | ❌ NO | (none) — Sang's non-negotiable; bypass would defeat Ralph's definition | — |
+| **Iteration cap (engine)** | ✅ Yes | `[+] raise cap by +15` dialog option (Stage 2-B.5) | seed.metadata.limit_overrides |
+
+### Three categories explained
+
+#### NO category (Gate 1, Gate 5)
+
+Bypass is structurally forbidden. The reasoning differs:
+
+- **Gate 1** (lint, typecheck, build, test): bypassing produces broken code that
+  fails to compile or run. This isn't a "judgment call gate" — it's a
+  reality check. Bypassing it would let Ralph claim "iteration done" while
+  delivering syntactically broken output. Meaningless.
+- **Gate 5** (Alignment Check): Sang's Stage-1 non-negotiable — alignment
+  verification is part of Ralph's definition. Bypassing it would make Ralph
+  identical to "AI generates code, we hope." Defeats the entire thesis.
+
+The **escape valve for both**: `agora ralph abort` ends the Ralph session
+entirely. Aborting is allowed; bypassing while continuing is not. This
+preserves user autonomy (you can always stop) while preserving the gate's
+integrity (it never silently passes).
+
+#### CONDITIONAL category (Gate 2, 3, 4)
+
+These gates have legitimate edge cases where bypass makes sense:
+- Gate 2: browser-environment failures unrelated to AC (e.g. headless Chrome
+  crash in CI), or prototype phase where Playwright tests aren't yet meaningful
+- Gate 3: backend-only iterations don't need UI/UX review; or design system
+  not yet defined for early-phase project
+- Gate 4: prototype iterations where some technical-quality critique is
+  premature (refactor coming next iteration)
+
+**Mandatory mechanism**: `--skip-gate-N --reason="<freeform text>"`.
+Reason is **required** — command rejects without `--reason`. Reason is
+recorded in `iteration.metadata.bypasses[]`.
+
+**Scope**: 1 iteration. The flag does not persist. Next iteration runs the
+gate normally. This prevents "set and forget" silent suppression.
+
+#### YES category (Gate 0, iteration cap)
+
+These are bypassable freely (no reason required) because:
+- Gate 0: false-positive probes are common (e.g. dep detected but project
+  doesn't actually use). Friction here would cause user to abandon.
+- Iteration cap: user knows their session better than the engine; raising
+  cap is a legitimate "I know what I'm doing" call.
+
+**Recorded**: any bypass / cap raise still goes to `seed.metadata` for audit.
+"No reason required" doesn't mean "no record."
+
+### Bypass accumulation alerts [R3-A]
+
+When bypasses accumulate, that's a signal that alignment may have drifted from
+implementation reality. `agora doctor` surfaces this:
+
+```
+trigger: 5+ gate-bypasses in last 5 iterations (any gate, any reason)
+
+agora doctor output:
+  ⚠ Bypass accumulation detected
+    Last 5 iterations: 7 bypasses (--skip-gate-2: 3, --skip-gate-3: 4)
+    Most common reason: "design system not yet defined"
+
+    This pattern often signals alignment incompleteness — the implementation
+    is hitting reality the seed didn't anticipate.
+
+    Consider: agora seed --edit form OR agora ralph abort + mini-alignment
+```
+
+This is **informational**, not coercive. The user can ignore it. But it's
+visible and named.
+
+The 5-in-5 threshold tunable via `.agora/config.toml`:
+
+```toml
+[bypass_alerts]
+threshold_count = 5
+threshold_window_iterations = 5
+```
+
+### Stale bypass reminder [R4-A]
+
+Bypasses that affect future Ralph runs (Gate 0 disabled probes,
+iteration cap raises) persist by design. But persistent bypasses can become
+**forgotten state** — the user disabled `vercel` probe 3 sessions ago for
+a reason that may no longer apply.
+
+Ralph start-of-session displays stale bypass reminders:
+
+```
+$ agora ralph
+
+[Active bypasses from prior sessions]
+  ⚠  Probe disabled: stripe (set 4 sessions ago)
+     Reason: "monorepo workspace, stripe is in another package"
+     Still relevant? [y]es / [n]o-reset / [s]how-history
+
+  ⚠  Iteration cap raised to 40 (set 2 sessions ago)
+     Reason: "complex auth migration"
+     Still relevant? [y]es / [n]o-reset / [s]how-history
+
+[Press Enter to acknowledge all and continue]
+> _
+```
+
+This is shown **once per Ralph start** (not per iteration). User can:
+- `[y]es`: bypass remains active for this session
+- `[n]o-reset`: bypass cleared (probe re-enabled, cap restored to default)
+- `[s]how-history`: detail view of when set + recent invocations affected
+
+Bypasses set within the **last 24 hours** are not shown (not stale yet).
+
+### CLI surface for bypass commands
+
+```bash
+# Gate 0 — flag-based + config
+agora ralph --skip-gate-0=gh,vercel
+# .agora/config.toml [probes].disabled = ["stripe"]
+
+# Gate 2/3/4 — flag-based with mandatory --reason (1 iteration scope)
+agora ralph --skip-gate-2 --reason="headless chrome crash in CI"
+agora ralph --skip-gate-3 --reason="backend-only iteration"
+
+# Gate 1 / Gate 5 — no bypass flag exists
+# (attempting --skip-gate-1 or --skip-gate-5 → error: "Gate N is not bypassable. Use `agora ralph abort` to end the session.")
+
+# Iteration cap — interactive only (dialog [+] option)
+# No CLI flag because raising the cap should be a deliberate in-context decision
+
+# Reset persistent bypasses
+agora ralph --reset-bypasses              # clear all persistent
+agora ralph --reset-bypass=stripe         # clear specific probe
+agora ralph --reset-cap                   # restore default iteration cap
+```
+
+### Bypass recording schema
+
+Every bypass writes to a structured record:
+
+```json
+{
+  "timestamp": "2026-05-03T14:00:00Z",
+  "gate": "gate_3" | "gate_0" | "iteration_cap",
+  "reason": "..." | null,
+  "iteration_id": "iter_007" | null,
+  "scope": "iteration" | "session" | "persistent",
+  "set_via": "cli_flag" | "config_toml" | "interactive_dialog",
+  "ralph_session_id": "session_xxx"
+}
+```
+
+Records live in `seed.metadata.bypasses[]` (persistent) and
+`iteration.metadata.bypasses[]` (per-iteration).
+
+### Boundaries
+
+- ❌ Bypass without reason for Gate 2/3/4 (R2-A enforces; command rejects).
+- ❌ Bypass for Gate 1 or Gate 5 (R1-A: structurally forbidden).
+- ❌ Silent persistent bypass (R4-A: stale reminder mandatory).
+- ❌ Bypass alert that blocks (R3-A: informational only).
+- ❌ "Bypass everything" mega-flag (each gate's bypass is explicit and named).
+- ❌ Bypass without recording (every bypass goes to metadata, audit trail preserved).
+
+### Output consumed by
+
+- **Ralph engine**: receives bypass flags + config; skips relevant gates
+  with annotation in iteration result.
+- **`agora doctor`**: surfaces bypass accumulation alerts + stale persistent bypasses.
+- **`agora status`**: shows current session's active bypasses.
+- **History store**: every bypass event recorded for audit.
+
+### Failure modes specifically guarded
+
+- **Silent overruling (F-Aquinas-4)**: every bypass is recorded; no path
+  silently skips a gate.
+- **Set-and-forget**: stale reminder forces conscious confirmation each session.
+- **Bypass-as-default**: 1-iteration scope for Gate 2/3/4 prevents accidental
+  long-term suppression.
+- **Bypass blindness**: agora doctor accumulation alert surfaces patterns
+  before user normalizes them.
+- **"All gates skipped" anti-pattern**: NO mega-flag exists; user must
+  explicitly invoke each gate's bypass with its own reasoning.
+
+---
+
+## All Stage 2-B sub-questions resolved (2026-05-03)
+
+Every Stage 2-B sub-question has been promoted from OPEN to SPEC:
+
+| # | Sub-question | Status |
+|---|--------------|--------|
+| 2-B.1 | Gate 0 probe registry initial coverage | ✅ |
+| 2-B.2 | Gate 2 test regeneration trigger | ✅ |
+| 2-B.3 | Gates 3+4 critic personas | ✅ |
+| 2-B.4 | Gate 5 drift score threshold | ✅ |
+| 2-B.5 | Engine iteration cap | ✅ |
+| 2-B.6 | Engine parallel iterations | ✅ |
+| 2-B.7 | Cross-cutting bypass UX | ✅ |
+
+Plus ADR-0008 (Ralph Sequential Default with Parallel-Ready Architecture).
+
+This document is ready to be marked **Accepted** as a whole upon Sang's review.
+
+---
+
+## Open Questions for Stage 2-B (closed)
 
 These resolve in Stage 2-B (full Ralph spec):
 
