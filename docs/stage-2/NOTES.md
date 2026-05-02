@@ -617,6 +617,79 @@ ADR-0008 created with full decision history + alternatives.
 
 CLAUDE.md ADR index updated.
 
-Next task: Stage 2-B.7 — Cross-cutting bypass UX (LAST sub-question of Stage 2-B).
-Consolidates `--skip-gate-0=<list>` (from ADR-0006) and decides whether other
-gates have any bypass at all.
+### Stage 2-B.7 — DONE (2026-05-03)
+
+Cross-cutting bypass UX consolidated. Four decisions accepted:
+- **R1-A**: Gate 1 (deterministic) and Gate 5 (alignment) — NO bypass.
+  Sang's non-negotiable for Gate 5 + Gate 1 bypass would let broken code through.
+  Escape valve = `agora ralph abort`.
+- **R2-A**: Gates 2/3/4 — Conditional bypass with MANDATORY `--reason="..."`.
+  1-iteration scope. Reason recorded in iteration metadata.
+- **R3-A**: Bypass accumulation alert — 5+ in 5 iterations → agora doctor surfaces "consider mini-alignment". Informational only.
+- **R4-A**: Stale bypass reminder at every Ralph start for persistent bypasses
+  older than 24h. [y]es/[n]o-reset/[s]how-history options.
+
+Three categories: NO (Gate 1, 5) / CONDITIONAL (Gate 2, 3, 4) / YES (Gate 0, iteration cap).
+
+CLI surface and bypass recording schema specified. Failure modes F-Aquinas-4
+guarded; no "skip everything" mega-flag possible.
+
+Full SPEC in `docs/loops/ralph-loop.md` under "Cross-cutting — Bypass UX [SPEC]".
+
+---
+
+## Stage 2-B — ALL SUB-QUESTIONS RESOLVED (2026-05-03)
+
+7 sub-questions over Stage 2-B + 1 ADR (ADR-0008):
+  2-B.1  Gate 0 probe registry (19 v1 probes)
+  2-B.2  Gate 2 test regeneration trigger
+  2-B.3  Gates 3+4 critic personas (10 critics)
+  2-B.4  Gate 5 drift score threshold (3-tier 0.15/0.30/0.60)
+  2-B.5  Engine iteration cap (3-layer, no wall-clock per Sang R5-C)
+  2-B.6  Engine parallel iterations (sequential default, parallel-ready) + ADR-0008
+  2-B.7  Cross-cutting bypass UX (3 categories)
+
+`docs/loops/ralph-loop.md` Status header updated:
+> **Accepted (Stage 2-B closed 2026-05-03).**
+
+CLAUDE.md roadmap: Stage 2 = 2-A ✅ 2026-04-28 / 2-B ✅ 2026-05-03 / 2-C 진행 중.
+
+---
+
+## Stage 2-C — Handoff Ceremony (in progress)
+
+`docs/loops/handoff.md` created 2026-05-03.
+
+### Stage 2-C.1 — DONE (2026-05-03)
+
+Plato Dihairesis decomposition algorithm specified.
+Four decisions accepted:
+
+- **R1-A**: `is_atomic()` = 3-AND composite (LLM session-judgment + ≤3 file touches + ≤1 conjunction). Conservative bias toward smaller atomic leaves.
+- **R2-A**: User review of generated tree always shown before Ralph. 4-option dialog.
+- **R3-A**: DEFENSE_THRESHOLD = 0.6. Below → ternary fallback or leaf-as-is per philosophy.
+- **R4-A**: MAX_DEPTH = 5 with force-leaf. Force-leaf accumulation surfaced.
+
+Algorithm flow:
+- synthesize_root_from_telos → recursive decompose
+- Binary articulation by LLM → defense scoring vs 2 alternatives → 0.6 gate
+- Ternary 3-way fallback if binary fails defense
+- Leaf-as-is if ternary also fails (philosophy: better undivided)
+- Each leaf → one .agora/tests/{leaf.id}.spec.ts (Stage 2-B.2 hookpoint)
+
+User review dialog: visualization with split principles + defense scores +
+4 actions [Accept] / [Edit node] / [Re-decompose w/ user binary] / [Back to alignment].
+
+LLM contracts (binary articulation, defense scoring, file-touch estimation)
+specified for Stage 6 implementation.
+
+On accept: .agora/ac_tree.json persisted + tests generated +
+state.phase = ready_for_ralph.
+
+Boundaries enforced; failure modes (convenient cuts, too-deep, too-shallow,
+silent acceptance, F-Aquinas-4) guarded.
+
+Full SPEC in `docs/loops/handoff.md` under "Plato Dihairesis Decomposition [SPEC]".
+
+Next task: Stage 2-C.2 — AC tree → Ralph state initialization
+(serialization, iteration ordering, parallel-sibling division, starting-leaf selection).
