@@ -301,6 +301,73 @@ Full SPEC committed to `docs/infra/probes.md` with 6 [SPEC] sections +
 boundaries + failure modes + output consumers + 19-probe TypeScript
 skeleton inventory.
 
-Next task: Stage 4-A.5 — MCP server design (when Agora runs inside
-Claude Code per ADR-0005 Mode 3, expose MCP tools instead of nesting LLM
-calls). Adds new section to existing `docs/infra/llm-integration.md`.
+### Stage 4-A.5 — DONE (2026-05-03)
+
+MCP Server Design specified. Five decisions accepted (all recommended).
+Added as new sections to `docs/infra/llm-integration.md` (not a separate
+file — MCP is part of the LLM integration story per ADR-0005 Mode 3).
+
+- **R1-A**: `agora --mcp-server` global flag launches MCP protocol on
+  stdin/stdout. 7-cmd cap preserved (not an 8th subcommand). When flag
+  present, positional argv suppressed. Claude Code registration via
+  `~/.claude/mcp_servers.json`. R1-B (8th command) rejected (cap break);
+  R1-C (separate binary) rejected (install + docs duplication).
+- **R2-A**: All 7 commands exposed 1:1 as MCP tools. Host LLM can drive
+  end-to-end alignment → handoff → ralph workflow. Destructive op guards
+  from Stage 3-B preserved (surfaced as `errors[].code = "user_confirmation_required"`
+  rather than softened). R2-B (read-only subset) rejected (denies
+  orchestration); R2-C (subset excluding ralph) rejected (denies autonomous
+  build).
+- **R3-A**: `agora_<command>` snake_case prefix on every tool name —
+  collision-safe with other MCP servers (gh, linear, notion). snake_case
+  matches dominant MCP ecosystem convention. R3-B (no prefix) rejected
+  (collision); R3-C (dot-namespaced) rejected (client tooling portability).
+- **R4-A**: Stateless per tool call, all state file-backed. Each call:
+  validate cwd → loadConfig → read state.json → run logic → build result.
+  No in-memory cross-call coupling. ProbeCache + LLMCache file-backed
+  naturally survive. `cwd` is **mandatory argument on every tool** —
+  enforces per-folder isolation (MANIFESTO P5+) at protocol boundary.
+  R4-B (in-memory cache) rejected (server-restart fragility);
+  R4-C (hybrid reload) rejected (two-policy confusion).
+- **R5-A**: `CallToolResult` with two channels — `content[0].text`
+  (≤ 2-line human summary) + `structuredContent` (full Stage 3-A.1 JSON
+  envelope). `isError: true` when envelope has entries in `errors[]`.
+  R5-B (JSON string only) rejected (parse burden, no NL layer);
+  R5-C (multi-block) rejected (client render inconsistency).
+
+LLM-required commands in Mode 3 (drift_score, AC critique, recommended-
+options generation): structurally cannot call ClaudeRunner. Return
+`host_action_required` envelope with prompt + context + follow_up_args
+template. Host LLM scores, then re-calls same tool with
+`host_provided_<x>` filled in. 2-step protocol is THE structural
+difference of Mode 3 vs Modes 1/2.
+
+Forbidden in Mode 3 (architectural guarantees):
+  - Spawning `claude --print` subprocess
+  - Instantiating ClaudeSdkRunner (silent API billing)
+  - Background processes outliving tool call
+  - Modifying files outside opts.cwd
+  - Reading other projects' .agora/ directories
+  - >30s tool calls without continuation token
+
+Boundaries enforced (12 rejections by name including the cross-cutting
+"nested LLM calls in Mode 3" prohibition).
+
+Failure modes guarded:
+  - Token-billing duplication      → ClaudeRunner unreachable in Mode 3
+  - Cross-project context bleed    → mandatory cwd arg per tool
+  - Hidden state loss on restart   → stateless per call by design
+  - Tool name collision            → agora_ prefix mandatory
+  - Destructive op auto-execution  → confirmation guards preserved
+  - Long-running tool blocks host  → continuation token at 30s
+  - MCP/CLI mode confusion         → mutually exclusive, clear error
+
+Updated `docs/infra/llm-integration.md` Section Index: 4-A.5 split into
+5 sub-sections (Launch / Exposure / Naming / State / Return) all marked
+[SPEC] Accepted 2026-05-03.
+
+Updated "Next sections" pointer: only 4-A.6 remains (cross-cutting).
+
+Next task: Stage 4-A.6 — Error handling + telemetry (cross-cutting per
+3-A.1 exit codes). Likely woven into install / config / probes /
+llm-integration rather than as a standalone doc.
