@@ -228,5 +228,79 @@ Full SPEC committed to `docs/infra/config.md` with 8 [SPEC] sections.
 CLAUDE.md L324 updated to reflect Zod adoption in Stage 4-A.3 (config
 first, domain models follow naturally in Stage 5+).
 
-Next task: Stage 4-A.4 — Probe registry implementation (Stage 2-B.1's
-19 v1 probes pattern + ADR-0006 Probe interface concretization).
+### Stage 4-A.4 — DONE (2026-05-03)
+
+Probe Registry Implementation specified. Five decisions accepted (all
+recommended):
+
+- **R1-A**: `Probe` interface with `id` / `tier` / `description` /
+  `detect_shape` (discriminated union: always | marker) / `check(ctx)`.
+  `ProbeContext` injects `shellExec` → timeout/sandboxing/test-mocking
+  centralized. `ProbeResult = {ok, detail, fix?, duration_ms}`. Special
+  `ProbeTimeoutError` signal owned by runner. R1-B (decorator/class)
+  rejected (TS decorator stage 3); R1-C (pure-fn + side metadata)
+  rejected (scattered definition).
+- **R2-A**: One file per probe at `src/probes/definitions/<id>.ts` (19
+  files), static-imported into `registry.ts`. Tree-shakable, navigation-
+  friendly, kebab-case files / camelCase exports / snake_case ids
+  (matches TOML config + Stage 2-B.1 YAML inventory). R2-B (tier dirs)
+  rejected (promotion forces moves); R2-C (single registry file)
+  rejected (800+ LOC, diff hostile).
+- **R3-A**: Bounded parallel — concurrency=5 via inline `createLimit`
+  (~30 LOC, no new dep per ADR-0001). Per-probe 5s timeout enforced by
+  runner via `Promise.race`. SIGTERM → 5s → SIGKILL escalation matches
+  Stage 4-A.2. Worst-case Gate 0 wall time ~20s, typical ~3-5s. R3-B
+  (full 19 parallel) rejected (rate-limit + CPU spike); R3-C (sequential)
+  rejected (~19s baseline).
+- **R4-A**: `markers.ts` helpers — `fileExists`, `packageJsonDeps`,
+  `gitRemoteUrl`, `envVarPresent`, `envVarMatches`. Per-process per-cwd
+  memoized (single package.json read for all 19 probes). Network/recursive-
+  traversal/mutation forbidden in detect. Richer parsing (e.g. wrangler.toml
+  contents) lives in check(), not detect(). R4-B (file-existence only)
+  rejected (Stage 2-B.1 inventory requires deps parse); R4-C (arbitrary IO)
+  rejected (unbounded wall time).
+- **R5-A**: Cache deterministic outcomes (success + non-timeout failure)
+  for 5min. Timeouts and exceptions NOT cached (transient — recovery must
+  not require `--refresh`). Runner wraps every `check()` in try/catch so
+  Gate 0 never aborts mid-flight; per-probe failure becomes `{ok:false,
+  detail:"internal_error: ..."}`. ProbeCache.set() mechanically guards
+  against caching transients via detail-prefix check. R5-B (cache all)
+  rejected (blocks recovery); R5-C (no cache) rejected (violates 2-B.1
+  R3-A 5min TTL).
+
+Module layout finalized (19 probe files):
+  Tier 1 always: claude, node, pnpm
+  Tier 1 marker: git, gh, vercel, supabase, anthropic-api-key
+  Tier 1+2:      stripe, clerk, openai-api-key, docker, railway, posthog-key
+  Tier 1+2+3:    gcloud, aws, bun, upstash, cloudflare
+
+Cross-probe dependency note (anthropic_api_key reads claude state):
+resolved at definition time via cheap proxy (package.json deps), avoiding
+runner-internal state coupling. One extra cheap env-var check is the cost.
+
+TypeScript skeletons drafted for all 19 probes with detect_shape and
+check command pseudocode. Stage 6 implementation has 1:1 mapping.
+
+Boundaries enforced (rejections by name): no decorators, no tier dirs, no
+single registry file, no full parallel, no sequential, no file-only detect,
+no arbitrary IO detect, no transient caching, no cache-disabled, no new
+runtime deps (createLimit inline), no direct child_process spawning, no
+env mutation, no plugin discovery at v1.
+
+Failure modes guarded:
+  - Probe crash kills gate → runner try/catch, gate continues
+  - Probe hangs            → Promise.race 5s timeout
+  - Subprocess zombie      → SIGTERM/SIGKILL escalation
+  - 19× package.json reads → markers.ts memoization
+  - Rate-limit on parallel auth checks → concurrency=5 bound
+  - Stale auth blocking recovery → transient outcomes never cached
+  - Cross-probe dependency confusion → cheap proxy at detect time
+  - Author forgets timeout → runner enforces, not author
+
+Full SPEC committed to `docs/infra/probes.md` with 6 [SPEC] sections +
+boundaries + failure modes + output consumers + 19-probe TypeScript
+skeleton inventory.
+
+Next task: Stage 4-A.5 — MCP server design (when Agora runs inside
+Claude Code per ADR-0005 Mode 3, expose MCP tools instead of nesting LLM
+calls). Adds new section to existing `docs/infra/llm-integration.md`.
