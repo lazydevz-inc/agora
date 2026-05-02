@@ -560,4 +560,63 @@ Sang's R5-C decision documented as deliberate non-addition (not oversight).
 
 Full SPEC committed to `docs/loops/ralph-loop.md` under "Engine — Iteration Cap [SPEC]".
 
-Next task: Stage 2-B.6 — Parallel iterations (architecture choice; should Ralph try multiple iteration paths in parallel and Disputatio between them).
+### Stage 2-B.6 — DONE (2026-05-03)
+
+Ralph parallel iterations architecture specified.
+Three decisions accepted:
+
+- **R1-B**: Architecture supports parallel from v1; default behavior is sequential.
+  Parallelism opt-in via `--parallel=N` flag or `.agora/config.toml [ralph].parallelism`.
+  Sang clarified between R1-B and R1-C; chose B after the explanation.
+- **R2-A**: 3 explicit measurable triggers for future default re-evaluation:
+  ① 30+ Ralph sessions with "3 attempts → same dead-end → Z2" pattern firing 5+ times
+  ② 3+ documented user requests for parallel
+  ③ Average Ralph session reaches hard_iteration_count (25) > 20% of the time
+  Per ADR-0003: measurable signals, not vibes
+- **R3-A**: New ADR-0008 — "Ralph Sequential Default with Parallel-Ready Architecture"
+  Permanent record for future Sang/contributor reference
+
+Architecture commitments (parallel-ready from day 1, even with N=1 default):
+- Per-iteration workspace isolation (.agora/iterations/{id}/)
+- Iteration history as tree (parent_iteration_id + sibling_ids)
+- Inter-iteration Disputatio API reserved (trivial passthrough for N=1)
+- hard_iteration_count counts each sibling as 1
+- token_budget_per_session counts cumulative across siblings
+- Z1 counters per-sibling (independent escalation)
+
+CLI:
+  agora ralph                       → sequential
+  agora ralph --parallel=N          → N-way (1 ≤ N ≤ 5)
+  agora ralph --parallel-force=N    → required for N > 5
+
+Inter-iteration Disputatio when N > 1:
+  Each sibling generates objections against others
+  Sed contra: strongest case for each sibling
+  Respondeo: judge selects best
+  Ad singula: per-objection rulings explain why discarded siblings lost
+  Surviving sibling becomes parent of next step's siblings
+
+Boundaries:
+  - Default-parallel rejected (unproven Disputatio + SPEC violations risk)
+  - Sequential-only rejected (3× retrofit cost)
+  - Vague triggers rejected (need measurable data)
+  - NOTES.md only rejected (too important — ADR-grade permanence)
+  - N > 5 requires --parallel-force (cost guardrail)
+  - Sibling state isolation enforced (no cross-contamination)
+  - Discarded siblings recorded with reason (audit)
+
+Failure modes guarded:
+- Premature default change → measurable triggers
+- Bit-rot of unused parallel path → integration smoke test (N=2)
+- Cost runaway from parallel → cumulative budget + --parallel-force
+- Sibling state corruption → workspace isolation
+
+Full SPEC committed to `docs/loops/ralph-loop.md` under
+"Engine — Parallel Iterations Architecture [SPEC]".
+ADR-0008 created with full decision history + alternatives.
+
+CLAUDE.md ADR index updated.
+
+Next task: Stage 2-B.7 — Cross-cutting bypass UX (LAST sub-question of Stage 2-B).
+Consolidates `--skip-gate-0=<list>` (from ADR-0006) and decides whether other
+gates have any bypass at all.

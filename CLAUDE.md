@@ -381,6 +381,7 @@ UX expertise-aware split:
 | 0005 | Claude Integration via Subprocess (not Agent SDK) | Accepted |
 | 0006 | Pre-Ralph Infrastructure Gate (Gate 0) | Accepted |
 | 0007 | License Choice: MIT (Provisional), Public Release Deferred | Accepted (partially supersedes ADR-0002) |
+| 0008 | Ralph: Sequential Default with Parallel-Ready Architecture | Accepted |
 
 ---
 

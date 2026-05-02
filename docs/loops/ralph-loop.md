@@ -1334,6 +1334,171 @@ Sang's R5-C decision means there's no wall-clock cap. The implications:
 
 ---
 
+## Engine — Parallel Iterations Architecture [SPEC] (Accepted 2026-05-03, Stage 2-B.6)
+
+> **Goal**: Decide whether Ralph runs sequentially (one in-progress iteration
+> at a time) or in parallel (N candidate iterations per step with inter-iteration
+> Disputatio selecting the best).
+>
+> **Decision summary**: architecture supports parallel from v1; default is sequential.
+> Full rationale + future re-evaluation triggers in ADR-0008.
+
+### v1 behavior contract [R1-B]
+
+```
+agora ralph                       → parallelism = 1 (sequential)
+agora ralph --parallel=N          → N-way parallel (1 ≤ N ≤ 5)
+agora ralph --parallel-force=N    → required for N > 5 (cost guardrail)
+
+.agora/config.toml:
+[ralph]
+parallelism = 1   # default; project may override
+```
+
+The unflagged path is sequential. This honors:
+- Biased-product principle: best default is the proven path
+- Stage 2-A/B SPEC validation: every prior SPEC was written assuming sequential
+
+### Architecture-level commitments (parallel-ready from day 1)
+
+Even when parallelism = 1, the engine is built with N >= 1 assumed:
+
+1. **Per-iteration workspace isolation**: every iteration (sequential or
+   parallel) gets its own scratch under `.agora/iterations/{iteration_id}/`.
+   Sequential = N = 1 case of the same model.
+
+2. **Iteration history as tree, not list**: each record carries
+   `parent_iteration_id` and `sibling_ids`. Sequential iterations have
+   `sibling_ids = []`.
+
+3. **Inter-iteration Disputatio API reserved**: when N > 1, an additional
+   Disputatio layer chooses among siblings. API is defined but is a
+   trivial passthrough for N = 1.
+
+4. **Cap interaction**:
+   - hard_iteration_count counts each sibling as 1
+   - token_budget_per_session counts cumulative across siblings
+
+5. **Z1 → Z2 escalation per sibling**: each sibling tracks its own Z1
+   counter; Z2 fires for the first sibling to hit 3 consecutive Z1 fails;
+   surviving siblings continue independently.
+
+### Inter-iteration Disputatio (when N > 1)
+
+```
+on_step_complete(iteration_step, sibling_iterations):
+  if len(sibling_iterations) == 1:
+    return sibling_iterations[0]   # trivial case
+
+  # Run Aquinas Disputatio across siblings
+  videtur = []
+  for sibling in sibling_iterations:
+    objections_against_others = generate_objections(
+      this_sibling=sibling,
+      others=[s for s in sibling_iterations if s != sibling]
+    )
+    videtur.extend(objections_against_others)
+
+  sed_contra = generate_strongest_case_for_each(sibling_iterations)
+  respondeo = judge_select_best(sibling_iterations, videtur, sed_contra)
+  ad_singula = per_objection_rulings_for_chosen(respondeo, videtur)
+
+  return chosen=respondeo, history=ad_singula
+```
+
+Surviving sibling becomes the parent of the next step's siblings.
+Discarded siblings are recorded with `discarded_at_step: N` and
+`discarded_reason: <ad_singula summary>`.
+
+### CLI examples
+
+```bash
+# Sequential (default)
+$ agora ralph
+[Ralph starting — parallelism: 1 (sequential)]
+[Iteration 1: ...]
+
+# Parallel
+$ agora ralph --parallel=3
+[Ralph starting — parallelism: 3]
+[Iteration 1 — running 3 candidates in parallel]
+  ↳ candidate a: [working...]
+  ↳ candidate b: [working...]
+  ↳ candidate c: [working...]
+[Inter-iteration Disputatio: a wins (b: scope drift; c: SOLID violation)]
+[Iteration 2 — running 3 from candidate a's branch]
+  ...
+
+# Project default
+$ cat .agora/config.toml
+[ralph]
+parallelism = 2
+
+$ agora ralph
+[Ralph starting — parallelism: 2 (from .agora/config.toml)]
+```
+
+### Future re-evaluation triggers [R2-A — three explicit triggers]
+
+The default may shift from sequential to parallel (or N may change) when
+ANY of these become true:
+
+1. **Operational dead-end pattern**: Sang accumulates 30+ Ralph sessions
+   of real use, and *"3 attempts in a row converge to same dead-end → Z2"*
+   fires 5+ times. Signal: single-candidate iteration genuinely loses value.
+
+2. **Explicit user requests**: 3+ documented instances where a user
+   (Sang or contributor) wishes parallel had been on. Captured in
+   `.agora/history/` notes, GitHub issues, or feature requests.
+
+3. **Hard iteration cap saturation**: average Ralph session reaches the
+   25-iteration hard cap (Stage 2-B.5) more than 20% of the time.
+
+ANY of the three triggers a new ADR considering: change default? raise N?
+adjust inter-iteration Disputatio? Triggers are intentionally measurable
+signals, not vibes (per ADR-0003).
+
+### ADR-0008 [R3-A — formal record]
+
+The decision summary, alternatives, and rationale are recorded in
+`docs/architecture/decisions/0008-ralph-sequential-default-parallel-architecture.md`.
+Future contributors / future-Sang can reference it to understand "why
+sequential default" and what triggers reconsideration.
+
+### Boundaries
+
+- ❌ Default-parallel at v1 (R1-C rejected): exposes unproven inter-iteration
+  Disputatio to every session; subtle SPEC-assumption violations risk.
+- ❌ Sequential-only architecture at v1 (R1-A as originally posed but
+  effectively the "no parallel" option): retrofit cost 3× upfront.
+- ❌ Vague re-eval triggers (R2-B/C rejected): need measurable signals.
+- ❌ Decision recorded only in NOTES.md (R3-B rejected): too important;
+  needs ADR-grade permanence.
+- ❌ Parallelism N > 5 without `--parallel-force` flag (cost guardrail).
+- ❌ Sibling Z1 counters merged across siblings (each tracks independently).
+- ❌ Discarded siblings deleted (always recorded with reason for audit).
+
+### Output consumed by
+
+- **Ralph engine** (Stage 6): builds state/workspace/history with N >= 1 from start.
+- **Aquinas Disputatio** (per `docs/philosophy/05-...md`): inter-iteration
+  Disputatio is a new application of the same per-objection ruling pattern.
+- **`agora ralph` CLI**: `--parallel=N` flag and `[ralph].parallelism` config key.
+- **`agora doctor`**: surfaces parallelism setting + sibling success rates over time.
+- **Future ADRs**: this SPEC's re-eval triggers point to when the next ADR is needed.
+
+### Failure modes specifically guarded
+
+- **Premature default change**: triggers are measurable, requiring real data.
+- **Bit-rot of unused parallel path**: Stage 6 implementation includes parallel
+  smoke test (N=2 ralph run as integration test).
+- **Cost runaway from parallel**: token budget counts cumulative; --parallel-force
+  required for N > 5; user must opt in to high-N.
+- **Sibling state corruption**: workspace isolation per iteration prevents
+  cross-sibling contamination; merges only happen via explicit Disputatio.
+
+---
+
 ## Open Questions for Stage 2-B
 
 These resolve in Stage 2-B (full Ralph spec):
@@ -1343,7 +1508,7 @@ These resolve in Stage 2-B (full Ralph spec):
 3. ~~**Critic persona selection**~~ ✅ Resolved 2026-05-03 (Stage 2-B.3). See "Gates 3 + 4 — Critic Persona Roster [SPEC]" above.
 4. ~~**Test regeneration trigger**~~ ✅ Resolved 2026-05-03 (Stage 2-B.2). See "Gate 2 — Test Regeneration Trigger [SPEC]" above.
 5. ~~**Iteration cap**~~ ✅ Resolved 2026-05-03 (Stage 2-B.5). See "Engine — Iteration Cap [SPEC]" above.
-6. **Parallel iterations** — can Ralph run multiple iteration paths in parallel and pick the best (Disputatio between paths)? Or strictly sequential?
+6. ~~**Parallel iterations**~~ ✅ Resolved 2026-05-03 (Stage 2-B.6). See "Engine — Parallel Iterations Architecture [SPEC]" above + ADR-0008.
 7. **Bypass UX** — `--skip-gate-0=<list>` is documented; what about other gates? (Lean toward: only Gate 0 is bypassable; others have lower-cost equivalents but no full bypass.)
 
 ---
