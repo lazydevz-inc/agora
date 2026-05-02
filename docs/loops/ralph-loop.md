@@ -1124,6 +1124,216 @@ Gate 5 — Alignment Check
 
 ---
 
+## Engine — Iteration Cap [SPEC] (Accepted 2026-05-03, Stage 2-B.5)
+
+> **Goal**: Define when Ralph stops iterating *permanently* — not the per-gate
+> retry logic (Z1 → Z2), but the engine-level limits that bound a single Ralph
+> session against runaway. Multiple layers because different runaway modes
+> require different signals.
+
+### 3-layer cap model [R1-A simplified to 3 layers per R5-C]
+
+```yaml
+limits:
+
+  # Layer 1: Soft suggestion (non-blocking notice)
+  soft_iteration_count: 10    # at iteration 10, friendly notice fires
+
+  # Layer 2: Hard cap on iteration count (blocking)
+  hard_iteration_count: 25    # absolute. Ralph pauses, dialog required
+
+  # Layer 3: Token budget (blocking)
+  token_budget_per_session: 1_000_000   # 1M tokens, ≈ Sonnet $3-$15 range
+```
+
+**Layer 4 (wall-clock) deliberately omitted** [R5-C]: hard_iteration_count
+and token_budget already cap runaway from any meaningful angle. Wall-clock
+adds configuration without catching anything the other two miss. If a user
+leaves Ralph running overnight, the iteration count or token budget will
+trigger before any reasonable wall-clock value.
+
+### Layer 1 — Soft suggestion at 10 iterations [R2-A]
+
+```
+on iteration N completes:
+  if N == soft_iteration_count and not state.soft_already_fired:
+    state.soft_already_fired = true
+    notify_non_blocking:
+      """
+      ⓘ 10 iterations completed. Ralph is still working.
+        Recent gate pass rates: {summary}
+        [c] continue (default — Ralph proceeds automatically in 5s)
+        [p] pause and review
+        [s] show iteration history
+      """
+    # If user does nothing, Ralph proceeds automatically
+    # If user types c/p/s within 5 seconds, that path is taken
+```
+
+This is a **friendly nudge**, not a block. The 10-iteration mark is when a
+typical Ralph session starts to feel "long" — proactive notice prevents the
+"wait, how long has this been running?" surprise.
+
+### Layer 2 — Hard iteration cap at 25 [R3-A]
+
+```
+on iteration N completes:
+  if N >= hard_iteration_count:
+    state.phase = "in_ralph_paused"
+    state.pause_reason = "hard_iteration_cap_reached"
+    show_blocking_dialog:
+      """
+      ⚠ Hard iteration cap (25) reached.
+
+        25 iterations against the same seed without converging is a strong
+        signal that the alignment is incomplete. Z2 mini-alignment is
+        recommended.
+
+        Iteration summary:
+          - Gate 5 (alignment) recent drift_score: {avg over last 5}
+          - Gate failures by gate: {count by gate over all 25}
+
+        ◯  [m] start mini-alignment session (Z2 path)
+        ◯  [a] abort Ralph (discard checkpoint, return to ready_for_ralph)
+        ◯  [+] raise cap to N+15 (override; recorded as trust warning)
+
+        > _
+      """
+```
+
+Why **25** specifically:
+- A typical lazydevz feature addition (per Stage 1 estimate: 3-month horizon)
+  takes 3-8 Ralph iterations after a well-aligned seed
+- 25 is ~3x that envelope — comfortably above legitimate work, comfortably
+  below "the AI is lost"
+- 50 (R3-B) is too lenient — by 50, you've spent more on iteration than the
+  original alignment likely cost
+- 15 (R3-C) is too conservative — legitimate complex features can hit it
+
+The `+` override is allowed but recorded. Each invocation adds 15 to the cap
+and writes `state.iteration_cap_overrides += [{at: now, new_cap: ...}]`.
+`agora doctor` surfaces this as a trust warning at every subsequent Ralph start.
+
+### Layer 3 — Token budget at 1M tokens [R4-A]
+
+```
+on iteration N completes:
+  cumulative = sum(iteration.token_usage for iteration in history)
+  if cumulative >= token_budget_per_session:
+    state.phase = "in_ralph_paused"
+    state.pause_reason = "token_budget_reached"
+    show_blocking_dialog:
+      """
+      ⚠ Token budget reached: {cumulative} tokens
+        (estimated cost: ${estimated_cost} on current model)
+
+        ◯  [c] continue with new budget (+1M tokens)
+        ◯  [p] pause indefinitely (Ralph state preserved)
+        ◯  [a] abort
+
+        > _
+      """
+```
+
+Why **1M tokens**:
+- Sonnet 4 pricing: ~$3 input / $15 output per 1M tokens → $3-$15 range
+- This is a meaningful "are you sure?" amount but not catastrophic
+- Max plan users (per ADR-0005): cost is $0 marginal but token budget still
+  serves as a *consumption signal* — useful for noticing "Ralph just burned
+  the equivalent of $10 of Sonnet calls"
+
+The `[c] continue with new budget` adds another 1M tokens to the budget
+(not unlimited — re-prompts at next 1M).
+
+### Cap interaction rules
+
+When multiple caps could fire on the same iteration:
+
+```
+priority order (highest first):
+  1. token_budget_per_session     # cost protection wins
+  2. hard_iteration_count          # convergence-failure signal
+  3. soft_iteration_count          # informational only
+```
+
+Only the highest-priority dialog fires. The others are recorded as "would have
+also fired" in iteration metadata for later analysis.
+
+### Project-level overrides
+
+`.agora/config.toml` schema:
+
+```toml
+[ralph_limits]
+soft_iteration_count = 10
+hard_iteration_count = 25
+token_budget_per_session = 1_000_000
+
+# Examples of when to override:
+# Long-running prototype: soft_iteration_count = 20, hard = 50
+# Cost-sensitive: token_budget_per_session = 250_000
+# Production migration: hard_iteration_count = 50, token_budget = 5_000_000
+```
+
+Any override written here is read at Ralph start. Changes mid-session require
+restart of the Ralph session (the active session keeps the cap it started with).
+
+Override values are recorded in `seed.metadata.limit_overrides` for audit
+and surfaced by `agora doctor` as "Custom Ralph limits active".
+
+### What does NOT count against the cap
+
+- **Z1 self-correction**: each Z1 retry is a NEW iteration (counts against cap)
+- **Z2 mini-alignment + resume**: the mini-alignment rounds do NOT count against
+  Ralph's cap (they're alignment work, not Ralph iterations)
+- **Replay after Z2 resume**: per Stage 2-A.10, Z2 may replay last 3 iterations
+  against refined seed; replays count as 1 iteration each (not 3 fresh ones)
+- **Ralph aborted iterations** (Gate 0 fail, etc.): not counted
+
+### What about Ralph sessions that span days?
+
+Sang's R5-C decision means there's no wall-clock cap. The implications:
+
+- Ralph CAN run continuously for hours or days (until iteration_count or token_budget caps)
+- This is a feature, not a bug, for use cases like "leave it running while I sleep"
+- The user remains in control via the existing caps + the `agora ralph pause` command (Stage 2-B.7 territory)
+- For accidental runaway (e.g. user forgot Ralph was running), the token budget cap fires within minutes-to-hours of typical use
+
+### Boundaries
+
+- ❌ Wall-clock cap (R5-C decision: not adding it).
+- ❌ Token-budget-only model (R1-C rejected: would miss "stuck on same problem"
+  signal that iteration count catches faster).
+- ❌ Iteration-count-only model (R1-B rejected: misses cost protection).
+- ❌ Hard cap higher than 50 default (would normalize runaway).
+- ❌ Hard cap lower than 15 default (would frustrate legitimate complex work).
+- ❌ Override raises with no recording (every override goes to seed.metadata).
+
+### Output consumed by
+
+- **Ralph iteration loop**: each layer's check happens at end-of-iteration
+  before deciding whether to start iteration N+1.
+- **`agora ralph pause` command** (Stage 2-B.7): can manually trigger
+  in_ralph_paused state without hitting any cap.
+- **`agora doctor`**: surfaces override values + recent cap-near events.
+- **Z2 mini-alignment dialog**: when triggered by hard cap, the recommended
+  primary action is "start mini-alignment" — same path as drift-triggered Z2.
+
+### Failure modes specifically guarded
+
+- **Cost runaway**: token_budget_per_session at 1M caps a single session's
+  cost in the meaningful $3-$15 range.
+- **Stuck-loop runaway**: hard_iteration_count at 25 catches "Ralph keeps
+  iterating on same problem without converging" before user notices.
+- **Forgotten session**: even without wall-clock cap, the other caps trigger
+  within bounded resources.
+- **Silent override accumulation**: every cap raise is recorded; `agora doctor`
+  surfaces accumulating overrides as a trust signal.
+- **Information overload**: only highest-priority dialog fires when multiple
+  caps could trigger.
+
+---
+
 ## Open Questions for Stage 2-B
 
 These resolve in Stage 2-B (full Ralph spec):
@@ -1132,7 +1342,7 @@ These resolve in Stage 2-B (full Ralph spec):
 2. ~~**Drift score threshold**~~ ✅ Resolved 2026-05-03 (Stage 2-B.4). See "Gate 5 — Drift Score Threshold [SPEC]" above.
 3. ~~**Critic persona selection**~~ ✅ Resolved 2026-05-03 (Stage 2-B.3). See "Gates 3 + 4 — Critic Persona Roster [SPEC]" above.
 4. ~~**Test regeneration trigger**~~ ✅ Resolved 2026-05-03 (Stage 2-B.2). See "Gate 2 — Test Regeneration Trigger [SPEC]" above.
-5. **Iteration cap** — should Ralph have a hard cap on iterations per session? (Default 10? 20? Or unlimited with token budget instead?)
+5. ~~**Iteration cap**~~ ✅ Resolved 2026-05-03 (Stage 2-B.5). See "Engine — Iteration Cap [SPEC]" above.
 6. **Parallel iterations** — can Ralph run multiple iteration paths in parallel and pick the best (Disputatio between paths)? Or strictly sequential?
 7. **Bypass UX** — `--skip-gate-0=<list>` is documented; what about other gates? (Lean toward: only Gate 0 is bypassable; others have lower-cost equivalents but no full bypass.)
 

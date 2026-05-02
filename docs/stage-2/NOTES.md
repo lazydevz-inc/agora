@@ -515,4 +515,49 @@ Failure modes guarded:
 
 Full SPEC committed to `docs/loops/ralph-loop.md` under "Gate 5 — Drift Score Threshold [SPEC]".
 
-Next task: Stage 2-B.5 — Engine iteration cap (when does Ralph give up entirely; hard cap vs token-budget vs both).
+### Stage 2-B.5 — DONE (2026-05-03)
+
+Engine iteration cap specified as 3-layer model (Sang chose to drop wall-clock).
+
+Five decisions (R5-C is Sang's deviation):
+- **R1-A**: Multi-layer model
+- **R2-A**: Soft notice at 10 iterations (non-blocking, 5s default-continue)
+- **R3-A**: Hard cap at 25 iterations (blocking dialog, +15 override allowed but recorded)
+- **R4-A**: Token budget 1M per session (≈ Sonnet $3-$15; +1M continue or abort)
+- **R5-C (Sang's choice, not R5-A recommendation)**: NO wall-clock cap.
+  Sang's reasoning: hard count + token budget already cap runaway from
+  every meaningful angle; wall-clock adds configuration without catching
+  anything the others miss.
+
+Final layer model:
+  Layer 1: soft_iteration_count = 10 (non-blocking)
+  Layer 2: hard_iteration_count = 25 (blocking)
+  Layer 3: token_budget_per_session = 1M (blocking)
+
+Cap priority order (when multiple could fire same iteration):
+  token_budget > hard_iteration > soft_iteration
+
+What does NOT count against cap:
+  - Z2 mini-alignment rounds (they're alignment work, not Ralph)
+  - Aborted iterations (Gate 0 fail, etc.)
+
+What DOES count:
+  - Each Z1 retry (=new iteration)
+  - Replays after Z2 resume (1 each, not 3 fresh)
+
+Project-level overrides via `.agora/config.toml [ralph_limits]`.
+Mid-session changes require restart (active session keeps starting cap).
+All overrides recorded in seed.metadata.limit_overrides.
+
+Failure modes guarded:
+- Cost runaway → 1M token cap
+- Stuck-loop runaway → 25 iteration cap
+- Forgotten session → other caps trigger within bounded resources
+- Silent override accumulation → recorded + surfaced by agora doctor
+- Information overload → priority order, only one dialog at a time
+
+Sang's R5-C decision documented as deliberate non-addition (not oversight).
+
+Full SPEC committed to `docs/loops/ralph-loop.md` under "Engine — Iteration Cap [SPEC]".
+
+Next task: Stage 2-B.6 — Parallel iterations (architecture choice; should Ralph try multiple iteration paths in parallel and Disputatio between them).
