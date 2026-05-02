@@ -691,5 +691,61 @@ silent acceptance, F-Aquinas-4) guarded.
 
 Full SPEC in `docs/loops/handoff.md` under "Plato Dihairesis Decomposition [SPEC]".
 
-Next task: Stage 2-C.2 — AC tree → Ralph state initialization
-(serialization, iteration ordering, parallel-sibling division, starting-leaf selection).
+### Stage 2-C.2 — DONE (2026-05-03)
+
+AC tree → Ralph state initialization specified.
+Four decisions accepted (R3 is Sang's deviation from R3-A toward R3-B):
+
+- **R1-A**: Iteration order = depth-first, leftmost-first (DFS pre-order on leaves).
+  Matches visual order from tree review dialog. Alternatives BFS/dep/random rejected.
+- **R2-A**: Parallel = first N leaves simultaneously, follows R1-A order.
+  Subsequent leaves spawn as workers complete.
+- **R3-B (Sang's choice over R3-A)**: NO manual skip/reorder commands.
+  Engine auto-skip ONLY when leaf has 3 Z2 attempts AND user chose abort 2 times
+  (3rd Z2 → auto-skip + announce).
+  Reorder concern: edit at alignment level (re-decompose via agora seed --edit).
+  Honors Sang's "minimize manual surface, push decisions to right layer" preference.
+- **R4-A**: Completion = all leaves in completed_leaves OR skipped_leaves.
+  Skipped > 0 → session-end dialog with [r] re-align / [a] accept-as-deferred / [v] view-log.
+  Skipped count is explicit — never quietly counted as success.
+
+State shape:
+  ralph_state.json: ac_tree_id, iteration_strategy, leaf_order, completed/in_progress/skipped lists,
+  parallelism (CLI flag > config > 1), started_at, session_id.
+
+Atomic state writes enable agora resume across all phase transitions.
+
+Auto-skip trigger details:
+  z2_attempts >= 3 AND user_aborts >= 2 (in current session) → auto-skip
+  Only auto-skip path; no manual command.
+
+Why no manual skip/reorder:
+  - Skip = blocked work? → defer at alignment level (mark AC deferred)
+  - Reorder = wrong order? → wrong decomposition → re-decompose
+  - Honors biased-product principle (minimize CLI surface)
+
+Session-end dialog:
+  Total / Completed / Auto-skipped counts
+  If skipped > 0: explicit acknowledgment required
+  If skipped == 0: simple "All passed" + Enter to exit
+
+Boundaries enforced (rejections by name):
+  - Manual skip/reorder (R3-A rejected per Sang's R3-B)
+  - BFS / random / dep-order iteration (R1-B/D rejected)
+  - 1-by-1 spawn under parallel (R2-B rejected)
+  - Auto-skip without 3-Z2 threshold (would bypass alignment)
+  - Auto-skip on first Z2 (would bypass user's mini-align chance)
+  - Skipped-as-success illusion (R4-A enforces acknowledgment)
+
+Failure modes guarded:
+  - Silent alignment bypass → 3-Z2 + 2-abort precondition
+  - Order non-determinism → DFS deterministic
+  - Session interruption → atomic writes + agora resume
+  - Skipped-as-success illusion → session-end dialog mandatory
+  - Manual skip backdoor → not provided at all
+
+Full SPEC committed to `docs/loops/handoff.md` under
+"AC Tree → Ralph State Initialization [SPEC]".
+
+Next task: Stage 2-C.3 — Handoff metadata + audit (LAST in Stage 2 entirely).
+After this: full Stage 2 close.

@@ -37,8 +37,8 @@ This document specifies that ceremony.
 | Step | Status | Notes |
 |------|--------|-------|
 | **Plato Dihairesis decomposition** | **[SPEC]** | Accepted 2026-05-03 (Stage 2-C.1) |
-| AC tree → Ralph state initialization | [OPEN] | Stage 2-C.2 next |
-| Handoff metadata + audit | [OPEN] | Stage 2-C.3 |
+| **AC tree → Ralph state initialization** | **[SPEC]** | Accepted 2026-05-03 (Stage 2-C.2) |
+| Handoff metadata + audit | [OPEN] | Stage 2-C.3 next |
 
 ---
 
@@ -336,18 +336,272 @@ on_tree_accepted(ac_tree):
 
 ---
 
+## AC Tree → Ralph State Initialization [SPEC] (Accepted 2026-05-03, Stage 2-C.2)
+
+> **Goal**: Define how the accepted AC tree is converted into the initial Ralph
+> state — what gets written, what order leaves are iterated, how parallel
+> sessions divide work, and what completion looks like.
+
+### Initial state shape
+
+When Plato Dihairesis tree review is accepted (R2-A from Stage 2-C.1):
+
+```
+on_handoff_accepted(ac_tree):
+  ralph_state = {
+    "ac_tree_id": ac_tree.id,
+    "iteration_strategy": "depth_first_leftmost",   # R1-A
+    "leaf_order": compute_iteration_order(ac_tree),
+    "completed_leaves": [],
+    "in_progress_leaves": [],
+    "skipped_leaves": [],
+    "parallelism": resolve_parallelism(),  # CLI flag > config > 1 (default)
+    "started_at": now(),
+    "session_id": generate_session_id(),
+  }
+
+  write(.agora/ralph_state.json, ralph_state)
+  return ready_for_ralph
+
+
+resolve_parallelism() -> int:
+  # Priority order
+  cli_flag = parse_cli("--parallel=N")
+  if cli_flag is not None:
+    return cli_flag
+  config_value = read(.agora/config.toml [ralph].parallelism)
+  if config_value is not None:
+    return config_value
+  return 1   # default per ADR-0008
+```
+
+### Iteration order [R1-A: depth-first, leftmost-first]
+
+```
+compute_iteration_order(tree) -> [LeafID]:
+  # DFS pre-order on leaves only (skip non-leaf nodes)
+  leaves = []
+  def visit(node):
+    if node.is_leaf:
+      leaves.append(node.id)
+    else:
+      for child in node.children:   # left-to-right child order
+        visit(child)
+  visit(tree.root)
+  return leaves
+```
+
+**Why DFS leftmost-first**:
+- Matches the visual order user saw in the Stage 2-C.1 review dialog
+  (top-to-bottom = first-to-last)
+- No surprise: "the first leaf I see in the review is the first one Ralph processes"
+- Plato Dihairesis decomposition naturally puts more fundamental concerns
+  in the leftmost branches (the binary articulation usually places the
+  "primary axis" on the left)
+- Alternatives rejected:
+  - BFS (R1-B): processes shallow leaves first regardless of subtree, breaks visual order
+  - Dependency-based (R1-C): SIBLING_REQUIREMENTS at AC level rarely meaningful
+    after Dihairesis decomposition (natural cuts produce independent leaves)
+  - Random (R1-D): defeats reproducibility and surprises user
+
+### Parallel batch selection [R2-A: first N leaves simultaneously]
+
+```
+on_session_start(parallelism: int):
+  if parallelism == 1:
+    # Sequential: spawn worker for first leaf only
+    leaf_id = ralph_state.leaf_order[0]
+    spawn_iteration_worker(leaf_id)
+    ralph_state.in_progress_leaves = [leaf_id]
+    return
+
+  # Parallel: spawn N workers for first N leaves
+  initial_batch = ralph_state.leaf_order[:parallelism]
+  for leaf_id in initial_batch:
+    spawn_iteration_worker(leaf_id)
+  ralph_state.in_progress_leaves = list(initial_batch)
+
+
+on_iteration_complete(leaf_id, result):
+  ralph_state.in_progress_leaves.remove(leaf_id)
+
+  if result.passed_all_gates:
+    ralph_state.completed_leaves.append(leaf_id)
+  elif result.was_auto_skipped:
+    ralph_state.skipped_leaves.append({leaf_id, reason: result.reason})
+  # if result.failed: remains in_progress until Z1/Z2 path resolves
+
+  # Spawn next worker (parallel or sequential — same logic)
+  next_index = next_unstarted_leaf_index(ralph_state)
+  if next_index is not None:
+    next_leaf = ralph_state.leaf_order[next_index]
+    spawn_iteration_worker(next_leaf)
+    ralph_state.in_progress_leaves.append(next_leaf)
+  elif len(ralph_state.in_progress_leaves) == 0:
+    # No leaves left to start AND no leaves currently running → check completion
+    check_completion()
+```
+
+The first-N-simultaneous selection respects R1-A order. Alternatives:
+- 1-by-1 spawn (R2-B): defeats parallelism point
+- Subtree-spread (R2-C): would conflict with R1-A visual ordering;
+  intentional spread is a future optimization if data shows it helps
+
+### Auto-skip mechanism [R3-B — Sang's preferred over R3-A]
+
+**No `agora ralph skip <leaf>` command exists.** No `agora ralph reorder`.
+
+The engine auto-skips a leaf only under this specific condition:
+
+```
+auto_skip_trigger(leaf_id):
+  z2_attempts = count_z2_attempts_for_leaf(leaf_id, in_current_session)
+  user_aborts = count_user_chose_abort_in_z2(leaf_id, in_current_session)
+
+  if z2_attempts >= 3 AND user_aborts >= 2:
+    # 3rd Z2 attempt after 2 prior aborts → engine auto-skips
+    mark_leaf_skipped(leaf_id, reason="auto_skipped_after_3_unresolved_z2")
+    announce_to_user:
+      """
+      ⚠ leaf {leaf_id} auto-skipped after 3 unresolved Z2 attempts.
+        Will surface at session end for review.
+
+      Continuing with next leaf in order.
+      """
+    move_to_next_leaf()
+    return SKIPPED
+```
+
+This is **the only auto-skip path**. Other ways a leaf gets into `skipped_leaves`:
+- User manually chooses "Abort" in Z2 dialog (per Stage 2-A.10) → that's a session-end abort, not a skip
+- (No other paths.)
+
+### Why no manual skip / reorder
+
+- **Skip**: if a leaf is genuinely blockable (e.g. waiting on external work),
+  the proper path is to refine the AC at alignment level (mark as deferred)
+  not skip in Ralph. Manual skip would silently bypass alignment integrity.
+- **Reorder**: if order matters differently than DFS leftmost-first, the
+  decomposition itself was wrong — fix at the source (re-decompose via
+  `agora seed --edit acceptance_criteria.<id>`). Reordering in Ralph is
+  treating a symptom; alignment edit is treating the cause.
+
+This honors Sang's biased-product principle: minimize manual surface, push
+decisions to the right layer.
+
+### Completion [R4-A]
+
+```
+check_completion():
+  total = len(ralph_state.leaf_order)
+  completed = len(ralph_state.completed_leaves)
+  skipped = len(ralph_state.skipped_leaves)
+  in_progress = len(ralph_state.in_progress_leaves)
+
+  if completed + skipped == total AND in_progress == 0:
+    state.phase = "ralph_complete"
+    show_session_end_dialog(completed, skipped)
+```
+
+Session-end dialog:
+
+```
+─────────────────────────────────────────────────────────────────
+  ✅ Ralph session complete
+─────────────────────────────────────────────────────────────────
+
+  Total leaves:      {total}
+  Completed:         {completed} ({completed/total:.0%})
+  Auto-skipped:      {skipped}
+
+  ⚠ Skipped leaves require attention:
+    1. {leaf_id_1}: {ac_content_short}
+       reason: auto_skipped_after_3_unresolved_z2
+    2. {leaf_id_2}: {ac_content_short}
+       reason: auto_skipped_after_3_unresolved_z2
+
+  ── What's next? ──
+    ◯  [r] Re-align skipped leaves (start mini-alignment for each)
+    ◯  [a] Accept skipped as deferred (record in seed.metadata, end session)
+    ◯  [v] View detailed session log
+
+    > _
+─────────────────────────────────────────────────────────────────
+```
+
+Skipped count > 0 means **the session is not "successful" in the strong
+sense** — there's unfinished alignment work. The user must explicitly
+acknowledge by choosing one of the three actions.
+
+When skipped count == 0:
+```
+  ✅ Ralph session complete
+  All {total} leaves passed every gate.
+
+  Next: review the implementation, commit, deploy.
+  > [Enter] to exit
+```
+
+### State persistence + agora resume
+
+`.agora/ralph_state.json` is updated atomically (write-temp-then-rename) on
+every state transition:
+- iteration started/completed/auto-skipped
+- parallelism change
+- session start/end
+
+This enables `agora resume`:
+- If `state.phase == "in_ralph"` and `in_progress_leaves` is non-empty:
+  resume those workers (re-spawn from checkpoint)
+- If `state.phase == "in_ralph_paused"` (Ctrl+C):
+  show "Resume Ralph at leaf X (was iteration N)?"
+- If `state.phase == "ralph_complete"`:
+  show session-end dialog again (it persists until user acts on it)
+
+### Boundaries
+
+- ❌ Manual skip command (R3-A rejected per Sang R3-B): pushes decision to
+  wrong layer.
+- ❌ Manual reorder command (R3-A rejected): same reason.
+- ❌ BFS or random iteration order (rejected): breaks visual reproducibility.
+- ❌ Dependency-order iteration (R1-C rejected): leaves are independent
+  post-Dihairesis; no meaningful dep graph.
+- ❌ 1-by-1 spawn under parallel (R2-B rejected): defeats parallelism.
+- ❌ Auto-skip without 3-Z2-attempts threshold (would silently bypass alignment).
+- ❌ Auto-skip on first Z2 (would bypass user's chance to mini-align).
+- ❌ Auto-completion that ignores skipped count (R4-A enforces explicit acknowledgment).
+
+### Output consumed by
+
+- **Ralph engine** (Stage 6): reads `.agora/ralph_state.json` for iteration
+  ordering and worker spawn decisions.
+- **`agora status`**: renders progress (completed/in_progress/skipped) +
+  current leaf with ETA estimate.
+- **`agora resume`**: reconstructs in-progress state from persisted JSON.
+- **Stage 2-C.3 handoff metadata** (next): records ac_tree_id + session_id +
+  initial state config in seed.metadata.handoff.
+- **`agora doctor`**: surfaces frequent skipped-leaf patterns across sessions.
+
+### Failure modes specifically guarded
+
+- **Silent bypass of alignment**: auto-skip requires 3 Z2 attempts AND 2
+  user aborts; cannot be triggered without user input first.
+- **Order non-determinism**: DFS leftmost-first is fully deterministic given
+  the same tree.
+- **Session interruption**: atomic state writes + agora resume = no lost
+  iterations on Ctrl+C or crash.
+- **Skipped-as-success illusion**: session-end dialog explicitly distinguishes
+  completed vs skipped; user must choose how to handle skipped.
+- **Manual skip backdoor**: simply not provided. Only path = engine-driven
+  auto-skip with strict precondition.
+
+---
+
 ## Open Questions for Stage 2-C
 
-These resolve in Stage 2-C remaining sub-questions:
+1. ~~**Plato Dihairesis decomposition algorithm**~~ ✅ Resolved 2026-05-03 (Stage 2-C.1). See "Plato Dihairesis Decomposition [SPEC]" above.
 
-1. ~~**Plato Dihairesis decomposition algorithm**~~ ✅ Resolved 2026-05-03 (Stage 2-C.1). See above.
-
-2. **AC tree → Ralph state initialization** (Stage 2-C.2) — open
-   - How does `.agora/ac_tree.json` serialize?
-   - In what order does Ralph iterate leaves? (depth-first? breadth-first?
-     dependency-order from sibling requirements?)
-   - When parallel (per ADR-0008), how do siblings divide the tree?
-   - First-iteration starting leaf — leftmost? user-selectable?
+2. ~~**AC tree → Ralph state initialization**~~ ✅ Resolved 2026-05-03 (Stage 2-C.2). See "AC Tree → Ralph State Initialization [SPEC]" above.
 
 3. **Handoff metadata + audit** (Stage 2-C.3) — open
    - What writes to `seed.metadata.handoff`?
