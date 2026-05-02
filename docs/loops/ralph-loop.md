@@ -445,6 +445,231 @@ Probes detected but not bundled (community PR welcome)
 
 ---
 
+## Gate 2 — Test Regeneration Trigger [SPEC] (Accepted 2026-05-03, Stage 2-B.2)
+
+> **Goal**: Define when LLM-generated Playwright CLI test files are created
+> initially and when they are regenerated. Too eager = token waste + non-deterministic
+> test churn. Too lazy = new ACs run without coverage.
+
+### Test lifecycle overview
+
+```
+1. Alignment Loop closes → seed.metadata.locked_at written
+2. Plato Dihairesis decomposes seed.acceptance_criteria → AC tree
+3. ▼ Test generation (Stage 2-B.2 SPEC starts here)
+4. .agora/tests/ populated with .ts Playwright test files
+5. Ralph iterations begin
+6. Each iteration → Gate 2: `npx playwright test .agora/tests/`
+7. AC tree mutates (mini-alignment Z2 or explicit edit) → re-trigger generation
+```
+
+### Initial generation [R1-A]
+
+```
+trigger: seed.metadata.locked_at written (alignment ends)
+when:    immediately after Plato Dihairesis decomposition completes,
+         BEFORE first Ralph iteration starts
+who:     LLM with input = AC tree + seed.material + seed.form
+output:  .agora/tests/{ac_id}.spec.ts files (one file per leaf AC node)
+        + .agora/tests/index.json (manifest mapping ac_id → file path + checksum)
+```
+
+The generation runs synchronously between Alignment close and Ralph start.
+The user sees:
+
+```
+✅ Seed locked.
+
+[Generating Playwright tests from AC tree...]
+  ✓ ac_001_capture_command.spec.ts          (3 cases)
+  ✓ ac_002_link_primitives.spec.ts          (5 cases)
+  ✓ ac_003_search_durability.spec.ts        (4 cases)
+  ✓ Generated 12 test cases across 3 leaf ACs in .agora/tests/
+
+Next: `agora ralph` to begin implementation.
+```
+
+If generation fails (LLM error, malformed output), the user is informed and
+offered: `[r] retry` / `[s] skip Gate 2 with warning` / `[a] abort to alignment`.
+Skip is allowed but every Ralph start re-warns about it (trust signal carried
+in seed.metadata).
+
+### Re-generation trigger [R2-A: AC tree changes only]
+
+```
+trigger:  AC tree mutation
+caused_by:
+  - Mini-alignment Z2 with cascade reaching acceptance_criteria.*
+  - Explicit `agora seed --edit acceptance_criteria.<id>`
+  - Termination dialog "Yes refine" path landing on AC
+
+NOT a trigger:
+  - Material cause changes (no test impact — affects Gate 0 probes only)
+  - Efficient cause changes (organizational, no test impact)
+  - Form refinement that doesn't reshape AC list
+  - Iteration count increase
+  - Time elapsed
+```
+
+The triggering subsystem watches the AC tree's content hash. If hash changes,
+it identifies which leaf ACs changed (added / removed / modified) and feeds
+the diff to incremental regeneration (R3-A below).
+
+This is **precise**: Ralph doesn't burn tokens regenerating tests when the
+underlying AC didn't change. AC-irrelevant changes don't ripple into Gate 2.
+
+### Incremental regeneration [R3-A]
+
+```
+on_ac_tree_change(diff: ACTreeDiff):
+  for added_ac in diff.added:
+    generate_test_file(added_ac)
+    write(.agora/tests/{added_ac.id}.spec.ts)
+
+  for modified_ac in diff.modified:
+    regenerate_test_file(modified_ac)         # full file rewrite for that AC
+    update_index_json(modified_ac.id, new_checksum)
+
+  for removed_ac in diff.removed:
+    delete(.agora/tests/{removed_ac.id}.spec.ts)
+    remove_from_index(removed_ac.id)
+
+  # Stable ACs untouched. Their test files keep their existing checksums
+  # in index.json — Ralph can verify they are unchanged across regen events.
+```
+
+**Why incremental, not full regeneration**:
+- Token cost scales with number of changed ACs, not total ACs
+- Stable test files preserve their human-reviewed state (R4-A: tests are git-tracked)
+- Avoids non-deterministic churn — same AC produces consistent test (cached if unchanged)
+
+If the user wants a clean-slate regen for some reason: `agora seed --regen-tests --all` (explicit, recorded).
+
+Cascade-via-axis-3 (R3-C alternative considered) was rejected: AC-to-AC dependencies
+would require a separate dep graph. AC tree changes already capture the effective
+dependency structure via Plato Dihairesis decomposition.
+
+### Test file location and git tracking [R4-A]
+
+```
+.agora/
+├── seed.md
+├── seed.json
+├── ac_tree.json
+├── tests/                       ← git-tracked (NOT in .gitignore)
+│   ├── index.json               ← manifest: ac_id → file + checksum
+│   ├── ac_001_capture.spec.ts
+│   ├── ac_002_links.spec.ts
+│   └── ...
+├── cache/                       ← git-ignored
+└── logs/                        ← git-ignored
+```
+
+`.gitignore` updated to exclude `.agora/cache/` and `.agora/logs/` only.
+**`.agora/tests/` is committed**.
+
+**Why git-tracked**:
+- Tests are reproducible artifacts derived from the spec — they belong with the spec
+- Team / future-self can review LLM-generated tests in PR diff
+- Manual edits to a test (debugging Ralph regression) are preserved across regens
+  → see "Manual edit preservation" below
+- `agora doctor` can detect divergence between git-tracked and last-regenerated state
+
+### Manual edit preservation
+
+When a user manually edits a test file in `.agora/tests/`:
+
+```
+on_regenerate_test(ac_id):
+  current_file = read(.agora/tests/{ac_id}.spec.ts)
+  expected_checksum = index.json[ac_id].checksum
+
+  if hash(current_file) != expected_checksum:
+    # User has manually edited this test since last regen
+    # Don't silently overwrite!
+    show_dialog:
+      """
+      ⚠ Manual edit detected: .agora/tests/{ac_id}.spec.ts
+        AC content changed and a regen would normally rewrite this file.
+        Your manual edit will be lost.
+
+        ◯  [Enter] Keep my edit; skip regen for this AC (annotate in index.json)
+        ◯  [r] Overwrite with regen (lose manual edit; .git diff still preserved)
+        ◯  [m] Show 3-way merge: original generated / manual / new generated
+      """
+```
+
+Manual edits are treated as **deliberate signals** until the user explicitly
+overwrites. This honors F-Aquinas-4 (no silent overruling) at the test layer.
+
+### Generation prompt sketch (for Stage 6 implementation)
+
+```
+You are generating Playwright CLI tests for an acceptance criterion.
+
+AC: {ac.content}
+AC parent context: {parent_ac.content if exists}
+Project material: {seed.material.tech_stack}
+Project form: {seed.form.essential_structure}
+
+Generate a Playwright test file (.spec.ts) that:
+1. Has 1-5 test cases covering the AC
+2. Each case is independent (no shared state)
+3. Uses Playwright's expect-style assertions
+4. References URLs / selectors that COULD exist (do NOT assume specific
+   selectors exist — use semantic locators like getByRole, getByText)
+5. Includes a comment header citing the AC ID and the AC content verbatim
+
+Test file structure:
+import { test, expect } from "@playwright/test";
+
+// AC: {ac.id}
+// {ac.content}
+// Generated by Agora Stage 2-B.2 — DO NOT silently rewrite if manually edited.
+
+test.describe("AC {ac.id} — {short_label}", () => {
+  test("...", async ({ page }) => { ... });
+  ...
+});
+```
+
+Generated tests are **specs**, not implementations — they describe what
+*should* be true once Ralph builds the feature. Initially they will all fail.
+Ralph iterations green them.
+
+### Boundaries
+
+- ❌ Auto-regenerate on every iteration (R2-C rejected: token explosion).
+- ❌ Periodic regeneration on N-iteration cadence (R2-B rejected: arbitrary, not signal-driven).
+- ❌ Full regeneration when only one AC changed (R3-B rejected: wastes tokens, loses manual edits).
+- ❌ Cascade regen via dep graph (R3-C rejected: AC tree decomposition already encodes dependency).
+- ❌ Tests in `.gitignore` (R4-B rejected: tests are review-able artifacts).
+- ❌ Tests in project-root `tests/` or `e2e/` (R4-C rejected: collides with user's manual tests).
+- ❌ Silent overwrite of manually-edited tests (manual edit dialog is mandatory).
+
+### Output consumed by
+
+- **Gate 2 execution**: `npx playwright test .agora/tests/` runs the current
+  manifest's tests; failures block Ralph iteration.
+- **`agora doctor`**: surfaces stale tests (manifest checksum mismatch), missing
+  files for active ACs, orphaned test files for removed ACs.
+- **`.agora/tests/index.json`**: source of truth for ac_id ↔ file mapping;
+  read by both Ralph and `agora doctor`.
+
+### Failure modes specifically guarded
+
+- **F-Aquinas-4 (silent overruling)**: manual edit preservation dialog prevents
+  silent overwrite of user's deliberate test changes.
+- **Token waste**: incremental regen + AC-tree-change-only trigger keep token
+  cost proportional to actual change.
+- **Test churn**: stable AC's test file is content-stable across regens (same
+  AC content + same generation prompt = same output for deterministic LLM
+  modes; for stochastic modes, manual edits anchor stability).
+- **Test-spec drift**: index.json checksums detect when an LLM-generated test
+  was edited; `agora doctor` surfaces this.
+
+---
+
 ## Open Questions for Stage 2-B
 
 These resolve in Stage 2-B (full Ralph spec):
@@ -452,7 +677,7 @@ These resolve in Stage 2-B (full Ralph spec):
 1. ~~**Probe registry initial coverage**~~ ✅ Resolved 2026-04-28 (Stage 2-B.1). See "Gate 0 — Probe Registry [SPEC]" above. v1 ships 19 probes.
 2. **Drift score threshold** — what numeric value triggers Z1 vs Z2? (Currently: Z1 every fail, Z2 after 3 consecutive Z1 fails.)
 3. **Critic persona selection** — which UI/UX and code-quality personas run for Gate 3 and 4? Project-overridable?
-4. **Test regeneration trigger** — when do Playwright tests get regenerated vs. updated incrementally?
+4. ~~**Test regeneration trigger**~~ ✅ Resolved 2026-05-03 (Stage 2-B.2). See "Gate 2 — Test Regeneration Trigger [SPEC]" above.
 5. **Iteration cap** — should Ralph have a hard cap on iterations per session? (Default 10? 20? Or unlimited with token budget instead?)
 6. **Parallel iterations** — can Ralph run multiple iteration paths in parallel and pick the best (Disputatio between paths)? Or strictly sequential?
 7. **Bypass UX** — `--skip-gate-0=<list>` is documented; what about other gates? (Lean toward: only Gate 0 is bypassable; others have lower-cost equivalents but no full bypass.)

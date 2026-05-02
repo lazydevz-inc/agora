@@ -404,4 +404,44 @@ Meta-learning: I rushed Q1 by introducing "universal probes" without integrating
 
 Full SPEC committed to `docs/loops/ralph-loop.md` under "Gate 0 — Probe Registry [SPEC]".
 
-Next task: Stage 2-B.2 — Test regeneration trigger (when do Playwright CLI tests get regenerated vs incrementally updated; Gate 2 detail).
+### Stage 2-B.2 — DONE (2026-05-03)
+
+Gate 2 (Functional QA) test generation/regeneration specified.
+Four decisions accepted:
+
+- **R1-A**: Initial generation immediately after Alignment close + Plato Dihairesis,
+  before first Ralph iteration starts. User sees "Generated N test cases" message.
+- **R2-A**: Re-generation triggered ONLY by AC tree mutation (mini-alignment Z2 cascade
+  to AC, explicit `agora seed --edit AC.X`, "Yes refine" landing on AC).
+  Material/efficient changes do NOT trigger regen.
+- **R3-A**: Incremental regen — only added/modified/removed AC test files touched.
+  Stable AC tests untouched. Cascade via AC dep graph rejected (Plato Dihairesis
+  decomposition already encodes dependency).
+- **R4-A**: `.agora/tests/` git-tracked (NOT gitignored). Tests are review-able
+  reproducible artifacts. Team/future-self can review LLM-generated tests in PR diff.
+
+Manual edit preservation specified:
+- index.json checksums detect manual edits between regens
+- 3-option dialog (Keep / Overwrite / 3-way merge) on regen of edited file
+- Honors F-Aquinas-4 (no silent overruling) at the test layer
+
+Test file structure:
+- One .spec.ts per leaf AC node
+- Header comment cites AC ID + content verbatim
+- Generated tests are SPECS (initially failing); Ralph greens them
+
+`.agora/` directory layout updated:
+  seed.md, seed.json, ac_tree.json, tests/{index.json + *.spec.ts} ← tracked
+  cache/, logs/ ← gitignored
+
+Failure modes guarded:
+- Silent overwrite of manual edits → mandatory dialog
+- Token waste → incremental + signal-driven
+- Test churn → checksum stability + manual edit anchors
+- Spec drift → agora doctor surfaces mismatch
+
+Full SPEC committed to `docs/loops/ralph-loop.md` under
+"Gate 2 — Test Regeneration Trigger [SPEC]".
+
+Next task: Stage 2-B.3 — Critic persona selection for Gates 3 (UI/UX) and
+Gate 4 (Technical Quality) Aquinas Disputatio.
