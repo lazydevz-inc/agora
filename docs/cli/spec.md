@@ -14,7 +14,7 @@
 | Section | Status |
 |---------|--------|
 | **Output Format Framework** (3-A.1) | **[SPEC]** Accepted 2026-05-03 |
-| Auto-suggest "Next:" Pattern (3-A.2) | [OPEN] |
+| **Auto-suggest "Next:" Pattern** (3-A.2) | **[SPEC]** Accepted 2026-05-03 |
 | Global Flags + Precedence (3-A.3) | [OPEN] |
 | `agora doctor` (3-B.1) | [OPEN] |
 | `agora status` (3-B.2) | [OPEN] |
@@ -287,15 +287,237 @@ This is the F1 forbidden-pattern from Stage 1, codified at the framework level.
 
 ---
 
+## Auto-suggest "Next:" Pattern [SPEC] (Accepted 2026-05-03, Stage 3-A.2)
+
+> **Goal**: Define when the auto-suggest "Next:" block appears, how candidate
+> next-actions are generated and ranked, how many to show, and the
+> contract between TUI and JSON rendering.
+
+### When the block appears [R3-A: failure also shows]
+
+```
+SHOW_NEXT_DECISION:
+  if command output is informational (--help, --version):
+    SHOW: false
+  elif command was aborted by user (exit code 3):
+    SHOW: false           # user explicitly stopped; don't push
+  elif result.ok == true:
+    SHOW: true            # natural progression
+  elif result.ok == false:
+    SHOW: true            # fix-path suggestions (R3-A)
+```
+
+In TUI: rendered as `── Next: ───` block.
+In JSON: `next[]` array always present (empty allowed when SHOW=false).
+
+### Candidate generation — 3 sources [R1-A: weighted ranking]
+
+```
+generate_next_candidates(command_result, state) -> [Candidate]:
+
+  candidates = []
+
+  # SOURCE 1 — Phase-based natural progression (weight 0.6)
+  # state.phase determines obvious next move
+  candidates += derive_from_phase(state.phase)
+
+  # SOURCE 2 — Result-driven correction (weight 0.3)
+  # Only fires when result.ok == false
+  if not command_result.ok:
+    candidates += derive_from_failure(command_result.errors)
+
+  # SOURCE 3 — Inspection / read-only options (weight 0.1)
+  # Always available but lowest priority
+  candidates += [
+    {"command": "agora status", "description": "View current state"},
+    {"command": "agora doctor", "description": "Diagnose environment"},
+  ]
+
+  # ─── RANK + DEDUP ───
+  ranked = score_and_dedup(candidates)
+    score = source_weight  # 0.6 / 0.3 / 0.1
+    dedup_key = (command, args)  # same command+args = duplicate;
+                                   keep highest-weighted source's description
+
+  # ─── COUNT CAP ───
+  return ranked[:MAX_NEXT_COUNT]
+
+
+MAX_NEXT_COUNT = 3   # R2-A
+```
+
+### Phase → next-action lookup table
+
+```
+state.phase → suggested next actions (Source 1)
+
+"in_alignment":
+  → ["agora resume", "Continue alignment session"]
+
+"in_alignment_paused":
+  → ["agora resume", "Continue paused alignment session"]
+
+"alignment_complete":
+  → ["agora ralph", "Start implementation now that the seed is locked"]
+  → ["agora seed --edit telos.statement", "Refine telos before starting Ralph"]
+
+"in_handoff":
+  → ["agora resume", "Re-show the AC tree review dialog"]
+
+"ready_for_ralph":
+  → ["agora ralph", "Start implementation"]
+  → ["agora seed", "View the locked seed before starting"]
+
+"in_ralph":
+  → ["agora status", "View current Ralph progress"]
+
+"in_ralph_paused":
+  → ["agora resume", "Resume Ralph from checkpoint"]
+
+"ralph_complete":
+  → []   # User chose explicit acknowledgment via session-end dialog;
+         # block becomes empty, omitted in TUI per R4-A
+
+null (no .agora/):
+  → ["agora new", "Start a new project workflow"]
+  → ["agora doctor", "Verify environment is ready"]
+```
+
+### Failure → fix-path lookup (Source 2)
+
+When `result.errors[]` carries known error codes, map to fix actions:
+
+```
+error.code → suggested fix command
+
+"gate_0_failed_<probe_id>":
+  → External fix command from probe.fixInstruction()
+  → Example: "gh auth login" or "vercel login"
+  → Plus ["agora doctor", "Re-run all probes after fixing"]
+
+"gate_2_test_failure":
+  → ["agora ralph", "Re-run iteration after reviewing failed tests"]
+  → No external fix — Ralph self-corrects via Z1
+
+"gate_5_drift_hard_fail":
+  → ["agora resume", "Mini-alignment was triggered; resume to address it"]
+
+"env_claude_not_authenticated":
+  → ["claude auth status", "Verify Claude Code authentication"]
+  → ["claude login", "Re-authenticate"]
+
+"config_invalid_state_json":
+  → ["agora doctor", "Diagnose .agora/ corruption"]
+```
+
+Unknown error codes: omit Source 2; Source 3 (inspection) carries the load.
+
+### TUI rendering
+
+```
+─────────────────────────────────────────────────────────────────
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora ralph
+      Start implementation now that the seed is locked
+
+    ▸ agora seed --edit telos.statement
+      Refine telos before starting Ralph
+
+    ▸ agora status
+      View current state
+─────────────────────────────────────────────────────────────────
+```
+
+Layout rules:
+- `▸` bullet marker (typographic, NOT in semantic icon set — distinct usage)
+- Command line: bold + cyan
+- Description line: dim grey, indent 6 spaces
+- Empty line between candidates (visual breathing room)
+- Maximum 3 candidates per Stage 3-A.2 R2-A
+
+### JSON rendering
+
+`next[]` array per the universal schema established in 3-A.1:
+
+```json
+"next": [
+  {
+    "command": "agora ralph",
+    "args": [],
+    "description": "Start implementation now that the seed is locked"
+  },
+  {
+    "command": "agora seed",
+    "args": ["--edit", "telos.statement"],
+    "description": "Refine telos before starting Ralph"
+  },
+  {
+    "command": "agora status",
+    "args": [],
+    "description": "View current state"
+  }
+]
+```
+
+`command` is the bare command (no args). `args[]` is the flag/positional list
+ready for `argv` parsing. `description` is the same string shown in TUI.
+
+`description` is locale-aware (resolved per Stage 3-A.1 R5-A locale lookup
+before rendering).
+
+### Empty next handling [R4-A]
+
+When `generate_next_candidates()` returns empty (e.g. `ralph_complete` after
+session-end ack):
+
+```
+TUI:  Block omitted entirely — cleaner visual, no "Next: (none)" noise
+JSON: "next": []   — array always present, just empty
+```
+
+### Boundaries
+
+- ❌ Show Next: on `--help` or `--version` output (informational, not action-driving).
+- ❌ Show Next: after explicit user abort (exit code 3) — pushing after a stop is rude.
+- ❌ Hide Next: on failure (R3-B rejected): users need fix-path most when failed.
+- ❌ MAX_NEXT_COUNT > 3 (R2-B rejected): cognitive overload at end of every command.
+- ❌ MAX_NEXT_COUNT == 1 (R2-C rejected): hides legitimate alternatives.
+- ❌ Failure suppresses Source 1 (R1-C rejected): even on failure, the "intended path" candidate is useful.
+- ❌ Phase-only (R1-B rejected): inspection options ARE useful when user is stuck.
+- ❌ TUI empty-block placeholder (R4-B rejected): "(none)" adds visual noise.
+- ❌ Description-less commands (description is mandatory per F2 enforcement).
+- ❌ Locale-unvalidated descriptions (must pass F1 check before render).
+
+### Output consumed by
+
+- **Every TUI command output**: appends Next block per the layout rules.
+- **Every JSON command output**: includes `next[]` per the schema.
+- **AI agents calling Agora CLI**: read `next[]` to chain commands; `description`
+  helps the agent's reasoning ("why pick this next").
+- **Stage 3-B per-command specs**: each command may add command-specific
+  candidates beyond Sources 1-3 (e.g. `agora ralph` after iteration completion
+  may suggest specific files to review). Per-command additions append to
+  Source 1.
+
+### Failure modes specifically guarded
+
+- **F2 (purpose visible)**: every candidate carries `description` explaining
+  *why* this next action makes sense.
+- **Push fatigue**: max 3 + omitted on abort + omitted on info-only.
+- **Stale suggestions**: candidates are computed per-call (no caching);
+  always reflect current state.phase.
+- **Locale leakage**: descriptions resolved through i18n catalog before
+  render (TUI) or before serialization (JSON).
+- **Source 2 dead-end**: failure with no known fix-path falls through to
+  Source 3 (inspection options); never empty `next[]` on failure.
+
+---
+
 ## Open Questions for Stage 3
 
 1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
 
-2. **Auto-suggest "Next:" Pattern** (Stage 3-A.2) — open
-   - When does Next: appear? (every command? only some?)
-   - How are next-action candidates ranked?
-   - Max number of suggestions?
-   - JSON `next[]` ↔ TUI rendering contract
+2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
 
 3. **Global Flags + Precedence** (Stage 3-A.3) — open
    - Inventory of universal flags (`--help`, `--json`, `--version`, `--locale`, ...)

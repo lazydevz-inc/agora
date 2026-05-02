@@ -137,4 +137,44 @@ Failure modes guarded: F1 (locale), F2 (purpose visible via next[]), color/emoji
 
 Full SPEC committed to `docs/cli/spec.md` under "Output Format Framework [SPEC]".
 
-Next task: Stage 3-A.2 — Auto-suggest "Next:" Pattern (when it appears, how candidates ranked, max count, JSON↔TUI contract).
+### Stage 3-A.2 — DONE (2026-05-03)
+
+Auto-suggest "Next:" pattern specified. Four decisions accepted:
+
+- **R1-A**: 3-source weighted ranking (phase-progression 0.6, failure-correction 0.3, inspection 0.1). Dedup by (command, args), keep highest-weighted source's description.
+- **R2-A**: MAX_NEXT_COUNT = 3. Mirrors Stage 2 dialog patterns + low cognitive load.
+- **R3-A**: Failure also shows Next (with fix-path suggestions). Users need fix-path most when failed.
+- **R4-A**: Empty next[] → TUI block omitted entirely; JSON keeps empty array.
+
+Show/hide decision:
+- Informational output (--help, --version) → no Next
+- User-aborted (exit code 3) → no Next (don't push after stop)
+- result.ok = true → show
+- result.ok = false → show (fix-path mode)
+
+Phase → next-action lookup table specified for all 8 state.phase values from Stage 2-C.3 enum.
+
+Failure → fix-path lookup for known error codes (gate_0_failed_*, gate_2_test_failure, gate_5_drift_hard_fail, env_claude_not_authenticated, config_invalid_state_json). Unknown errors fall through to Source 3.
+
+TUI rendering:
+- `▸` bullet marker (typographic, distinct from semantic icon set)
+- Command line bold cyan, description dim grey indent 6
+- Empty line between candidates
+
+JSON rendering reuses 3-A.1 schema: command (bare) + args (argv-ready) + description (locale-aware).
+
+Boundaries enforced (rejections by name):
+- Show on --help/--version (informational)
+- Show after abort (rude)
+- Hide on failure (R3-B rejected)
+- COUNT > 3 (R2-B rejected) or = 1 (R2-C rejected)
+- Phase-only (R1-B rejected)
+- TUI empty placeholder (R4-B rejected)
+- Description-less commands (mandatory per F2)
+- Locale-unvalidated descriptions (must pass F1)
+
+Failure modes guarded: F2 (purpose visible via description), push fatigue (max 3 + omit on abort/info), stale suggestions (computed per-call), locale leakage (i18n through catalog), Source 2 dead-end (Source 3 fallback).
+
+Full SPEC committed to `docs/cli/spec.md` under "Auto-suggest 'Next:' Pattern [SPEC]".
+
+Next task: Stage 3-A.3 — Global Flags + Precedence (universal --help/--json/--version/--locale inventory, multi-source precedence, forbidden combinations).
