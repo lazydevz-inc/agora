@@ -368,6 +368,90 @@ Updated `docs/infra/llm-integration.md` Section Index: 4-A.5 split into
 
 Updated "Next sections" pointer: only 4-A.6 remains (cross-cutting).
 
-Next task: Stage 4-A.6 — Error handling + telemetry (cross-cutting per
-3-A.1 exit codes). Likely woven into install / config / probes /
-llm-integration rather than as a standalone doc.
+### Stage 4-A.6 — DONE (2026-05-03)
+
+Cross-cutting Error Handling + Telemetry specified. Five decisions
+accepted (all recommended). Standalone file `docs/infra/errors-and-telemetry.md`
+created (concentrated single source of truth — woven references into
+other docs would have scattered the catalog).
+
+- **R1-A**: `AgoraError` type + central `ERROR_CATALOG` (`src/errors/codes.ts`).
+  Each entry pins category / exit_code / message_key / fix_key. TS literal
+  type derives `ErrorCode` enum — non-cataloged code = compile error.
+  `buildAgoraError(code, opts)` constructor pattern. R1-B (per-subsystem
+  catalogs) rejected (cross-subsystem audit fails); R1-C (free-form
+  strings) rejected (typo trap, loses TS guard).
+- **R2-A**: Per-error explicit exit code in catalog. Same category may
+  differ (probe.timeout=4 vs probe.unknown-id=5). Stage 3-A.1 7-tier
+  mapping preserved. Stage 3-A.1 R3-A "highest numeric wins" rule applies
+  on multi-error fire. R2-B (per-category fixed) rejected (forces wrong
+  code on misuse); R2-C (throw-site) rejected (drift).
+- **R3-A**: Local-only crash reports at `~/.agora/crashes/<ts>.json`.
+  Auto-redact secret env vars (exact list + `*_API_KEY|*_TOKEN|*_SECRET|*_PASSWORD|*_PRIVATE_KEY`
+  pattern). `agora doctor --explain-crash <file>` subflag (NOT new
+  command). 1-sec dedup against thrash loops. **No phone-home, ever**.
+  R3-B (Sentry / external opt-in) rejected (MANIFESTO P6 + dep + cloud);
+  R3-C (stderr only) rejected (hard bugs irreproducible).
+- **R4-A**: **No telemetry at v1.** `~/.agora/telemetry/` directory does
+  NOT exist. No phone-home, no anonymized stats, no analytics SDK deps.
+  Justification: MANIFESTO P6 + ADR-0007 (Sang sole user, events.jsonl
+  already richer than any analytics) + ADR-0001 minimalism + trust posture.
+  Re-evaluate ONLY if ADR-0007 public-release trigger fires AND a metric
+  question emerges that local data can't answer. R4-B (local opt-in event
+  log) rejected (events.jsonl solves it, flag itself is noise);
+  R4-C (remote PostHog etc.) rejected (direct MANIFESTO P6 violation).
+- **R5-A**: All error messages + fix instructions live in locale catalog
+  (`messages/en.json` + `messages/ko.json` per Stage 3-A.1 R5-A). No
+  string literals at throw sites. `localized(key, ctx)` lookup with `{var}`
+  interpolation. F1 enforcement: CI test asserts en/ko keysets identical;
+  runtime missing-key throws `internal.invariant-violation`. No silent en
+  fallback for ko (F1 violation). Per-mode rendering: TUI colored stderr
+  / JSON `errors[]` / MCP `structuredContent.errors[]`. `cause` field
+  omitted from external output (preserved in-process for crash reports).
+  R5-B (per-category Error subclass) rejected (no locale, no fix
+  discipline); R5-C (free-string throw) rejected (AI agents can't follow).
+
+Forbidden at v1 (explicit list):
+  - Importing posthog-node / posthog-js / @posthog/* into runtime code
+  - Importing Sentry / Mixpanel / Amplitude / Datadog SDKs
+  - Background HTTP requests on agora command execution
+  - Optional phone-home behind --telemetry flag
+  - Writing ~/.agora/telemetry/ in any code path
+  - String literals at error throw sites
+  - `cause` field in external (TUI/JSON/MCP) output
+  - English fallback for ko locale
+
+Boundaries enforced (14 rejections by name).
+
+Failure modes guarded:
+  - Silent crash, no artifact         → internal.* always writes crash file
+  - Secret leak in crash report       → name only, value redacted
+  - Locale typo / missing key         → CI keyset parity assertion
+  - Drift between throw sites/catalog → TS literal type forces entry
+  - Phone-home accidentally added     → explicit forbid + dep review on PR
+  - Crash thrash loop                 → 1-sec dedup window
+  - Same error, multiple exit codes   → catalog is SoT
+
+Full SPEC committed to `docs/infra/errors-and-telemetry.md` with 5 [SPEC]
+sections + boundaries + failure modes + output consumers.
+
+---
+
+## Stage 4 — All sub-questions complete
+
+| # | Topic | File | Status |
+|---|-------|------|--------|
+| 4-A.1 | Install mechanics | docs/infra/install.md | ✅ DONE |
+| 4-A.2 | Claude integration runtime | docs/infra/llm-integration.md | ✅ DONE |
+| 4-A.3 | Config loading | docs/infra/config.md | ✅ DONE |
+| 4-A.4 | Probe registry implementation | docs/infra/probes.md | ✅ DONE |
+| 4-A.5 | MCP server design | docs/infra/llm-integration.md (appended) | ✅ DONE |
+| 4-A.6 | Error handling + telemetry | docs/infra/errors-and-telemetry.md | ✅ DONE |
+
+Stage 4 close requires (per ADR-0004):
+  1. All named deliverables exist and committed ✅
+  2. Sang has read and approved them — pending Sang's explicit close approval
+  3. No ADR is left in Proposed state from this stage ✅ (no new ADRs in Stage 4)
+
+Awaiting Sang's "Stage 4 close 선언" → then create `docs/stage-4/CLOSED.md`,
+tag `v0.4.0-stage-4`, open Stage 5 NOTES.md.
