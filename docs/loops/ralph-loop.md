@@ -670,13 +670,280 @@ Ralph iterations green them.
 
 ---
 
+## Gates 3 + 4 — Critic Persona Roster [SPEC] (Accepted 2026-05-03, Stage 2-B.3)
+
+> **Goal**: Define the critic personas that raise objections in Aquinas
+> Disputatio at Gates 3 (UI/UX Quality) and 4 (Technical Quality). Each
+> persona occupies one distinct critique axis. Selection per iteration is
+> trigger-based on the iteration's changed areas.
+
+### Roster
+
+#### Gate 3 — UI/UX Quality critics (4)
+
+```yaml
+- id: visual_hierarchy
+  description: "Visual hierarchy guides the eye to the primary action"
+  activates_when: iteration changes layout / typography / color / spacing
+  asks: |
+    User's eye flows to the primary action first?
+    Secondary options visible but de-emphasized?
+    Errors / warnings clearly distinct from neutral content?
+
+- id: interaction_clarity
+  description: "User actions and consequences are clearly connected"
+  activates_when: iteration changes interactive elements, transitions, feedback
+  asks: |
+    Click / hover / loading / disabled / focus states all present?
+    Optimistic vs server-confirmed feedback distinguishable?
+    Failure modes communicated, not silent?
+
+- id: accessibility
+  description: "ARIA, semantic HTML, keyboard nav, contrast, focus order"
+  activates_when: any UI change
+  asks: |
+    Tab order sensible? Focus rings visible (focus-visible:ring)?
+    Screen-reader labels present? aria-* attributes correct?
+    WCAG AA contrast ratio met for text and UI states?
+
+- id: design_system_consistency
+  description: "Project-defined tokens / patterns are honored"
+  activates_when: new component added, or existing component modified
+  asks: |
+    Uses defined design tokens (color/spacing/typography vars)?
+    No one-off hex/px/rem values introduced?
+    Matches established component patterns elsewhere in the project?
+```
+
+#### Gate 4 — Technical Quality critics (5)
+
+```yaml
+- id: solid_discipline
+  description: "SOLID violations — SRP, OCP, LSP, ISP, DIP"
+  activates_when: new module/class/function added, or existing module modified
+  asks: |
+    Single Responsibility violated? Class doing 3+ unrelated things?
+    Tight coupling to concretes instead of abstractions?
+    Dependency Inversion respected at module boundaries?
+    Open/Closed: can extend without modifying core?
+
+- id: test_coverage_quality
+  description: "Test quality beyond coverage threshold pass"
+  activates_when: new code added (regardless of test addition)
+  asks: |
+    Tests cover error paths, not just happy path?
+    Test names describe BEHAVIOR, not implementation?
+    Setup/teardown clean? No leaked state across tests?
+    Test independence preserved (any order, any subset)?
+
+- id: naming_clarity
+  description: "Function / variable / class names communicate intent precisely"
+  activates_when: new identifier introduced
+  asks: |
+    Names communicate purpose, not mechanism?
+    Acronyms defined or universally known?
+    Misleading names absent (e.g. `getUser` that creates a user)?
+    Domain language used consistently across the codebase?
+
+- id: error_handling
+  description: "Errors are explicit, recoverable, and contextual"
+  activates_when: I/O, network, parsing, or async code added
+  asks: |
+    Errors caught at appropriate boundary (not too high, not too low)?
+    Generic catch-all (catch (e) {}) absent?
+    User-facing errors actionable (state what happened, what to do)?
+    Internal errors logged with context (request id, inputs, etc.)?
+
+- id: performance_smell
+  description: "Obvious performance anti-patterns"
+  activates_when: data fetching, loops, API calls, or async code changed
+  asks: |
+    N+1 queries (loops issuing per-iteration DB or API calls)?
+    Async work blocking event loop (sync I/O in async function)?
+    Cacheable computations recomputed every call?
+    Memory leaks (event listeners, refs, intervals not released)?
+```
+
+#### Universal critic (added to BOTH Gate 3 and Gate 4) [R3-A]
+
+```yaml
+- id: telos_alignment
+  description: "Change serves seed.telos, not a side-goal that crept in"
+  activates_when: every iteration (always)
+  asks: |
+    Does this change serve {seed.telos.statement}?
+    Or does it serve a side-goal that crept in during implementation?
+    If telos and this change conflict, which wins — and why?
+  note: |
+    This critic is intentionally re-invoked at Gate 3 AND Gate 4
+    (separate Disputatio instances). Although Gate 5 (Alignment Check)
+    is the dedicated alignment check, having telos_alignment present in
+    Gate 3 and Gate 4 reasoning strengthens telos centrality across all
+    judgment gates. Slight redundancy with Gate 5 is intentional.
+```
+
+**Roster total: 9 specialized + 1 universal = 10 critic personas.** Intentionally
+small — each occupies one distinct axis; growth is gated by PR + ADR-style
+justification (R5-A).
+
+### Selection rule [R2-A: trigger-based]
+
+```
+on_disputatio_for_gate(gate: 3 | 4, iteration_diff):
+  changed_areas = analyze_diff(iteration_diff)
+    # changed_areas is a set tagging what kind of change happened:
+    #   layout_change, interactive_change, semantic_html_change,
+    #   new_component, new_module, new_identifier, io_change,
+    #   loop_or_fetch_change, ...
+
+  if gate == 3:
+    candidates = [c for c in ui_ux_critics
+                  if c.activates_when matches changed_areas]
+  elif gate == 4:
+    candidates = [c for c in technical_critics
+                  if c.activates_when matches changed_areas]
+
+  # Universal critic always added (R3-A)
+  candidates.append(telos_alignment)
+
+  # Apply user override (R4-A)
+  config = load(.agora/config.toml)
+  if config.has_section(f"gates.{gate}.critics"):
+    enabled = config[f"gates.{gate}.critics"].get("enabled")
+    disabled = config[f"gates.{gate}.critics"].get("disabled", [])
+    if enabled is not None:
+      candidates = [c for c in candidates if c.id in enabled]
+    candidates = [c for c in candidates if c.id not in disabled]
+
+  return candidates
+
+
+# Each selected critic invoked in parallel for that gate's Disputatio:
+on_gate_disputatio(gate, iteration):
+  selected = on_disputatio_for_gate(gate, iteration.diff)
+
+  videtur_objections = parallel_invoke(
+    [c.invoke(iteration, seed) for c in selected]
+  )
+  # → list of Objection records {claim, severity, grounds, proposed_by}
+
+  # ... continue Aquinas Disputatio (Sed Contra → Respondeo → Ad Singula)
+  # per docs/philosophy/05-aquinas-disputatio.md
+```
+
+### Empty-selection guard
+
+If `selected` is empty after filters (no critic activates for the iteration's
+changed areas, and user disabled the universal too):
+- The gate is **skipped with annotation** ("Gate {N}: no applicable critics for
+  this iteration's changes")
+- The skip is recorded; if it happens 3+ iterations in a row at the same gate,
+  `agora doctor` surfaces a configuration warning ("Gate {N} has no critics
+  selected — disputatio is effectively disabled")
+
+### Project-level overrides [R4-A]
+
+`.agora/config.toml` schema for critic overrides:
+
+```toml
+[gates.3.critics]
+# Default behavior: all UI/UX critics active per their activates_when rules
+# Override by listing explicit enabled set (whitelist) OR disabled (blacklist)
+
+# Example: Sang on a backend-only project
+disabled = ["visual_hierarchy", "interaction_clarity", "design_system_consistency"]
+# Keeps "accessibility" because some endpoints serve accessible API responses
+# Keeps "telos_alignment" universal
+
+[gates.4.critics]
+# All technical critics active by default
+disabled = []  # nothing disabled — defaults all on
+```
+
+Default: all critics active per their `activates_when` rules. Most projects
+won't touch this section. Override when:
+- Backend-only project (skip UI/UX critics that don't apply)
+- Prototype phase where some critique would be premature (e.g. disable
+  performance_smell during initial structure exploration)
+- Project domain where a critic doesn't translate (e.g. accessibility
+  doesn't apply to a CLI-only tool — still kept by default but easily disabled)
+
+### Adding new critics [R5-A]
+
+**PR-based community contribution** following the Tier 3 pattern:
+
+1. New critic file: `src/agora/critics/{id}.ts`
+2. Conform to `CriticPersona` interface (Stage 4 implementation will define):
+   ```typescript
+   interface CriticPersona {
+     id: string;
+     description: string;
+     activates_when(changed_areas: Set<ChangeArea>): boolean;
+     promptTemplate: string;
+   }
+   ```
+3. Register in `src/agora/critics/registry.ts`
+4. Maintainer review checks for:
+   - Distinct axis (no overlap with existing 10)
+   - Concrete `activates_when` (not "always" without strong justification)
+   - Promptable (LLM can produce useful objections from the template)
+   - Justification: why does this critique not fit existing critics?
+5. Merged → ships in next Agora minor version
+
+**Local custom critics (R5-B) rejected**: code injection from `.agora/critics/`
+adds sandbox burden + breaks reproducibility (different machines run
+different critics).
+
+**Inline prompt-only critics (R5-C) rejected**: prompts without code can't
+implement `activates_when` properly, leading to noise via always-on critics.
+
+### Boundaries
+
+- ❌ Critic count > 15 (R1-B rejected): cognitive overhead in Disputatio
+  output; per-objection rulings become unmanageable.
+- ❌ Critic count < 6 (R1-C rejected): too coarse, individual critics start
+  doing 2+ unrelated things (violates the very SOLID critic they should embody).
+- ❌ All critics every iteration (R2-B rejected): token waste; UI critics
+  raising objections about backend changes is noise.
+- ❌ Telos critic only at Gate 5 (R3-B rejected): telos centrality is
+  reinforced by repetition in adjacent gates.
+- ❌ Local custom critics (R5-B rejected): code-injection sandbox burden.
+- ❌ Inline prompt critics (R5-C rejected): prompts can't implement gating.
+- ❌ Empty critic set silently passing the gate (empty-selection guard
+  annotates and warns after 3 consecutive empty selections).
+
+### Output consumed by
+
+- **Aquinas Disputatio** at Gate 3 and Gate 4 (per `docs/philosophy/05-...md`):
+  receives `[CriticPersona]` list, runs Videtur in parallel, then Sed Contra
+  → Respondeo → Ad Singula.
+- **`agora doctor`**: surfaces empty-selection warnings, surfaces user
+  overrides (so user remembers what they disabled).
+- **Stage 4 implementation**: `src/agora/critics/{id}.ts` files implement
+  the registry; activation logic uses `analyze_diff` from a shared diff
+  classifier.
+
+### Failure modes specifically guarded
+
+- **F-Aquinas-1 (objections clustered into oblivion)**: each critic produces
+  exactly one objection; clustering happens only on semantic duplicates and
+  preserves count + identities.
+- **F-Aquinas-5 (overhead exceeds the change)**: trigger-based selection
+  means trivial diffs invoke few critics (often just `telos_alignment`);
+  no Disputatio overhead for typo-fix iterations.
+- **Telos drift**: `telos_alignment` redundancy across Gates 3, 4, and 5
+  means telos misalignment shows up in three independent rulings, hard
+  to silently slip past.
+
+---
+
 ## Open Questions for Stage 2-B
 
 These resolve in Stage 2-B (full Ralph spec):
 
 1. ~~**Probe registry initial coverage**~~ ✅ Resolved 2026-04-28 (Stage 2-B.1). See "Gate 0 — Probe Registry [SPEC]" above. v1 ships 19 probes.
 2. **Drift score threshold** — what numeric value triggers Z1 vs Z2? (Currently: Z1 every fail, Z2 after 3 consecutive Z1 fails.)
-3. **Critic persona selection** — which UI/UX and code-quality personas run for Gate 3 and 4? Project-overridable?
+3. ~~**Critic persona selection**~~ ✅ Resolved 2026-05-03 (Stage 2-B.3). See "Gates 3 + 4 — Critic Persona Roster [SPEC]" above.
 4. ~~**Test regeneration trigger**~~ ✅ Resolved 2026-05-03 (Stage 2-B.2). See "Gate 2 — Test Regeneration Trigger [SPEC]" above.
 5. **Iteration cap** — should Ralph have a hard cap on iterations per session? (Default 10? 20? Or unlimited with token budget instead?)
 6. **Parallel iterations** — can Ralph run multiple iteration paths in parallel and pick the best (Disputatio between paths)? Or strictly sequential?

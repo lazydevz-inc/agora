@@ -443,5 +443,40 @@ Failure modes guarded:
 Full SPEC committed to `docs/loops/ralph-loop.md` under
 "Gate 2 — Test Regeneration Trigger [SPEC]".
 
-Next task: Stage 2-B.3 — Critic persona selection for Gates 3 (UI/UX) and
-Gate 4 (Technical Quality) Aquinas Disputatio.
+### Stage 2-B.3 — DONE (2026-05-03)
+
+Critic persona roster for Gates 3 + 4 specified.
+Five decisions accepted:
+
+- **R1-A**: 10 critics total (4 UI/UX + 5 Technical + 1 Universal). Intentionally small.
+- **R2-A**: Trigger-based selection. Each critic has `activates_when` matched against iteration's changed_areas. Token economy + noise reduction.
+- **R3-A**: `telos_alignment` universal critic invoked at BOTH Gate 3 and Gate 4 (in addition to Gate 5). Slight redundancy with Gate 5 is intentional — reinforces telos centrality across judgment gates.
+- **R4-A**: Project-level overrides via `.agora/config.toml [gates.{N}.critics]` enabled/disabled. Default = all per activates_when. Override for backend-only / prototype / niche-domain projects.
+- **R5-A**: PR-based community additions only. Local custom critics rejected (sandbox burden + reproducibility). Inline prompt critics rejected (can't implement activates_when).
+
+Roster:
+  Gate 3 — UI/UX (4):
+    visual_hierarchy, interaction_clarity, accessibility, design_system_consistency
+  Gate 4 — Technical (5):
+    solid_discipline, test_coverage_quality, naming_clarity, error_handling, performance_smell
+  Universal (1):
+    telos_alignment (invoked at both Gate 3 AND Gate 4)
+
+Each critic specified with id, description, activates_when condition, asks (the questions the critic raises in Videtur).
+
+Selection algorithm:
+  changed_areas = analyze_diff(iteration.diff)
+  candidates = filter by activates_when
+  + telos_alignment universal
+  apply config overrides (enabled/disabled)
+  parallel invoke → Videtur objections → Aquinas Disputatio proceeds
+
+Empty-selection guard: if no critics selected, gate skips with annotation. 3 consecutive empty selections at same gate → agora doctor warning.
+
+Boundaries enforced (R1-B, R1-C, R2-B, R3-B, R5-B, R5-C all rejected with named reasons).
+
+Failure modes F-Aquinas-1, F-Aquinas-5 specifically guarded. Telos-drift triple-coverage via critic redundancy at Gates 3/4/5.
+
+Full SPEC committed to `docs/loops/ralph-loop.md` under "Gates 3 + 4 — Critic Persona Roster [SPEC]".
+
+Next task: Stage 2-B.4 — Drift score numeric threshold (Gate 5 fail criterion; Z1 → Z2 escalation count is settled at 3 from 2-A.10, this defines per-iteration threshold).
