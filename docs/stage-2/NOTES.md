@@ -368,3 +368,40 @@ Gate-by-gate (Ralph execution order), then engine cross-cutting:
 Working principle: same as Stage 2-A. Mode B (single recommendation + alternatives) for Sang's non-expert areas; Mode A (recommended options + free input) for product decisions.
 
 Stage 2-B will produce: `docs/loops/ralph-loop.md` promoted from placeholder + 5+1-gate skeleton to full SPEC, plus possible new ADR(s) for any structural decisions.
+
+### Stage 2-B.1 — DONE (2026-04-28)
+
+Gate 0 Probe Registry specified with v1 shipping 19 probes.
+
+Two-axis model formalized (after Sang surfaced the muddled "universal" terminology):
+- **`detect()` shape**: always-true OR marker-based — determines when probe is activated for current project
+- **Tier**: 1 / 2 / 3 — determines when probe code ships in Agora package
+- Axes are independent
+
+Decisions:
+- **R1 (3-tier structure)**: Retained — Tier concept still drives future expansion
+- **R2 (v1 composition)**: Sang custom — promoted Tier 2 entirely + 5 Tier 3 probes (gcloud, aws, bun, upstash, cloudflare) into v1
+- **R3-A (5-min TTL caching)**: `.agora/cache/gate0_results.json` with 300s TTL. `agora doctor --refresh` for manual bust
+- **R4-A (PR-based community additions)**: `src/agora/infra/probes/{id}.ts` + registry entry, ADR-0006 interface
+- **R5-A (user disable via .agora/config.toml)**: `[probes].disabled = [...]` with `agora doctor --include-disabled` flag
+
+v1 probe set (19):
+  Universal (3): claude, node, pnpm
+  Tier 1 marker (5): git, gh, vercel, supabase, anthropic_api_key
+  Tier 2 promoted (6): stripe, clerk, openai_api_key, docker, railway, posthog_key
+  Tier 3 promoted (5): gcloud, aws, bun, upstash, cloudflare
+
+Tier 3 deferred to community: sentry, sendon, rocketapi, kakao_oauth, go/rust/python toolchains, mongodb, redis_cloud, etc.
+
+`agora doctor` standalone command shares probe execution with Gate 0 but:
+- Always runs full bundled ∩ active set (no skip)
+- Rich multi-section output
+- `--refresh`, `--include-disabled`, `--json` flags
+
+Failure modes guarded: stale cache (TTL), false-positive (disable), niche uncovered (warning not block), probe bug (5s per-probe timeout).
+
+Meta-learning: I rushed Q1 by introducing "universal probes" without integrating with tier system. Sang caught it; we re-explained with the 2-axis model. Captures F2/F3 violation by Claude. Future spec presentations should ground the foundation before posing decisions.
+
+Full SPEC committed to `docs/loops/ralph-loop.md` under "Gate 0 — Probe Registry [SPEC]".
+
+Next task: Stage 2-B.2 — Test regeneration trigger (when do Playwright CLI tests get regenerated vs incrementally updated; Gate 2 detail).
