@@ -747,5 +747,90 @@ Failure modes guarded:
 Full SPEC committed to `docs/loops/handoff.md` under
 "AC Tree → Ralph State Initialization [SPEC]".
 
-Next task: Stage 2-C.3 — Handoff metadata + audit (LAST in Stage 2 entirely).
-After this: full Stage 2 close.
+### Stage 2-C.3 — DONE (2026-05-03) — LAST IN STAGE 2
+
+Handoff metadata + audit consolidation specified.
+Four decisions accepted:
+
+- **R1-A**: Single `.agora/state.json` as phase pointer.
+  Other files (seed.json, ac_tree.json, ralph_state.json) are detail.
+  agora resume reads only state.json then dispatches.
+  Phase enum (8 values) consolidated from across all SPECs.
+- **R2-A**: Append-only events.jsonl audit log per session.
+  Event taxonomy (~25 canonical types) covering all meaningful events.
+  Disk usage: ~1MB/session, no auto-deletion (user may archive externally).
+- **R3-A**: 3 tree-quality concern triggers for agora doctor:
+  ① force-leaves at max depth ≥ 2
+  ② binaries with defense_score < 0.7 ≥ 1
+  ③ ternary splits ≥ 2
+  Informational only; never blocks.
+- **R4-A**: User tree edits preserved in seed.metadata.handoff.user_tree_edits[].
+  Before/after diff + optional user_reason. agora doctor surfaces edit count.
+
+Schemas specified:
+- seed.metadata.handoff (immutable after write; re-handoff appends to handoff_history[])
+- .agora/ac_tree.json (full tree with defense scores)
+- .agora/state.json (single phase pointer + version_compat)
+- .agora/history/{session_id}/events.jsonl (append-only)
+
+agora resume algorithm dispatched on phase enum:
+  in_alignment / in_alignment_paused → resume alignment
+  alignment_complete → "run handoff now?"
+  in_handoff → re-show tree review
+  ready_for_ralph → "start Ralph?"
+  in_ralph / in_ralph_paused → resume workers from checkpoint
+  ralph_complete → re-show session-end dialog
+
+Boundaries enforced:
+- Distributed phase tracking rejected (R1-B inconsistency risk)
+- Combined single file rejected (R1-C: too large, conflict risk)
+- Phase-only audit rejected (R2-B: lose iteration detail)
+- Every-LLM-call audit rejected (R2-C: volume defeats purpose)
+- Loose/tight quality thresholds rejected (signal balance)
+- Discarding user edits rejected (R4-B: loses audit trail)
+- Silent edit storage rejected (R4-C: no surface signal)
+- Mutating handoff metadata after write (immutable; new = handoff_history append)
+- Deleting events.jsonl (permanent; user archives externally)
+
+Failure modes guarded:
+- State drift across files → single state.json source of truth
+- Ctrl+C work loss → atomic writes
+- Audit truncation → append-only never rewrites
+- Silent handoff overwrite → immutable + handoff_history
+- F-Aquinas-4 → user edits recorded with before/after diff
+
+Full SPEC committed to `docs/loops/handoff.md` under "Handoff Metadata + Audit [SPEC]".
+
+---
+
+## Stage 2-C — ALL SUB-QUESTIONS RESOLVED (2026-05-03)
+
+  2-C.1  Plato Dihairesis decomposition algorithm
+  2-C.2  AC tree → Ralph state initialization
+  2-C.3  Handoff metadata + audit
+
+`docs/loops/handoff.md` Status header updated to:
+> **Accepted (Stage 2-C closed 2026-05-03).**
+
+---
+
+## Stage 2 — FULLY CLOSED (2026-05-03)
+
+All 20 sub-questions across Stage 2-A, 2-B, 2-C resolved.
+Plus 1 new ADR (ADR-0008).
+
+  Stage 2-A (Alignment Loop): 10 sub-questions
+  Stage 2-B (Ralph Loop):     7 sub-questions + ADR-0008
+  Stage 2-C (Handoff):        3 sub-questions
+
+3 documents marked Accepted as a whole:
+  docs/loops/alignment-loop.md
+  docs/loops/ralph-loop.md
+  docs/loops/handoff.md
+
+Closure record at: docs/stage-2/CLOSED.md
+Tag: v0.2.0-stage-2
+
+CLAUDE.md status: Stage 2 ✅ closed, Stage 3 (CLI Surface Detail) 진입 예정.
+
+Next: Stage 3 entry plan (open Sang's approval) — `docs/stage-3/NOTES.md` to be created.

@@ -1,10 +1,10 @@
 # Alignment → Ralph Handoff Ceremony — Specification (Stage 2-C)
 
-> **Status**: Stage 2-C in progress (opened 2026-05-03 after Stage 2-B close).
-> Sections marked **[SPEC]** are formally accepted Stage 2-C outputs.
+> **Status**: **Accepted (Stage 2-C closed 2026-05-03).**
+> All 3 sub-questions of Stage 2-C have been promoted from OPEN to SPEC.
+> This document is the formal specification of the handoff ceremony.
 >
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 2-C
-> closes its gate. Stage 2-C close = full Stage 2 close.
+> Stage 2-C close = full Stage 2 close.
 
 ---
 
@@ -38,7 +38,7 @@ This document specifies that ceremony.
 |------|--------|-------|
 | **Plato Dihairesis decomposition** | **[SPEC]** | Accepted 2026-05-03 (Stage 2-C.1) |
 | **AC tree → Ralph state initialization** | **[SPEC]** | Accepted 2026-05-03 (Stage 2-C.2) |
-| Handoff metadata + audit | [OPEN] | Stage 2-C.3 next |
+| **Handoff metadata + audit** | **[SPEC]** | Accepted 2026-05-03 (Stage 2-C.3) |
 
 ---
 
@@ -597,16 +597,346 @@ This enables `agora resume`:
 
 ---
 
-## Open Questions for Stage 2-C
+## Handoff Metadata + Audit [SPEC] (Accepted 2026-05-03, Stage 2-C.3)
 
-1. ~~**Plato Dihairesis decomposition algorithm**~~ ✅ Resolved 2026-05-03 (Stage 2-C.1). See "Plato Dihairesis Decomposition [SPEC]" above.
+> **Goal**: Define the persistence and audit schema across the handoff
+> moment. Consolidates how seed metadata is updated, what files store what,
+> how `agora resume` reconstructs state, and how `agora doctor` surfaces
+> tree-quality concerns.
 
-2. ~~**AC tree → Ralph state initialization**~~ ✅ Resolved 2026-05-03 (Stage 2-C.2). See "AC Tree → Ralph State Initialization [SPEC]" above.
+### File layout summary
 
-3. **Handoff metadata + audit** (Stage 2-C.3) — open
-   - What writes to `seed.metadata.handoff`?
-   - Audit trail for force-leaves, low-defense binaries, user edits to tree
-   - How does `agora resume` reconstruct in-progress handoff state?
+```
+.agora/
+├── state.json              ← single phase pointer (R1-A)
+├── seed.md                 ← human-readable seed
+├── seed.json               ← machine-readable seed (incl. metadata.handoff after handoff)
+├── ac_tree.json            ← Plato Dihairesis output
+├── ralph_state.json        ← Ralph runtime state (Stage 2-C.2)
+├── tests/                  ← Playwright spec files (Stage 2-B.2, git-tracked)
+│   ├── index.json
+│   └── *.spec.ts
+├── history/                ← append-only audit log (R2-A)
+│   └── {session_id}/
+│       └── events.jsonl
+├── cache/                  ← gitignored
+│   ├── gate0_results.json
+│   └── drift_scores.json
+└── logs/                   ← gitignored
+```
+
+### `seed.metadata.handoff` schema
+
+Written when user accepts the AC tree in Stage 2-C.1 review:
+
+```json
+{
+  "handoff": {
+    "completed_at": "2026-05-03T06:14:00Z",
+    "ac_tree_id": "tree_abc123",
+    "ac_tree_stats": {
+      "total_leaves": 4,
+      "max_depth": 3,
+      "avg_defense_score": 0.77,
+      "force_leaves_at_max_depth": 0,
+      "ternary_splits": 0,
+      "leaf_as_is_count": 0,
+      "binaries_below_defense_07": 0
+    },
+    "user_tree_edits": [
+      // R4-A: empty if accepted as-is
+      // populated if user used [e] edit or [r] re-decompose in review
+      // Example entry:
+      // {
+      //   "node_id": "node_root.children[1]",
+      //   "action": "user_supplied_binary",
+      //   "before": {"binary_principle": "explicit links vs inferred"},
+      //   "after": {"binary_principle": "synchronous links vs asynchronous links"},
+      //   "user_reason": null  // optional free-text
+      // }
+    ],
+    "test_generation": {
+      "generated_at": "2026-05-03T06:14:30Z",
+      "test_files_count": 4,
+      "generation_failures": 0
+    },
+    "initial_ralph_state_session_id": "session_xyz789"
+  }
+}
+```
+
+The `seed.metadata.handoff` block is **append-once, immutable after write**.
+If the user re-aligns (mini-alignment Z2 + ac-tree-affecting changes), a new
+handoff occurs and writes to `seed.metadata.handoff_history[]` while updating
+`seed.metadata.handoff` to the latest. Past handoffs are preserved chronologically.
+
+### `.agora/ac_tree.json` schema
+
+```json
+{
+  "id": "tree_abc123",
+  "created_at": "2026-05-03T06:14:00Z",
+  "from_seed_id": "seed_001",
+  "from_seed_fingerprint": "sha256:abcdef...",  // matches against drift_score cache key
+  "root": {
+    "id": "node_root",
+    "content": "User can capture, retrieve, and connect reading notes",
+    "is_leaf": false,
+    "split_principle": "persistence vs association",
+    "split_defense": "Persistence and association are independent operations...",
+    "defense_score": 0.78,
+    "arity": 2,
+    "children": [
+      {
+        "id": "node_root.children[0]",
+        "content": "Notes persist with sufficient context",
+        "is_leaf": false,
+        "split_principle": "internal context vs external context",
+        ...
+      },
+      ...
+    ]
+  }
+}
+```
+
+### `.agora/state.json` — single phase pointer [R1-A]
+
+```json
+{
+  "phase": "ready_for_ralph",  // see enum below
+  "current_seed_id": "seed_001",
+  "current_ac_tree_id": "tree_abc123",   // null if no handoff yet
+  "current_session_id": "session_xyz789", // null if no active session
+  "last_active_at": "2026-05-03T06:14:00Z",
+  "version_compat": {
+    "agora_version_at_create": "0.2.0-stage-2"
+  }
+}
+```
+
+Phase enum (consolidated from across all SPECs):
+
+```
+"in_alignment"           — Phase 0/1/2 of alignment loop active
+"in_alignment_paused"    — alignment loop suspended (Ctrl+C, etc.)
+"alignment_complete"     — seed.metadata.locked_at written, awaiting handoff
+"in_handoff"             — Plato Dihairesis running OR tree review showing
+"ready_for_ralph"        — handoff complete, Ralph not yet started
+"in_ralph"               — Ralph iteration loop active
+"in_ralph_paused"        — Ralph suspended (Ctrl+C, Z2, cap reached)
+"ralph_complete"         — all leaves resolved, session-end dialog awaited
+```
+
+### `agora resume` algorithm
+
+```
+on_resume():
+  state = read(.agora/state.json)
+  if state is None:
+    print("Nothing to resume. Run `agora new` to start.")
+    return
+
+  match state.phase:
+    "in_alignment" | "in_alignment_paused":
+      → load alignment session (from seed.json + history)
+      → resume from last_answered_field's next round (Round Ordering planner)
+
+    "alignment_complete":
+      → "Seed locked but handoff not run. Run handoff now? [Enter] / [a] abort"
+      → on Enter: invoke Plato Dihairesis decomposition (Stage 2-C.1)
+
+    "in_handoff":
+      → "Tree review was in progress. Show tree dialog again? [Enter] / [a] abort"
+      → on Enter: re-show Stage 2-C.1 user review dialog with cached tree
+
+    "ready_for_ralph":
+      → "Handoff complete. Start Ralph? [Enter] / [a] abort"
+      → on Enter: state.phase = "in_ralph"; spawn workers per Stage 2-C.2 init
+
+    "in_ralph" | "in_ralph_paused":
+      → load ralph_state.json
+      → resume in_progress_leaves workers from checkpoint
+      → spawn new workers if leaf_order has unstarted entries
+
+    "ralph_complete":
+      → re-show Stage 2-C.2 session-end dialog (persists until user acts)
+```
+
+### Append-only audit log [R2-A]
+
+```
+.agora/history/{session_id}/events.jsonl
+```
+
+One event per line, JSON. Append-only writes (atomic `O_APPEND` on POSIX).
+
+Event taxonomy (canonical types — extensible):
+
+```
+alignment.session.started
+alignment.phase_minus_1.frame_bracketed
+alignment.phase_0.scan_completed
+alignment.phase_1.intake_received
+alignment.phase_2.round_started
+alignment.phase_2.round_completed
+alignment.phase_2.aporia_resolved
+alignment.termination.dialog_shown
+alignment.session.locked
+handoff.dihairesis.started
+handoff.dihairesis.binary_proposed
+handoff.dihairesis.binary_accepted
+handoff.dihairesis.ternary_fallback
+handoff.dihairesis.leaf_marked
+handoff.tree.user_edited
+handoff.tree.accepted
+handoff.tests.generated
+handoff.completed
+ralph.session.started
+ralph.iteration.started
+ralph.iteration.gate_completed
+ralph.iteration.completed
+ralph.z1.self_correct
+ralph.z2.mini_alignment_triggered
+ralph.leaf.auto_skipped
+ralph.cap.dialog_shown
+ralph.session.completed
+```
+
+Each event:
+
+```json
+{
+  "type": "ralph.iteration.completed",
+  "timestamp": "2026-05-03T06:14:00Z",
+  "session_id": "session_xyz789",
+  "seed_id": "seed_001",
+  "ac_tree_id": "tree_abc123",
+  "subject_id": "leaf_002",       // optional, depends on event
+  "metadata": {
+    "iteration_id": "iter_007",
+    "drift_score": 0.18,
+    "gates_passed": [1, 2, 3, 4, 5],
+    "duration_ms": 42000
+  }
+}
+```
+
+History is **never deleted** by Agora. Disk usage projection: ~1KB/event × ~1000 events/session = ~1MB/session. After 100 sessions = ~100MB. Acceptable for local-first product. User may manually archive/prune; agora doctor surfaces total history size if > 1GB.
+
+### `agora doctor` handoff section [R3-A]
+
+Concerns surfaced when ANY of:
+
+```
+trigger_a: force_leaves_at_max_depth >= 2
+trigger_b: binaries_below_defense_07 >= 1
+trigger_c: ternary_splits >= 2
+```
+
+Output:
+
+```
+agora doctor (handoff section):
+
+  ✓ Handoff complete (2026-05-03)
+    Tree: 4 leaves, max depth 3, avg defense 0.77
+    Test files: 4 generated, 0 failures
+    User edits during review: 0
+
+  ⚠ Tree quality concerns:
+    - 2 force-leaves at max depth
+      → Consider AC simplification at alignment level
+      → Affected: leaf_005 ("..."), leaf_007 ("...")
+
+    - 1 binary with defense_score < 0.7
+      → root.children[1].children[0]: "explicit vs inferred" (defense 0.62)
+      → Tree review allowed it; consider re-decomposing
+
+    - 3 ternary splits used (binary preferred per Plato)
+      → Decomposition prompt may need refinement
+      → Affected: node_a, node_b, node_c
+```
+
+Concerns are **informational**. They surface a quality signal but never block.
+
+If no triggers fire:
+
+```
+✓ Handoff complete (2026-05-03)
+  Tree quality: nominal
+  All defense scores >= 0.7
+  No force-leaves
+  All binary splits (no ternary fallbacks)
+```
+
+### User tree edits — preservation policy [R4-A]
+
+When user uses [e] edit or [r] re-decompose during Stage 2-C.1 review:
+
+1. The edit event is logged to `events.jsonl` (`handoff.tree.user_edited`)
+2. The before/after diff is recorded in `seed.metadata.handoff.user_tree_edits[]`
+3. `agora doctor` displays the count: *"This tree had N user-edits during review"*
+
+**Why preserve**:
+- Future Sang or contributor reviewing the tree later may wonder *"why this binary?"*
+  The user_tree_edits log answers: *"Sang manually changed it from the LLM's
+  proposal of X to Y because [reason]."*
+- Quality signal: trees with many user edits suggest the LLM's decomposition
+  was off; could inform prompt tuning
+- Audit trail: keeps the human-in-the-loop visible when reviewing a project months later
+
+User edit entry includes optional `user_reason` field (free text, may be null).
+
+### Boundaries
+
+- ❌ Distributed phase tracking across multiple state files (R1-B rejected): increases complexity, risks inconsistency.
+- ❌ Combined single file holding everything (R1-C rejected): too large, merge conflict risk in git, slower I/O.
+- ❌ Phase-only audit (R2-B rejected): loses iteration-level detail needed for debugging.
+- ❌ Every-LLM-call audit (R2-C rejected): output volume defeats purpose.
+- ❌ Loose tree-quality thresholds (R3-B rejected): warnings get ignored if too rare.
+- ❌ Tight tree-quality thresholds (R3-C rejected): warnings become noise, get muted by user.
+- ❌ Discarding user edits (R4-B rejected): loses audit trail, cripples future understanding.
+- ❌ Silent edit storage (R4-C rejected): no audit signal surfaced when relevant.
+- ❌ Mutating `seed.metadata.handoff` after write (immutable; new handoffs append to handoff_history).
+- ❌ Deleting events.jsonl (history is permanent; user may archive externally).
+
+### Output consumed by
+
+- **`agora resume`**: reads `state.phase` to dispatch to correct resume handler.
+- **`agora status`**: reads state.json + ralph_state.json + ac_tree.json for full project view.
+- **`agora doctor`**: reads seed.metadata.handoff + events.jsonl for quality + history surface.
+- **Future tooling**: events.jsonl is structured enough for offline analysis
+  (e.g. "what % of binaries needed ternary fallback across all my projects?").
+- **Stage 4 implementation** (storage layer): single source of truth for
+  on-disk schema across alignment, handoff, and Ralph subsystems.
+
+### Failure modes specifically guarded
+
+- **State drift across files**: `state.json` is the single phase pointer;
+  other files are detail. Inconsistencies between detail files are caught
+  by `agora doctor`.
+- **Lost work on Ctrl+C**: atomic writes (`write-temp-then-rename`) on every
+  state change. Worst case = lose the in-progress event being written.
+- **Audit truncation**: append-only events.jsonl never rewrites, only appends;
+  partial writes are detectable on next read.
+- **Silent handoff overwrite**: `seed.metadata.handoff` immutable after write;
+  re-handoff appends to `handoff_history` with new timestamp.
+- **F-Aquinas-4 (silent overruling)**: every user edit recorded with
+  before/after diff; future reviewers see what was changed and why.
+
+---
+
+## All Stage 2-C sub-questions resolved (2026-05-03)
+
+| # | Sub-question | Status |
+|---|--------------|--------|
+| 2-C.1 | Plato Dihairesis decomposition algorithm | ✅ |
+| 2-C.2 | AC tree → Ralph state initialization | ✅ |
+| 2-C.3 | Handoff metadata + audit | ✅ |
+
+This document is the formal Alignment → Ralph handoff specification.
+Stage 2-C close = full Stage 2 close.
 
 ---
 

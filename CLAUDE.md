@@ -91,8 +91,9 @@
 **Agora = 고대 철학자들이 모이는 광장. AI 코딩 에이전트의 alignment harness.**
 
 > - License: MIT (provisional, ADR-0007 — Q00의 Ouroboros 저작권 보존, CREDITS.md 참조)
-> - Status: **Stage 2 (Two-Loop Specification) — 진행 중**
+> - Status: **Stage 3 (CLI Surface Detail) — 진행 예정**
 > - Stage 1 closed: 2026-04-27 (`docs/stage-1/CLOSED.md`, tag `v0.1.0-stage-1`)
+> - Stage 2 closed: 2026-05-03 (`docs/stage-2/CLOSED.md`, tag `v0.2.0-stage-2`)
 > - Repo: github.com/lazydevz-inc/agora (private indefinitely, ADR-0002 + ADR-0007 — public-release는 명시적 전략 결정 시에만)
 > - Package: `@lazydevz/agora` (npm 미공개)
 
@@ -360,7 +361,7 @@ UX expertise-aware split:
 |-------|------|-----------|------|
 | **0** | Foundation | 골격 + 4 ADR + GitHub repo | ✅ 완료 |
 | **1** | Philosophy + North Star | MANIFESTO, north-star, 5 philosophy docs | ✅ 완료 (2026-04-27, `docs/stage-1/CLOSED.md`) |
-| **2** | Two-Loop Specification | alignment-loop, ralph-loop, handoff 검증 게이트 | 🟡 진행 중 (2-A ✅ 2026-04-28 / 2-B ✅ 2026-05-03 / 2-C 남음) |
+| **2** | Two-Loop Specification | alignment-loop, ralph-loop, handoff 검증 게이트 | ✅ 완료 (2026-05-03, `docs/stage-2/CLOSED.md`, tag `v0.2.0-stage-2`) |
 | **3** | CLI Surface Detail | cli/spec, 모든 명령/플래그/스크린 | ⏳ |
 | **4** | Infra + LLM Integration + Install | install, llm-integration, MCP plan | ⏳ |
 | **5** | Internal Architecture + Runbooks | 모듈 그래프, 철학자별 runbook, prompt library | ⏳ |
