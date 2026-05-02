@@ -1,11 +1,9 @@
 # CLI Specification (Stage 3)
 
-> **Status**: Stage 3-A in progress (opened 2026-05-03 after Stage 2 close).
-> Sections marked **[SPEC]** are formally accepted Stage 3 outputs.
-> Sections marked **[OPEN]** are not yet specified.
->
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 3
-> closes its gate.
+> **Status**: **Accepted (Stage 3 closed 2026-05-03).**
+> All 10 sub-questions of Stage 3 (3 cross-cutting + 7 per-command)
+> have been promoted from OPEN to SPEC.
+> This document is the formal CLI specification for Agora.
 
 ---
 
@@ -22,7 +20,7 @@
 | **`agora new`** (3-B.4) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora resume`** (3-B.5) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora ralph`** (3-B.6) | **[SPEC]** Accepted 2026-05-03 |
-| `agora` (default) (3-B.7) | [OPEN] |
+| **`agora` (default)** (3-B.7) | **[SPEC]** Accepted 2026-05-03 |
 
 ---
 
@@ -3057,6 +3055,329 @@ When `skipped > 0`, the dialog shifts to Stage 2-C.2 R4-A's 3-option form
 8. ~~**`agora resume`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.5).
 9. ~~**`agora ralph`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.6).
 
-10. **`agora` (default)** (Stage 3-B.7) — open
-    - LAST per-command spec
-    - Context-aware default action; depends on all prior commands
+## `agora` (default, no subcommand) [SPEC] (Accepted 2026-05-03, Stage 3-B.7)
+
+> **Goal**: The single entry point. When the user types `agora` with no
+> subcommand, this command reads `state.phase` and offers the most-obvious
+> next action with one-keypress execution. Realizes Agora's "single command,
+> minimal memorization" promise.
+
+### CLI signature
+
+```
+agora                         # bare invocation — state-aware
+agora --json                  # JSON snapshot + suggested action
+agora --locale=... -q --verbose ...   # universal flags only
+```
+
+No command-specific flags. No positional arguments. Universal flags from Stage 3-A.3 work.
+
+### Intent [R1-A: status snapshot + auto-executable next action]
+
+`agora` is **not** an alias for `agora status` (R1-B rejected) or
+`agora --help` (R1-C rejected). It is its own command:
+
+- Renders a **brief status snapshot** (one-screen, less detail than `agora status`)
+- Offers the **single most-obvious next action** as `[Enter]` default
+- Provides 1-2 alternative actions
+- One keypress to execute the recommended path
+
+### State-aware dispatch
+
+```
+on_invoke_agora_bare():
+  state = read(.agora/state.json)
+
+  if state is None:
+    show_first_time_dialog()                          # mockup below
+
+  elif state.phase IN ("in_alignment", "in_alignment_paused",
+                       "in_handoff",
+                       "in_ralph", "in_ralph_paused"):
+    show_in_progress_dialog(state)                    # mockup below
+    on Enter → invoke `agora resume` (auto-execute per R2-A)
+
+  elif state.phase == "alignment_complete":
+    show_actionable_dialog(state, action="run handoff")
+    on Enter → invoke handoff (= same as `agora resume` from this phase)
+
+  elif state.phase == "ready_for_ralph":
+    show_actionable_dialog(state, action="start Ralph")
+    on Enter → invoke `agora ralph`
+
+  elif state.phase == "ralph_complete":
+    re_show_session_end_dialog()                      # same as agora resume
+```
+
+### Mockup — no project (first-time UX) [R3-A: 3 options]
+
+```
+─────────────────────────────────────────────────────────────────
+  agora                                            [Stage: —]
+─────────────────────────────────────────────────────────────────
+
+  Welcome to Agora.
+
+  This folder doesn't have an Agora project yet.
+
+  What would you like to do?
+    ◯  [Enter] Start a new project (= `agora new`)
+    ◯  [d] Diagnose environment (= `agora doctor`)
+    ◯  [h] Show full help (= `agora --help`)
+
+    > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+R3-B (single push to agora new) rejected: insensitive to "I just want to check"
+or "I want to verify environment first" cases.
+R3-C (all 6 commands listed) rejected: overwhelms first-time user.
+
+### Mockup — in-progress (in_ralph, paused after Ctrl+C)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora                                  [Stage: in_ralph_paused]
+─────────────────────────────────────────────────────────────────
+
+  📊 Project: screenflow (lazydevz-inc)
+  📊 Phase: in_ralph_paused (4 leaves: 2 done, 1 active, 1 queued)
+  📊 Last active: 2h 14m ago
+
+  📈 Recent: 5 iterations all passing
+     drift_score:    0.12  0.18  0.09  0.21  0.14
+
+  Ralph is paused. Ready to continue.
+
+  Resume work?
+    ◯  [Enter] yes — agora resume
+    ◯  [s] view full status (= `agora status`)
+    ◯  [a] abort — keep paused, exit
+
+    > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Mockup — ready_for_ralph (alignment done, ralph not started)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora                                [Stage: ready_for_ralph]
+─────────────────────────────────────────────────────────────────
+
+  📊 Project: reading-notes-cli
+  ✅ Alignment complete. Tree locked. Tests generated.
+     4 leaves ready for Ralph.
+
+  Start Ralph now?
+    ◯  [Enter] yes — agora ralph
+    ◯  [s] view seed first (= `agora seed`)
+    ◯  [a] abort — exit
+
+    > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Mockup — alignment_complete (handoff not yet run)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora                              [Stage: alignment_complete]
+─────────────────────────────────────────────────────────────────
+
+  📊 Project: reading-notes-cli
+  ✅ Seed locked, awaiting handoff (Plato Dihairesis decomposition).
+
+  Run handoff now?
+    ◯  [Enter] yes — proceed to tree review
+    ◯  [s] view locked seed first (= `agora seed`)
+    ◯  [a] abort — exit (state remains alignment_complete)
+
+    > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Mockup — in_alignment (active alignment loop)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora                                  [Stage: in_alignment]
+─────────────────────────────────────────────────────────────────
+
+  📊 Project: reading-notes-cli
+  📊 Phase: in_alignment (round 4 of ~6)
+  📊 Last answered: telos.served_good
+  📊 Idle since: 35m ago
+
+  Resume alignment?
+    ◯  [Enter] yes — agora resume
+    ◯  [s] view full status (= `agora status`)
+    ◯  [a] abort — exit
+
+    > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Auto-execution on Enter [R2-A]
+
+When user presses Enter at any of the dispatch dialogs:
+- The recommended action **immediately executes** as if the user had typed
+  the command shown
+- No second confirmation
+- Exit code reflects the dispatched command's outcome
+
+R2-B (display-only, user types) rejected: defeats the "single keypress" UX
+that is `agora`'s primary value.
+R2-C (--explain flag) rejected: needless dual-mode; users who want explanation
+can run `agora <subcommand> --help`.
+
+When user picks alternate options ([s], [d], [h], [a]):
+- [s] → invoke `agora status` (or `agora seed` per the mockup, depending on phase)
+- [d] → invoke `agora doctor`
+- [h] → invoke `agora --help`
+- [a] → exit code 3 (user abort), no state change
+
+### JSON output [R4-A: snapshot + suggested action; do NOT auto-execute]
+
+In `--json` mode, `agora` returns the snapshot and recommendation but does
+NOT execute. AI agents and scripts get the data and decide what to do next.
+
+```json
+{
+  "command": "agora",
+  "version": "0.3.0-stage-3",
+  "timestamp": "2026-05-03T07:30:00Z",
+  "session_id": "session_xyz789",
+  "result": {
+    "ok": true,
+    "data": {
+      "phase": "in_ralph_paused",
+      "project": {
+        "name": "screenflow",
+        "owner": "lazydevz-inc"
+      },
+      "summary_line": "in_ralph_paused (4 leaves: 2 done, 1 active, 1 queued)",
+      "last_active_at": "2026-05-03T05:14:00Z",
+      "recent_indicator": {
+        "iterations_window": 5,
+        "drift_scores": [0.12, 0.18, 0.09, 0.21, 0.14]
+      },
+      "suggested_action": {
+        "command": "agora resume",
+        "args": [],
+        "description": "Resume paused Ralph from checkpoint",
+        "auto_executable": true
+      },
+      "alternatives": [
+        {"command": "agora status", "args": [], "description": "View full status"}
+      ]
+    }
+  },
+  "next": [
+    {"command": "agora resume", "args": [], "description": "Resume paused Ralph"},
+    {"command": "agora status", "args": [], "description": "View full status"}
+  ],
+  "warnings": [],
+  "errors": []
+}
+```
+
+R4-B (JSON also auto-executes) rejected: removes agency from agent caller;
+they should decide based on the snapshot.
+R4-C (JSON snapshot only without suggested_action) rejected: defeats the
+purpose of `agora` (suggested action is the value).
+
+### Edge cases
+
+| Scenario | Behavior |
+|----------|----------|
+| `state.phase == "ralph_complete"` | Re-show session-end dialog (per Stage 2-C.2 R4-A); same as `agora resume` |
+| `state.phase == "in_handoff"` | "Tree review pending. Resume to continue." [Enter]/[a] |
+| Corrupt state.json | Error 20 + suggest `agora doctor` (same as `agora resume` R3-A) |
+| In Claude Code MCP mode | Behavior identical to JSON mode (host LLM consumes snapshot, decides next call) |
+| Ctrl+C during dialog | Exit 3 (user abort), state unchanged |
+
+### TUI dialog interaction
+
+Standard `@clack/prompts` pattern:
+- Arrow keys to navigate options
+- Enter to select highlighted option (default = `[Enter]` recommendation)
+- Single character key (`s`, `d`, `h`, `a`) for direct selection
+- Ctrl+C to exit without action
+
+### Auto-suggest "Next:" block in `agora` output
+
+The dispatch dialog itself is the "next action" presentation; **no separate
+`Next:` block is appended**. This is unique to `agora` — every other command
+follows the universal "main content + Next: block" pattern.
+
+Reason: showing "Next:" after a dialog that IS a "what's next?" prompt is
+redundant and confusing.
+
+### Exit code
+
+- `0`: action dispatched and completed (delegated subcommand's exit propagates)
+- `1`: parse error
+- `3`: user aborted dialog
+- `20`: corrupt state (if state.json read fails)
+
+When the dispatched subcommand fails, `agora`'s exit code reflects that
+subcommand's exit (per delegation).
+
+### Boundaries
+
+- ❌ Alias for `agora status` (R1-B rejected): not the same intent.
+- ❌ Alias for `agora --help` (R1-C rejected): help is a separate path.
+- ❌ Display-only with manual command entry (R2-B rejected): defeats single-keypress UX.
+- ❌ --explain flag (R2-C rejected): needless dual-mode.
+- ❌ Single push to `agora new` for first-time (R3-B rejected): insensitive to other valid intents.
+- ❌ All 6 commands listed for first-time (R3-C rejected): overwhelms.
+- ❌ JSON mode auto-execution (R4-B rejected): removes agency from agent.
+- ❌ JSON snapshot without suggestion (R4-C rejected): defeats the value.
+- ❌ Separate Next: block (redundant with dispatch dialog).
+- ❌ Subcommand args/flags (this command takes none beyond universals).
+
+### Output consumed by
+
+- **Stage 6 implementation**: implements as default route in commander/citty
+  CLI library (`when no subcommand, run agora-default-handler`).
+- **AI agents**: parse JSON output to know "what should I run next?"
+  for this project at this moment.
+- **Sang's daily use**: the canonical entry point — `agora<Enter>` is the
+  most-typed sequence.
+
+### Failure modes specifically guarded
+
+- **First-time confusion**: 3-option dialog with sensible default (agora new)
+  + escape valves (doctor, help).
+- **Lost in state**: snapshot shows current phase + last active time so
+  user is oriented before deciding.
+- **Accidental destructive action**: [Enter] only triggers safe-by-default
+  actions (resume / continue / view) — no destructive command is the default.
+- **Mode mismatch**: TTY vs JSON correctly separates auto-execute from snapshot-only.
+- **F2 (purpose visible)**: every option carries the equivalent subcommand in parens.
+
+---
+
+## All Stage 3 sub-questions resolved (2026-05-03)
+
+| # | Sub-question | Status |
+|---|--------------|--------|
+| 3-A.1 | Output Format Framework | ✅ |
+| 3-A.2 | Auto-suggest "Next:" Pattern | ✅ |
+| 3-A.3 | Global Flags + Precedence | ✅ |
+| 3-B.1 | `agora doctor` | ✅ |
+| 3-B.2 | `agora status` | ✅ |
+| 3-B.3 | `agora seed` | ✅ |
+| 3-B.4 | `agora new` | ✅ |
+| 3-B.5 | `agora resume` | ✅ |
+| 3-B.6 | `agora ralph` | ✅ |
+| 3-B.7 | `agora` (default) | ✅ |
+
+This document is the formal CLI specification.
+Stage 3 close = ready for Stage 4 (Infra + LLM Integration + Install).

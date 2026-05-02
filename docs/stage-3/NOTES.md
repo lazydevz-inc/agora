@@ -553,5 +553,83 @@ Failure modes guarded:
 
 Full SPEC committed to `docs/cli/spec.md` under "`agora ralph` [SPEC]".
 
-Next task: Stage 3-B.7 — `agora` (default, context-aware) — LAST per-command spec.
-After 3-B.7, Stage 3 closes.
+### Stage 3-B.7 — DONE (2026-05-03) — LAST IN STAGE 3
+
+`agora` (default) SPEC accepted. Four decisions:
+
+- **R1-A**: Status snapshot + auto-executable next action (own command, not alias). Single-keypress UX.
+- **R2-A**: [Enter] auto-executes recommended action. No second confirmation. Defeats single-keypress purpose if display-only.
+- **R3-A**: First-time = 3 options (agora new / agora doctor / agora --help). Sensitive to multiple valid intents.
+- **R4-A**: JSON mode = snapshot + suggested_action JSON, but does NOT auto-execute. AI agents decide.
+
+State-aware dispatch table for all 8 state.phase values + null (no project).
+
+5 mockups specified:
+  - First-time (no .agora/) — Welcome + 3 options
+  - in_ralph_paused — snapshot + Resume? prompt
+  - ready_for_ralph — snapshot + Start Ralph? prompt
+  - alignment_complete — snapshot + Run handoff? prompt
+  - in_alignment — snapshot + Resume alignment? prompt
+
+JSON output schema: phase, project, summary_line, last_active_at, recent_indicator, suggested_action (with auto_executable flag), alternatives.
+
+Edge cases enumerated: ralph_complete (re-show session-end dialog), in_handoff, corrupt state, MCP mode.
+
+No separate "Next:" block (dispatch dialog IS the next-action presentation).
+
+Exit codes:
+  0 = action dispatched and completed (delegated exit propagates)
+  1 = parse error
+  3 = user abort
+  20 = corrupt state
+
+Boundaries (rejections by name):
+  - Alias for status (R1-B): different intent
+  - Alias for --help (R1-C): separate path
+  - Display-only with manual entry (R2-B): defeats single-keypress
+  - --explain flag (R2-C): needless dual-mode
+  - Single push to agora new first-time (R3-B): insensitive to other intents
+  - All 6 commands listed first-time (R3-C): overwhelms
+  - JSON auto-execute (R4-B): removes agent agency
+  - JSON snapshot without suggestion (R4-C): defeats value
+  - Separate Next: block (redundant)
+  - Subcommand args/flags (none beyond universals)
+
+Failure modes guarded:
+  - First-time confusion → 3-option dialog with sensible default
+  - Lost in state → snapshot shows phase + last active
+  - Accidental destructive → [Enter] only triggers safe defaults
+  - Mode mismatch → TTY vs JSON correctly separates
+  - F2 → every option shows equivalent subcommand in parens
+
+Full SPEC committed to `docs/cli/spec.md` under "`agora` (default, no subcommand) [SPEC]".
+
+---
+
+## Stage 3 — ALL SUB-QUESTIONS RESOLVED (2026-05-03)
+
+10 sub-questions promoted from OPEN to SPEC over Stage 3:
+
+  Stage 3-A (cross-cutting framework):
+    3-A.1  Output Format Framework
+    3-A.2  Auto-suggest "Next:" Pattern
+    3-A.3  Global Flags + Precedence
+
+  Stage 3-B (per-command specs):
+    3-B.1  agora doctor
+    3-B.2  agora status
+    3-B.3  agora seed
+    3-B.4  agora new
+    3-B.5  agora resume
+    3-B.6  agora ralph
+    3-B.7  agora (default, no subcommand)
+
+`docs/cli/spec.md` Status header updated to:
+> **Accepted (Stage 3 closed 2026-05-03).**
+
+CLAUDE.md status: Stage 3 ✅ closed, Stage 4 진행 예정.
+
+Closure record at: docs/stage-3/CLOSED.md
+Tag: v0.3.0-stage-3
+
+Next: Stage 4 entry plan (Infra + LLM Integration + Install).
