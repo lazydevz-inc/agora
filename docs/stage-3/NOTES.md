@@ -247,4 +247,45 @@ the command's specific flags (most already inventoried in 3-A.3), happy-path
 TUI mockup, error mockup(s), JSON data payload shape, command-specific Next
 candidates.
 
-Next task: Stage 3-B.1 — `agora doctor` (simplest standalone, good first per-command spec).
+### Stage 3-B.1 — DONE (2026-05-03)
+
+`agora doctor` SPEC accepted. Four decisions:
+
+- **R1-A**: Default scope = full health view (Universal + Project + Unbundled + Tree quality + Bypasses + Stale). Single command, complete diagnostic.
+- **R2-A**: Exit code 1 when probes_failed ≥ 1 OR stale_bypasses ≥ 3; otherwise 0. Doctor judges "environment ready or not."
+- **R3-A**: --include-disabled runs disabled probes + displays results, but failures don't affect exit code (user explicitly opted out of caring).
+- **R4-A**: Tree quality section omitted entirely when no .agora/ac_tree.json exists; JSON sets data.tree_quality = null (schema stable).
+
+Specified:
+- CLI signature with universal + 2 command-specific flags (--refresh, --include-disabled)
+- Three TUI mockups: happy path with concerns, healthy state (compact), empty state (no project)
+- Full JSON data payload schema with summary/universal_probes/project_probes/unbundled_detected/tree_quality/bypasses
+- Exit code logic
+- --include-disabled annotation rule ("(included via --include-disabled)")
+- Tree-quality conditional rule (state.phase ≥ ready_for_ralph)
+- Cache sharing with Gate 0 + --refresh busts both
+- Auto-suggest Next: candidates from Sources 1/2/3 + command-specific (stale bypass reset commands)
+
+Healthy-state mockup compact-formats project probes on one line ("✓ git, gh, vercel, ... (all OK)") — saves vertical space when no concerns.
+
+External Next: candidates use literal string "(external)" as command field with description carrying instruction (e.g. "Set POSTHOG_PROJECT_KEY in .env").
+
+Boundaries enforced (rejections by name):
+- Probes-only output (R1-B): defeats full health view value
+- Verbose-gated tree (R1-C/R4-C): tree quality is core
+- Always-zero exit (R2-B): defeats scripting
+- Per-failure exit codes (R2-C): too granular
+- Disabled probe failure counted (R3-B): violates opt-out
+- --include-disabled as list-only (R3-C): defeats diagnostic
+- Tree "(no tree)" placeholder (R4-B): noise
+
+Failure modes guarded:
+- Silent probe state → every result surfaces
+- Forgotten bypasses → dedicated stale section
+- Tree decay → snapshot + --refresh
+- CI false-pass → exit 1 on any probe fail
+- F2 → recommendation + fix fields per concern
+
+Full SPEC committed to `docs/cli/spec.md` under "`agora doctor` [SPEC]".
+
+Next task: Stage 3-B.2 — `agora status` (read-only inspection of current state).

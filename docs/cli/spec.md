@@ -16,7 +16,7 @@
 | **Output Format Framework** (3-A.1) | **[SPEC]** Accepted 2026-05-03 |
 | **Auto-suggest "Next:" Pattern** (3-A.2) | **[SPEC]** Accepted 2026-05-03 |
 | **Global Flags + Precedence** (3-A.3) | **[SPEC]** Accepted 2026-05-03 |
-| `agora doctor` (3-B.1) | [OPEN] |
+| **`agora doctor`** (3-B.1) | **[SPEC]** Accepted 2026-05-03 |
 | `agora status` (3-B.2) | [OPEN] |
 | `agora seed` (3-B.3) | [OPEN] |
 | `agora new` (3-B.4) | [OPEN] |
@@ -756,11 +756,418 @@ Run 'agora <command> --help' for detailed help on each command.
 
 ---
 
+## `agora doctor` [SPEC] (Accepted 2026-05-03, Stage 3-B.1)
+
+> **Goal**: Standalone environment + project health diagnostic. Surfaces every
+> Stage 2 quality signal (probes, tree quality, bypasses, stale state) in one
+> command. Reuses Gate 0 probe execution but never blocks Ralph.
+
+### CLI signature
+
+```
+agora doctor [--refresh] [--include-disabled] [--json] [--locale=<code>]
+             [-q | --verbose] [--no-color] [--config=<path>]
+```
+
+Universal flags inherited from Stage 3-A.3.
+
+Command-specific flags:
+
+| Flag | Effect |
+|------|--------|
+| `--refresh` | Bust Gate 0 probe cache (per Stage 2-B.1 R3-A); re-run all probes |
+| `--include-disabled` | Run disabled probes anyway; results shown but don't affect exit code (per R3-A below) |
+
+### Default scope [R1-A: full health view]
+
+A single invocation produces these sections in order:
+
+```
+1. Universal probes              ← always-true detect probes (claude, node, pnpm)
+2. Project-specific probes (active)  ← detect-marker matched + in seed.material
+3. Probes detected but not bundled   ← markers found, no bundled probe (Tier 3 deferred)
+4. Tree quality (current handoff)    ← only if state.phase >= "ready_for_ralph"  (R4-A)
+5. Bypass status                     ← active persistent bypasses + accumulation alert
+6. Stale bypass reminders            ← persistent bypasses set > 24h ago
+7. Final summary line                ← single-line aggregate counts
+```
+
+Sections 4 (Tree quality) is **conditionally hidden** when no `.agora/ac_tree.json`
+exists. All other sections are always present (may be empty).
+
+### Happy-path TUI mockup
+
+```
+─────────────────────────────────────────────────────────────────
+  agora doctor                                  [Stage: in_ralph]
+─────────────────────────────────────────────────────────────────
+
+  Universal probes
+    ✓ claude         Max plan, 240ms latency
+    ✓ node           v22.10.1 (≥ 22 OK)
+    ✓ pnpm           10.22.0
+
+  Project-specific probes (active)
+    ✓ git            clean working tree
+    ✓ gh             authenticated as srhee91
+    ✓ vercel         linked to lazydevz-inc/screenflow
+    ✓ supabase       linked to project_xyz
+    ~ stripe         disabled in config (false-positive)
+    ✗ posthog_key    POSTHOG_PROJECT_KEY missing
+                     ⓘ Fix: Set POSTHOG_PROJECT_KEY in .env
+
+  Probes detected but not bundled (community PR welcome)
+    ⚠ sentry         marker found (package.json deps include "@sentry/*")
+
+  Tree quality (current handoff)
+    ✓ Tree: 4 leaves, max depth 3, avg defense 0.77
+    ✓ Test files: 4 generated, 0 failures
+    ✓ User edits during review: 0
+
+  Bypass status
+    ⚠ Active persistent bypasses:
+        - Probe disabled: stripe (set 4 sessions ago)
+        - Iteration cap raised to 40 (set 2 sessions ago)
+    ✓ No accumulation alert (last 5 iterations: 0 bypasses)
+
+  Stale bypass reminders
+    ⚠ stripe bypass set 4 sessions ago — still relevant?
+       Run `agora ralph --reset-bypass=stripe` to clear
+
+  19/20 probes available · 1 failure · 1 disabled · 2 stale bypasses
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ Set POSTHOG_PROJECT_KEY in .env
+      Fix the failing probe before next ralph run
+
+    ▸ agora ralph --reset-bypass=stripe
+      Clear stale bypass
+
+─────────────────────────────────────────────────────────────────
+```
+
+### Healthy-state mockup
+
+When all probes pass, no concerns surface, no stale bypasses:
+
+```
+─────────────────────────────────────────────────────────────────
+  agora doctor                          [Stage: ready_for_ralph]
+─────────────────────────────────────────────────────────────────
+
+  Universal probes
+    ✓ claude         Max plan, 230ms latency
+    ✓ node           v22.10.1
+    ✓ pnpm           10.22.0
+
+  Project-specific probes (active)
+    ✓ git, gh, vercel, supabase, anthropic_api_key  (all OK)
+
+  Tree quality (current handoff)
+    ✓ Tree: 4 leaves, max depth 3, avg defense 0.81
+    ✓ All defense scores >= 0.7
+    ✓ No force-leaves at max depth
+    ✓ All binary splits (no ternary fallbacks)
+
+  Bypass status
+    ✓ No active persistent bypasses
+    ✓ No accumulation alert
+
+  All clear. 8 probes pass, 0 issues.
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora ralph
+      Start implementation
+
+─────────────────────────────────────────────────────────────────
+```
+
+When healthy, project-specific probes are listed compactly on one line
+(sparing vertical space for cluttered cases).
+
+### Empty-state mockup
+
+`agora doctor` in an empty directory (no `.agora/`):
+
+```
+─────────────────────────────────────────────────────────────────
+  agora doctor                                       [Stage: —]
+─────────────────────────────────────────────────────────────────
+
+  Universal probes
+    ✓ claude         Max plan, 230ms latency
+    ✓ node           v22.10.1
+    ✓ pnpm           10.22.0
+
+  Project-specific probes (active)
+    ⓘ No project detected. Run `agora new` to start.
+
+  Bypass status
+    ⓘ No project state to evaluate.
+
+  Universal environment ready. Run `agora new` to start a project.
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora new [project-name]
+      Start a new project workflow
+
+─────────────────────────────────────────────────────────────────
+```
+
+Tree quality, bypass-active, and stale-bypass sections are omitted when no
+project exists. Universal probes always run (they verify the agora
+installation itself).
+
+### JSON output schema
+
+`--json` mode emits the universal envelope (per Stage 3-A.1) with `data` shape:
+
+```json
+{
+  "command": "agora doctor",
+  "version": "0.2.0-stage-2",
+  "timestamp": "2026-05-03T06:14:00Z",
+  "session_id": null,
+  "result": {
+    "ok": false,
+    "data": {
+      "summary": {
+        "probes_total": 19,
+        "probes_passed": 18,
+        "probes_failed": 1,
+        "probes_disabled": 1,
+        "probes_unbundled_detected": 1,
+        "tree_quality_concerns": 0,
+        "bypasses_active": 2,
+        "stale_bypasses": 2
+      },
+      "universal_probes": [
+        {
+          "id": "claude",
+          "status": "pass",
+          "detail": "Max plan, 240ms latency",
+          "fix": null
+        },
+        ...
+      ],
+      "project_probes": [
+        {
+          "id": "vercel",
+          "status": "pass",
+          "detail": "linked to lazydevz-inc/screenflow",
+          "fix": null
+        },
+        {
+          "id": "stripe",
+          "status": "disabled",
+          "detail": "disabled in config",
+          "fix": null
+        },
+        {
+          "id": "posthog_key",
+          "status": "fail",
+          "detail": "POSTHOG_PROJECT_KEY missing",
+          "fix": "Set POSTHOG_PROJECT_KEY in .env"
+        }
+      ],
+      "unbundled_detected": [
+        {
+          "id": "sentry",
+          "marker": "package.json deps include \"@sentry/*\""
+        }
+      ],
+      "tree_quality": {
+        "leaves": 4,
+        "max_depth": 3,
+        "avg_defense_score": 0.77,
+        "force_leaves_at_max_depth": 0,
+        "test_files_count": 4,
+        "test_generation_failures": 0,
+        "user_edits_count": 0,
+        "concerns": []
+      },
+      "bypasses": {
+        "active_persistent": [
+          {
+            "type": "probe_disabled",
+            "id": "stripe",
+            "set_at": "2026-04-29T...",
+            "set_via": "config_toml",
+            "reason": "monorepo workspace"
+          },
+          {
+            "type": "iteration_cap_raised",
+            "value": 40,
+            "set_at": "2026-05-01T...",
+            "set_via": "interactive_dialog",
+            "reason": "complex auth migration"
+          }
+        ],
+        "accumulation_alert": false,
+        "stale": [
+          {
+            "id": "stripe",
+            "age_hours": 96,
+            "reset_command": "agora ralph --reset-bypass=stripe"
+          }
+        ]
+      }
+    }
+  },
+  "next": [
+    {
+      "command": "(external)",
+      "args": [],
+      "description": "Set POSTHOG_PROJECT_KEY in .env"
+    },
+    {
+      "command": "agora ralph",
+      "args": ["--reset-bypass=stripe"],
+      "description": "Clear stale bypass"
+    }
+  ],
+  "warnings": [
+    {
+      "code": "stale_bypass",
+      "message": "Probe disabled: stripe (set 4 sessions ago)",
+      "recommendation": "Run agora ralph --reset-bypass=stripe to clear"
+    },
+    {
+      "code": "unbundled_marker",
+      "message": "sentry marker found but probe not bundled",
+      "recommendation": "Manual verify or contribute community probe"
+    }
+  ],
+  "errors": [
+    {
+      "code": "probe_failed",
+      "probe_id": "posthog_key",
+      "message": "POSTHOG_PROJECT_KEY missing",
+      "fix": "Set POSTHOG_PROJECT_KEY in .env"
+    }
+  ]
+}
+```
+
+When `command` in `next[]` references an external action (not an Agora subcommand),
+the value is the literal string `"(external)"` and `description` carries the
+human-readable instruction.
+
+### Exit code [R2-A]
+
+```
+exit_code = compute_exit():
+  if (probes_failed >= 1) OR (stale_bypasses >= 3):
+    return 1
+  return 0
+```
+
+Exit 1 means **agora doctor judged the environment NOT ready**. The user must
+address the failure(s) before reliable Ralph operation.
+
+`--include-disabled` (R3-A) does NOT affect exit code: disabled probe failures
+remain advisory; the user opted out of caring about that probe.
+
+Tree-quality concerns and unbundled-detected markers do NOT affect exit code
+(informational warnings only).
+
+### `--include-disabled` behavior [R3-A]
+
+```
+on --include-disabled:
+  - Run disabled probes alongside the active set
+  - Display results with `~` marker (same as default disabled display)
+  - Output line annotation: "(included via --include-disabled)"
+  - Do NOT count disabled probe failures toward exit_code
+```
+
+Example with --include-disabled when stripe is disabled but the env doesn't have STRIPE_SECRET_KEY:
+
+```
+~ stripe         (included via --include-disabled)
+                 STRIPE_SECRET_KEY missing
+                 ⓘ Fix: Set STRIPE_SECRET_KEY OR run `agora ralph --reset-bypass=stripe` to re-enable
+```
+
+### Tree-quality section conditional [R4-A]
+
+```
+show_tree_quality_section():
+  if state.phase NOT IN ("ready_for_ralph", "in_ralph", "in_ralph_paused", "ralph_complete"):
+    return False  # no tree exists yet
+  if not exists(.agora/ac_tree.json):
+    return False  # tree was somehow lost
+  return True
+```
+
+When section is hidden, JSON `data.tree_quality` is `null` (not omitted — keeps schema stable).
+
+### Cache interaction
+
+`agora doctor` shares the Gate 0 probe cache (Stage 2-B.1 R3-A — 5min TTL) by default.
+`--refresh` flag busts the cache.
+
+Tree-quality data is read fresh from `.agora/ac_tree.json` (no cache).
+Bypass state is read fresh from `seed.metadata.bypasses[]` and ralph_state (no cache).
+
+### Auto-suggest Next: candidates (per-command additions per 3-A.2)
+
+`agora doctor` computes candidates from:
+
+- **Source 2 (failure correction)**: every failed probe → external fix command + agora doctor re-run
+- **Source 1 (phase progression)**: respects state.phase from default lookup
+- **Source 3 (inspection)**: `agora status` is highly relevant; included when no other Source 1/2 dominates
+
+Plus command-specific additions:
+- Each stale bypass → reset command suggestion
+- Each unbundled detected → "manual verify or contribute probe" note (NOT in next[]; goes to warnings[])
+
+### Boundaries
+
+- ❌ Probes-only output (R1-B rejected): full health view is the value of
+  `agora doctor` over `agora ralph`'s embedded Gate 0.
+- ❌ Verbose-gated tree section (R1-C rejected): tree quality is core diagnostic,
+  not advanced.
+- ❌ Always-zero exit (R2-B rejected): would defeat scripting / CI use.
+- ❌ Per-failure exit codes (R2-C rejected): too granular; signals lost when
+  multiple categories fail at once.
+- ❌ Disabled probe failure counted in exit (R3-B rejected): user explicitly
+  opted out; counting violates that intent.
+- ❌ --include-disabled as list-only (R3-C rejected): defeats the diagnostic value.
+- ❌ Tree section "(no tree)" placeholder (R4-B rejected): adds noise when
+  doctor runs in a project without tree (very common during alignment phase).
+- ❌ Verbose-gated tree section (R4-C rejected): doctor's job is to surface
+  concerns; verbose-gating hides relevant signal.
+
+### Output consumed by
+
+- **AI agents**: parse `--json` output to decide remediation (e.g. "doctor
+  reported posthog_key missing → suggest user set the env var").
+- **CI / scripts**: rely on exit code 0/1 for health gating ("if doctor fails, fail the pipeline").
+- **`agora ralph` Gate 0**: shares probe cache; doctor's `--refresh` invalidates Gate 0's cache too.
+- **Ralph stale-bypass reminder dialog**: derives stale-bypass list from the same source that doctor surfaces.
+
+### Failure modes specifically guarded
+
+- **Silent probe state**: every probe result reaches the user (no aggregation
+  hides individual failures).
+- **Forgotten bypasses**: stale-bypass reminder section dedicated to surfacing
+  set-and-forget state.
+- **Tree decay over iterations**: tree-quality section shows current snapshot;
+  `agora doctor --refresh` re-evaluates on demand.
+- **CI false-pass**: exit code 1 on any probe failure ensures CI gates catch
+  environment issues before allowing downstream Agora commands.
+- **F2 (purpose visible)**: each warning carries a `recommendation` field;
+  each error carries a `fix` field.
+
+---
+
 ## Open Questions for Stage 3
 
 1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
 2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
 3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
+4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
 
-4. **Per-command specs** (Stage 3-B.1 through 3-B.7) — open
-   - In order: doctor → status → seed → new → resume → ralph → agora
+5. **Per-command specs (remaining)** (Stage 3-B.2 through 3-B.7) — open
+   - In order: status → seed → new → resume → ralph → agora
