@@ -1734,7 +1734,7 @@ These resolve in Stage 2-B (full Ralph spec):
 4. ~~**Test regeneration trigger**~~ ✅ Resolved 2026-05-03 (Stage 2-B.2). See "Gate 2 — Test Regeneration Trigger [SPEC]" above.
 5. ~~**Iteration cap**~~ ✅ Resolved 2026-05-03 (Stage 2-B.5). See "Engine — Iteration Cap [SPEC]" above.
 6. ~~**Parallel iterations**~~ ✅ Resolved 2026-05-03 (Stage 2-B.6). See "Engine — Parallel Iterations Architecture [SPEC]" above + ADR-0008.
-7. **Bypass UX** — `--skip-gate-0=<list>` is documented; what about other gates? (Lean toward: only Gate 0 is bypassable; others have lower-cost equivalents but no full bypass.)
+7. ~~**Bypass UX**~~ ✅ Resolved 2026-05-03 (Stage 2-B.7). See "Cross-cutting — Bypass UX [SPEC]" above.
 
 ---
 
