@@ -937,12 +937,199 @@ implement `activates_when` properly, leading to noise via always-on critics.
 
 ---
 
+## Gate 5 — Drift Score Threshold [SPEC] (Accepted 2026-05-03, Stage 2-B.4)
+
+> **Goal**: Define how the drift_score is computed per Ralph iteration and
+> what numerical thresholds gate Z1 self-correct vs Z2 mini-alignment vs PASS.
+> Z1 → Z2 escalation count (3 consecutive Z1 fails) is settled at Stage 2-A.10;
+> this SPEC defines the per-iteration threshold that determines what counts as
+> a Z1 fail in the first place.
+
+### Drift score computation [R1-A — LLM judgment]
+
+```
+compute_drift_score(iteration_diff, seed) -> { score: 0.0..1.0, reasoning: str }:
+
+  cache_key = hash(iteration_diff + seed.fingerprint)
+  if cache.has(cache_key):
+    return cache.get(cache_key)
+
+  prompt = """
+  You are evaluating whether an implementation iteration's output stays aligned
+  with the original intent (telos).
+
+  Telos: {seed.telos.statement}
+  Served good: {seed.telos.served_good}
+  Failure signal: {seed.telos.failure_signal}
+
+  Acceptance criteria targeted in this iteration:
+  {iteration.targeted_acs}
+
+  Iteration diff:
+  {iteration_diff}
+
+  Output a single JSON object:
+  {
+    "drift_score": <float 0.0-1.0, where 0.0 = perfect alignment, 1.0 = total misalignment>,
+    "reasoning": "<one paragraph explaining the score>",
+    "specific_drift": "<if score > 0, what specifically drifted>"
+  }
+
+  Scoring rubric:
+  0.0–0.15 = serves telos cleanly
+  0.15–0.30 = serves telos but with minor scope creep / side-goals
+  0.30–0.60 = noticeable drift; output is partially off-target
+  0.60–1.0  = severe misalignment; output serves a different goal than telos
+  """
+
+  result = llm.call(prompt, model=get_drift_eval_model())
+  cache.set(cache_key, result)
+  return result
+```
+
+**Rationale for LLM-only (R1-A) over hybrid (R1-C)**:
+
+- Initial usage is Sang himself; bad LLM judgments are caught immediately and reported
+- Heuristic design without operational data risks badly-tuned weights and false-positive surge
+- LLM judgment quality with Claude Sonnet 4+ is sufficient for the early phase
+- Migration path to R1-C is preserved by stable `compute_drift_score()` interface — implementation can be swapped post-Stage-6 once operational data accumulates
+- Stage 6 implementation cost ~1 week vs ~3-4 weeks for hybrid
+
+**Future evolution path (informally captured here, formal ADR if/when adopted)**:
+- After 30+ days of real Ralph operation, examine logs for cases where LLM drift_score was wrong (caught by user)
+- If the misjudgment rate exceeds a threshold (e.g. >5% of Gate 5 evaluations), introduce heuristic sanity check (R1-C) in v1.x
+- Heuristic signal candidates documented separately (AC keyword match, file pattern match, telos terms presence, forbidden patterns, scope mismatch — see Stage 2-B.4 interview transcript for details)
+
+### 3-tier threshold model [R2-A]
+
+```
+classify_gate_5(drift_score) -> Gate5Result:
+  if drift_score < THRESHOLD_OK:
+    return PASS
+  elif drift_score < THRESHOLD_WARN:
+    return PASS_WITH_WARNING
+  elif drift_score < THRESHOLD_FAIL:
+    return FAIL  # → Z1 self-correct (counts toward 3-fail Z2 escalation)
+  else:
+    return HARD_FAIL  # → Z2 immediate (bypass Z1 — no point self-correcting)
+```
+
+| Result | Action | Iteration outcome | Counts toward Z2? |
+|--------|--------|-------------------|---------------------|
+| PASS | Continue to next iteration | OK | No |
+| PASS_WITH_WARNING | Continue, but log + show warning to user | OK with note | No |
+| FAIL | Z1: next iteration receives drift_signal addendum | Iteration marked for retry | Yes (1 of 3) |
+| HARD_FAIL | Z2 immediate (skip remaining Z1 attempts) | Ralph paused, mini-alignment dialog | Yes (resets counter) |
+
+**Why HARD_FAIL bypasses Z1**: drift score ≥ 0.60 means the iteration serves a substantively different goal from telos. Self-correction in Z1 assumes the model can pull back toward telos; at this severity, the model has likely misread the goal entirely, and an additional iteration with a "drift addendum" is unlikely to recover. Direct re-alignment is the right move.
+
+### Default threshold values [R3-A]
+
+```yaml
+default_thresholds:
+  ok:   0.15   # serves telos cleanly
+  warn: 0.30   # warning fired, no block
+  fail: 0.60   # immediate Z2 (above this, Z1 won't help)
+```
+
+**Rationale tied to 0.9^N math from MANIFESTO**:
+
+- If each iteration's drift is ≤ 0.10, after 10 iterations alignment is preserved at ≥ 0.9^10 ≈ 35%
+- If each iteration's drift is ≤ 0.15 (THRESHOLD_OK), after 10 iterations alignment is at ≥ 0.85^10 ≈ 20%
+- Therefore THRESHOLD_OK = 0.15 is the **maximum drift** per iteration that still yields recoverable alignment over a typical Ralph session
+- THRESHOLD_WARN = 0.30 = "single iteration burned 30% of intent" — concerning but recoverable if next iteration corrects
+- THRESHOLD_FAIL = 0.60 = "more than half the iteration is off-goal" — Z1 self-correction unlikely to recover
+
+These defaults are calibrated to the 0.9^N argument that justifies the entire alignment-first thesis. Different defaults would silently undermine the manifesto.
+
+### Project-level threshold override [R4-A]
+
+`.agora/config.toml` schema:
+
+```toml
+[gate_5]
+# Override default thresholds for this project
+thresholds = { ok = 0.10, warn = 0.20, fail = 0.50 }
+# Stricter — useful for production / safety-critical projects
+
+# Or:
+# thresholds = { ok = 0.20, warn = 0.40, fail = 0.75 }
+# More lenient — useful for prototype / exploration phase
+```
+
+When the user sets non-default thresholds:
+- The override is recorded in seed.metadata.threshold_overrides for audit
+- `agora doctor` displays the override with a note: "Custom Gate 5 thresholds active — calibrated to default = stricter / more lenient"
+- The override applies to all Ralph iterations until changed
+
+Per-AC level thresholds (R4-C alternative) rejected: AC-level granularity adds configuration surface area without clear value — a project's tolerance for drift tends to be project-wide, not AC-specific.
+
+### Cache invalidation
+
+drift_score cache (computed once per `(iteration_diff, seed.fingerprint)` pair):
+
+- Cache invalidates when `seed.fingerprint` changes (i.e. mini-alignment refined the seed)
+- Cache invalidates when iteration_diff changes (always — that's the cache key)
+- TTL: 1 hour (drift evaluation has no time-decay; 1h is safety against stale cache from manual file edits)
+- Storage: `.agora/cache/drift_scores.json`
+
+### Display to user
+
+When Gate 5 result is computed, display in the iteration's gate report:
+
+```
+Gate 5 — Alignment Check
+  drift_score: 0.42 → FAIL
+  reasoning: "Iteration added share-button UI which serves audience-relationship,
+              but telos is self-knowledge tool. The button is not in the AC list
+              and pulls form away from minimal-CLI direction."
+  specific_drift: "Share button addition"
+  Z1 attempt 2 of 3 — next iteration will include drift correction addendum.
+```
+
+For HARD_FAIL:
+```
+Gate 5 — Alignment Check
+  drift_score: 0.71 → HARD FAIL
+  reasoning: "Iteration restructured the project as a web service when telos
+              specifies CLI-only. Diverges substantially from form."
+  specific_drift: "CLI → web service architectural shift"
+  Z1 bypassed — Z2 mini-alignment triggered.
+```
+
+### Boundaries
+
+- ❌ Drift score above 1.0 or below 0.0 (clamped to range; LLM responses validated).
+- ❌ Heuristic-only computation (R1-B was already off the table; R1-C deferred).
+- ❌ Binary threshold (R2-B rejected — loses nuance between recoverable and unrecoverable drift).
+- ❌ Continuous-only weighting across gates (R2-C rejected — drift is a discrete decision: pass / warn / Z1 / Z2).
+- ❌ Default thresholds tighter than 0.10/0.20/0.40 without explicit override (would over-trigger on noise).
+- ❌ Default thresholds looser than 0.20/0.40/0.75 (would silently undermine the 0.9^N argument).
+- ❌ Per-AC thresholds (R4-C rejected — granularity without value).
+- ❌ Hidden cache > 1 hour old (TTL enforced).
+
+### Output consumed by
+
+- **Ralph iteration loop**: receives `Gate5Result` to decide PASS / PASS_WITH_WARNING / FAIL / HARD_FAIL paths.
+- **Z1 → Z2 escalation logic** (Stage 2-A.10 SPEC): consumes FAIL counts; HARD_FAIL bypasses the count.
+- **`agora status`**: shows recent Gate 5 history with drift_score sparkline.
+- **`agora doctor`**: surfaces threshold overrides; flags clusters of warnings as drift trend.
+
+### Failure modes specifically guarded
+
+- **0.9^N compounding** (manifesto thesis): default thresholds are calibrated to the math; overrides are explicit and recorded.
+- **F-Aquinas-4 (silent overruling)**: PASS_WITH_WARNING is logged and shown to user, never silent.
+- **LLM bad judgment**: cache key is `(diff, seed.fingerprint)` — same situation gets same score (no random reassessment); user can manually override via `agora seed --override-gate5 <iteration_id> <score>` (recorded as trust warning).
+- **Threshold gaming**: project-level override recorded in seed.metadata; `agora doctor` surfaces non-default thresholds so a future reviewer (or future-self) sees the calibration choice.
+
+---
+
 ## Open Questions for Stage 2-B
 
 These resolve in Stage 2-B (full Ralph spec):
 
 1. ~~**Probe registry initial coverage**~~ ✅ Resolved 2026-04-28 (Stage 2-B.1). See "Gate 0 — Probe Registry [SPEC]" above. v1 ships 19 probes.
-2. **Drift score threshold** — what numeric value triggers Z1 vs Z2? (Currently: Z1 every fail, Z2 after 3 consecutive Z1 fails.)
+2. ~~**Drift score threshold**~~ ✅ Resolved 2026-05-03 (Stage 2-B.4). See "Gate 5 — Drift Score Threshold [SPEC]" above.
 3. ~~**Critic persona selection**~~ ✅ Resolved 2026-05-03 (Stage 2-B.3). See "Gates 3 + 4 — Critic Persona Roster [SPEC]" above.
 4. ~~**Test regeneration trigger**~~ ✅ Resolved 2026-05-03 (Stage 2-B.2). See "Gate 2 — Test Regeneration Trigger [SPEC]" above.
 5. **Iteration cap** — should Ralph have a hard cap on iterations per session? (Default 10? 20? Or unlimited with token budget instead?)

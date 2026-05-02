@@ -479,4 +479,40 @@ Failure modes F-Aquinas-1, F-Aquinas-5 specifically guarded. Telos-drift triple-
 
 Full SPEC committed to `docs/loops/ralph-loop.md` under "Gates 3 + 4 — Critic Persona Roster [SPEC]".
 
-Next task: Stage 2-B.4 — Drift score numeric threshold (Gate 5 fail criterion; Z1 → Z2 escalation count is settled at 3 from 2-A.10, this defines per-iteration threshold).
+### Stage 2-B.4 — DONE (2026-05-03)
+
+Gate 5 drift score computation + threshold model specified.
+Four decisions accepted (with R1 clarification round):
+
+- **R1-A (after Sang's clarification request)**: LLM judgment only.
+  Sang asked to compare R1-A vs R1-C (hybrid LLM + heuristic).
+  Claude explained "deterministic heuristic" with 5 concrete signal candidates
+  (keyword match, file pattern, telos terms, forbidden patterns, scope mismatch),
+  and recommended R1-A start + R1-C as future evolution path after operational data.
+  Sang chose R1-A. Future evolution captured informally in SPEC.
+- **R2-A**: 3-tier threshold (OK / PASS_WITH_WARNING / FAIL → Z1 / HARD_FAIL → Z2).
+  HARD_FAIL bypasses Z1 because severe drift (≥0.60) means model misread goal entirely.
+- **R3-A**: Default thresholds 0.15 / 0.30 / 0.60.
+  Calibrated to 0.9^N math from MANIFESTO — THRESHOLD_OK = max recoverable drift per iteration.
+  Tighter defaults would over-trigger on noise; looser would silently undermine alignment thesis.
+- **R4-A**: Project-level override via `.agora/config.toml [gate_5].thresholds`.
+  Recorded in seed.metadata.threshold_overrides for audit.
+  Per-AC level (R4-C) rejected: granularity without clear value.
+
+LLM judgment prompt + scoring rubric specified.
+drift_score cache: `(iteration_diff, seed.fingerprint)` key with 1h TTL.
+Display format with reasoning + specific_drift quote shown to user.
+Manual override path: `agora seed --override-gate5 <iter> <score>` (recorded as trust warning).
+
+Future R1-C evolution criterion captured: if 30+ days operation shows >5% LLM
+misjudgment rate, introduce heuristic sanity check.
+
+Failure modes guarded:
+- 0.9^N compounding (defaults calibrated to thesis)
+- F-Aquinas-4 (PASS_WITH_WARNING never silent)
+- LLM bad judgment (cache stable + manual override path)
+- Threshold gaming (overrides recorded + surfaced by agora doctor)
+
+Full SPEC committed to `docs/loops/ralph-loop.md` under "Gate 5 — Drift Score Threshold [SPEC]".
+
+Next task: Stage 2-B.5 — Engine iteration cap (when does Ralph give up entirely; hard cap vs token-budget vs both).
