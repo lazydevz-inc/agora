@@ -19,7 +19,7 @@
 | **`agora doctor`** (3-B.1) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora status`** (3-B.2) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora seed`** (3-B.3) | **[SPEC]** Accepted 2026-05-03 |
-| `agora new` (3-B.4) | [OPEN] |
+| **`agora new`** (3-B.4) | **[SPEC]** Accepted 2026-05-03 |
 | `agora resume` (3-B.5) | [OPEN] |
 | `agora ralph` (3-B.6) | [OPEN] |
 | `agora` (default) (3-B.7) | [OPEN] |
@@ -2046,5 +2046,365 @@ In non-interactive mode, `--edit` requires `--value="<new value>"` flag
 5. ~~**`agora status`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.2).
 6. ~~**`agora seed`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.3).
 
-7. **Per-command specs (remaining)** (Stage 3-B.4 through 3-B.7) — open
-   - In order: new → resume → ralph → agora
+## `agora new` [SPEC] (Accepted 2026-05-03, Stage 3-B.4)
+
+> **Goal**: Project entry point. Triggers Brownfield/Greenfield Branching
+> SPEC's 4-case state branching (Stage 2-A.9). Almost no flags of its own;
+> the command's complexity lives in correctly dispatching based on
+> existing `.agora/` state.
+
+### CLI signature
+
+```
+agora new [name] [--workspace-root=<path>]
+          [--json] [--locale=<code>] [-q | --verbose] [--no-color] [--config=<path>]
+```
+
+| Argument / Flag | Effect |
+|------|--------|
+| `name` (positional, optional) | Project name suggestion. Default: `cwd` folder name. Stored in `seed.metadata.project_name`. Does NOT create a new folder (R1-A). |
+| `--workspace-root=<path>` | Per Stage 2-A.2 R3-A. Expands Phase 0 auto-scan to a monorepo workspace root. Rare; default is strict `cwd`-only. |
+
+### 4-case state branching (per Stage 2-A.9)
+
+```
+on_invoke_agora_new(cwd, args):
+  state = read_state_json(cwd)
+
+  Case A — no .agora/                              → fresh start
+  Case B — in_alignment OR in_alignment_paused     → 3-option warning dialog
+  Case C — alignment_complete OR ready_for_ralph
+           OR ralph_complete (with seed locked)    → 3-option intent dialog
+  Case D — in_ralph OR in_ralph_paused             → 3-option Ralph-pause dialog
+  Case E — in_handoff                              → "Resume handoff?" prompt
+```
+
+Case E (in_handoff) wasn't enumerated in Stage 2-A.9; it's the same shape
+as Case B's "in-progress something" pattern. For consistency:
+
+```
+Case E (in_handoff):
+  ⚠ Handoff (tree review) is in progress.
+  Choose:
+    ◯ Resume — re-show the AC tree review dialog
+    ◯ Discard — drop tree, return to alignment_complete
+    ◯ Cancel
+```
+
+### Mockup — Case A (greenfield, fresh start)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora new "reading-notes-cli"               [Stage: starting]
+─────────────────────────────────────────────────────────────────
+
+  [Phase 0: scanning current folder...]
+    ✓ Empty directory (greenfield, high confidence)
+    ✓ No prior context found
+    Scan time: 87ms
+
+  [Phase −1: Husserl Epoché]
+    Greenfield default. Three brackets to defend your frame.
+
+    Bracket 1/3 — Software Bracket
+      "Is the answer to this experience necessarily software?
+       What if it were a habit, a meeting, a conversation?"
+    > _
+
+  [...continues through brackets, then Phase 1, then Phase 2...]
+```
+
+After bracket completion, Phase 1 open intake begins per Stage 2-A.3 SPEC.
+The full alignment loop unfolds inside the same `agora new` invocation.
+
+### Mockup — Case A (brownfield, no prior `.agora/`)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora new                                   [Stage: starting]
+─────────────────────────────────────────────────────────────────
+
+  [Phase 0: scanning current folder...]
+    ✓ Detected: brownfield TypeScript project (high confidence)
+    ✓ Read: CLAUDE.md (12KB), README.md (4KB)
+    ✓ Markers: Vercel, Supabase, GitHub Actions, Stripe
+    ✓ Size: medium (~8K LoC)
+    Scan time: 1.4s
+
+  [Phase −1 skipped — brownfield default-off; run `agora bracket` to invoke]
+
+  [Phase 1: open intake]
+    What would you like to work on?
+    ⓘ I've read your CLAUDE.md and README.md (16KB total).
+      You don't need to re-explain what the project is — just tell me
+      what you want to do here today.
+
+    Press Enter alone to open $EDITOR for longer thoughts.
+    > _
+```
+
+### Mockup — Case B (in_alignment, unfinished)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora new                              [Stage: in_alignment]
+─────────────────────────────────────────────────────────────────
+
+  ⚠ In-progress alignment session found:
+    Started:        2026-04-29 03:14
+    Rounds done:    4 / ~6 estimated
+    Last answered:  telos.served_good
+    Idle since:     5h 23m ago
+
+  Choose:
+    ◯ Resume — continue from where you left off (= `agora resume`)
+    ◯ Discard — drop and start fresh (history preserved in .agora/history/)
+    ◯ Cancel — exit this command
+
+    > _
+```
+
+User picks Resume → equivalent to direct `agora resume` invocation.
+Discard → state.phase reset to null, .agora/state.json deleted (history preserved), then Case A flow runs.
+Cancel → exits with code 3.
+
+### Mockup — Case C (locked seed, second alignment attempt)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora new                          [Stage: ready_for_ralph]
+─────────────────────────────────────────────────────────────────
+
+  ⓘ Last alignment locked: "Help me capture and connect what I read"
+    Tree: 4 leaves, max depth 3
+    Locked 2 days ago
+    Ralph status: not yet started
+
+  What would you like to do today?
+
+    ◯ Add a new feature on top of reading-notes-cli
+    ◯ Refine some part of the locked seed
+    ◯ Something completely different (treat as new project — discard prior)
+
+    [Enter a number] · [type free description]
+    > _
+```
+
+User actions:
+- "Add a new feature": opens Phase 1 with prior seed as context. Telos and form preserved; AC list extended in alignment loop.
+- "Refine some part": triggers `agora seed --edit <field>` flow (user prompted to choose which field).
+- "Something completely different": confirms (`Are you sure? This discards the locked seed.`); on yes, prior seed archived to history, Case A flow runs.
+- Free text: LLM parses intent, routes to one of the three.
+
+### Mockup — Case D (in_ralph)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora new                                  [Stage: in_ralph]
+─────────────────────────────────────────────────────────────────
+
+  ⚠ Ralph is currently running (iteration 7 of ~10).
+     Starting a new alignment will pause Ralph.
+
+  Choose:
+    ◯ Pause Ralph + start new alignment (Ralph progress preserved)  ← R3-A default
+    ◯ Continue Ralph (= `agora ralph resume`)
+    ◯ Cancel
+
+    > _
+```
+
+R3-A: choosing "Pause Ralph + start new alignment" preserves `ralph_state.json`
+(checkpoint intact). State transitions: `in_ralph` → `in_ralph_paused` → `in_alignment`.
+After the new alignment closes, the user can choose `agora ralph resume` to
+return to the paused Ralph state, OR continue with the freshly-aligned seed
+(which would discard the prior Ralph progress).
+
+R3-B (auto-discard ralph_state) rejected: silent loss of work.
+R3-C (extra confirm dialog) rejected: 3-option dialog already gives the user the choice; double-confirming is friction.
+
+### `name` argument behavior [R1-A]
+
+```
+agora new                              # name = basename(cwd)
+agora new "reading-notes-cli"          # name = "reading-notes-cli"
+agora new "Reading Notes CLI"          # name preserved verbatim (whitespace OK)
+```
+
+The `name` value is stored in `seed.metadata.project_name` after first
+alignment locks. It does NOT:
+- Create a new folder
+- Change cwd
+- Affect `.agora/` location (always relative to cwd)
+
+R1-B (required name) rejected: cwd folder name is sensible default, forcing
+specification adds friction.
+R1-C (mkdir + cd) rejected: violates user-controls-folder-structure principle;
+agora's job is to operate inside the folder it was invoked in.
+
+### `--workspace-root=<path>` semantics [R2-A]
+
+Per Stage 2-A.2 R3-A:
+
+```
+agora new --workspace-root=../..
+```
+
+When set:
+- Phase 0 auto-scan extends visibility to that root (and its sibling packages)
+- `seed.metadata.workspace_root` records the path
+- `.agora/` still lives in `cwd` (per-folder isolation rule preserved)
+
+When unset (default):
+- Phase 0 strict `cwd`-only
+- Sibling monorepo packages invisible
+
+R2-B (auto-detect monorepo) was already rejected in Stage 2-A.2.
+R2-C (no flag at all) rejected: rare but legitimate use case (e.g. `agora new`
+inside a monorepo package wanting to reference shared schemas in `../shared`).
+
+### Discard semantics
+
+When user picks "Discard" in Case B or "Something completely different" in Case C:
+
+```
+on_discard():
+  # 1. Archive existing state to history
+  archive_to_history({
+    "type": "discarded_at_agora_new",
+    "previous_state": current_state.serialize(),
+    "previous_seed": current_seed.serialize() if exists,
+    "discarded_at": now(),
+    "discarded_via": "agora_new"
+  })
+
+  # 2. Clear active state
+  delete(.agora/state.json)
+  delete(.agora/seed.md, .agora/seed.json) if exists
+  delete(.agora/ac_tree.json) if exists
+  delete(.agora/ralph_state.json) if exists
+  delete(.agora/tests/) if exists
+
+  # 3. .agora/history/ NEVER deleted (audit preservation per Stage 2-C.3)
+  # 4. .agora/cache/, .agora/logs/ NOT touched (independent lifecycle)
+
+  # 5. Proceed to Case A flow
+  invoke_case_a()
+```
+
+Discard is announced explicitly; never silent. The "Are you sure? This
+discards the locked seed" confirmation in Case C is mandatory before discard executes.
+
+### JSON output schema
+
+For Case A (initial scan + start alignment):
+
+```json
+{
+  "command": "agora new",
+  "result": {
+    "ok": true,
+    "data": {
+      "case": "A",
+      "scan_summary": {
+        "classification": "greenfield",
+        "confidence": "high",
+        "context_docs": [],
+        "detected_markers": [],
+        "size_signal": "tiny",
+        "scan_duration_ms": 87
+      },
+      "session_id": "session_new_xyz",
+      "next_phase": "phase_minus_1"  // or "phase_1" if brownfield
+    }
+  },
+  "next": [
+    {"command": "agora resume", "args": [], "description": "Continue alignment loop"}
+  ]
+}
+```
+
+For Cases B/C/D/E (dialog required):
+
+In TTY mode, dialog is rendered.
+In `--json` / non-interactive mode, returns:
+
+```json
+{
+  "result": {
+    "ok": false,
+    "data": {
+      "case": "B",
+      "dialog_required": true,
+      "options": [
+        {"id": "resume", "description": "Continue from where you left off"},
+        {"id": "discard", "description": "Drop and start fresh"},
+        {"id": "cancel", "description": "Exit this command"}
+      ]
+    }
+  },
+  "errors": [
+    {
+      "code": "interactive_required",
+      "message": "Cannot dispatch without user choice in non-interactive mode."
+    }
+  ]
+}
+```
+
+Caller in non-interactive mode must specify the choice via flag:
+`agora new --case-b-action=resume` (or `discard` / `cancel`). Stage 6
+implementation will codify these flag names. The pattern: every interactive
+dialog has a non-interactive equivalent flag.
+
+### Exit code
+
+- `0`: command dispatched and proceeded (Case A direct, or Cases B/C/D/E after user choice)
+- `1`: parse error
+- `3`: user chose Cancel in Cases B/C/D/E
+- `4`: command paused (e.g. user picked "Pause Ralph + start new alignment" — alignment will start, but exit signals the state transition)
+
+### Boundaries
+
+- ❌ Required `name` argument (R1-B rejected): cwd default is sensible.
+- ❌ Auto-create folder from name (R1-C rejected): violates user-folder-control.
+- ❌ Auto-detect monorepo workspace (R2-B rejected at Stage 2-A.2).
+- ❌ Remove `--workspace-root` (R2-C rejected): legitimate edge case.
+- ❌ Auto-discard ralph_state in Case D (R3-B rejected): silent loss of work.
+- ❌ Extra confirm dialog before pause (R3-C rejected): 3-option dialog gives the choice.
+- ❌ Silent discard (Case B/C "Discard" must be confirmed for Case C; for Case B, the dialog itself is the explicit choice).
+- ❌ Deleting `.agora/history/` on discard (audit preservation absolute).
+- ❌ Non-interactive Cases B/C/D/E without choice flag (interactive dialog can't run; error 1).
+
+### Output consumed by
+
+- **Phase 0/1/2 of alignment loop**: receives `case_a` dispatch and starts.
+- **`agora resume`**: receives `case_b` "Resume" choice, equivalent dispatch.
+- **`agora seed --edit`**: receives `case_c` "Refine" choice, equivalent dispatch.
+- **`agora ralph` resume**: receives `case_d` "Continue Ralph" choice.
+- **History store**: every discard event recorded with full state snapshot.
+
+### Failure modes specifically guarded
+
+- **Silent overwrite of in-progress work**: Case B forces explicit dialog;
+  Case C "Different" requires confirmation before discard.
+- **Forgotten Ralph progress**: Case D defaults to PAUSE (preserves checkpoint);
+  user must explicitly choose "Continue Ralph" to skip alignment.
+- **Lost audit trail**: discard archives full state to history before clearing.
+- **Non-interactive ambiguity**: explicit per-case flags required; no silent
+  default behavior in JSON / pipe / CI mode.
+
+---
+
+## Open Questions for Stage 3
+
+1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
+2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
+3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
+4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
+5. ~~**`agora status`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.2).
+6. ~~**`agora seed`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.3).
+7. ~~**`agora new`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.4).
+
+8. **Per-command specs (remaining)** (Stage 3-B.5 through 3-B.7) — open
+   - In order: resume → ralph → agora

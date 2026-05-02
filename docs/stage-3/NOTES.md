@@ -378,4 +378,64 @@ Failure modes guarded:
 
 Full SPEC committed to `docs/cli/spec.md` under "`agora seed` [SPEC]".
 
-Next task: Stage 3-B.4 — `agora new` (entry point for fresh project workflow).
+### Stage 3-B.4 — DONE (2026-05-03)
+
+`agora new` SPEC accepted. Three decisions:
+
+- **R1-A**: `name` optional, defaults to cwd folder name. Stored in seed.metadata.project_name. Does NOT create folder or change cwd.
+- **R2-A**: `--workspace-root=<path>` per Stage 2-A.2 R3-A. Expands Phase 0 scan to monorepo root. Default strict cwd-only.
+- **R3-A**: Case D "Pause Ralph + new alignment" preserves ralph_state checkpoint. User can resume Ralph later or discard via subsequent action.
+
+CLI signature:
+  agora new [name] [--workspace-root=<path>] + universal flags
+
+5 case mockups specified (per Stage 2-A.9 4-case + Case E for in_handoff):
+  Case A — no .agora/ → fresh start (greenfield + brownfield variants)
+  Case B — in_alignment unfinished → 3-option dialog (Resume/Discard/Cancel)
+  Case C — locked seed → 3-option intent dialog (Add/Refine/Different)
+  Case D — in_ralph → 3-option dialog (Pause+new/Continue/Cancel)
+  Case E — in_handoff → 3-option dialog (Resume/Discard/Cancel) — added for completeness
+
+Discard semantics specified:
+  - Archive full state to history first (audit preservation)
+  - Delete state.json, seed.md, seed.json, ac_tree.json, ralph_state.json, tests/
+  - .agora/history/ NEVER deleted
+  - .agora/cache/, .agora/logs/ untouched
+  - Then run Case A flow
+
+Non-interactive behavior:
+  - Every dialog has equivalent --case-{X}-action=<choice> flag
+  - Without flag in non-TTY → errors with interactive_required code
+
+JSON shapes for Case A (proceed) and Cases B/C/D/E (dialog required) specified.
+
+Exit codes:
+  0 = dispatched and proceeded
+  1 = parse error
+  3 = user Cancel
+  4 = pause-with-transition (Case D pause-and-new)
+
+State transitions:
+  Case D Pause+new: in_ralph → in_ralph_paused → in_alignment
+  Case C Different + confirm: alignment_complete → null → fresh Case A
+  Case B Discard: in_alignment → null → fresh Case A
+
+Boundaries (rejections by name):
+  - Required name (R1-B): cwd default is sensible
+  - Auto-create folder (R1-C): violates user-folder-control
+  - Auto-detect monorepo (R2-B): rejected at Stage 2-A.2
+  - Remove --workspace-root (R2-C): legitimate edge case
+  - Auto-discard ralph_state in Case D (R3-B): silent loss
+  - Extra confirm before pause (R3-C): 3-option already gives choice
+  - Silent discard (always confirmed)
+  - Deleting .agora/history/ (audit absolute)
+
+Failure modes guarded:
+  - Silent overwrite of in-progress work → mandatory dialogs
+  - Forgotten Ralph progress → Case D defaults to pause
+  - Lost audit trail → discard archives full state first
+  - Non-interactive ambiguity → explicit per-case flags required
+
+Full SPEC committed to `docs/cli/spec.md` under "`agora new` [SPEC]".
+
+Next task: Stage 3-B.5 — `agora resume` (continues paused work; dispatches based on state.phase).
