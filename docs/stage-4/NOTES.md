@@ -76,12 +76,40 @@ Stage 4 close requires same gate as prior stages: deliverables Accepted, Sang ex
 
 ---
 
-## Stage 4-A.1 — first task
+## Progress Log
 
-The first task is **install mechanics** because it's the user's first
-touchpoint with Agora. Until install is decided, all other infra decisions
-operate in a vacuum (e.g. probe paths assume a known package layout that
-install determines).
+### Stage 4-A.1 — DONE (2026-05-03)
 
-After 4-A.1: 4-A.2 (Claude runtime) → 4-A.3 (config) → 4-A.4 (probes) →
-4-A.5 (MCP) → 4-A.6 (error/telemetry) → Stage 4 close.
+Install mechanics specified. Four decisions accepted:
+
+- **R1-A**: 3 v1 distribution channels — npx, pnpm dlx, npm install -g.
+  No curl|bash (private repo blocks public hosting), no Homebrew/Docker
+  (npm covers needs), no single-binary (Node 22+ satisfies).
+- **R2-A**: Document `npx -y @lazydevz/agora` for AI-agent-safe usage.
+  Cannot enforce -y from inside package; documented in README + agent guide.
+- **R3-A**: First-run banner once via `~/.agora/.first_run` marker.
+  Suppressed thereafter. agora doctor always re-checks explicitly.
+- **R4-A**: --version single-line `agora <semver>`. JSON mode adds env context
+  (node version, install path, claude_cli_present, etc.) for diagnostics.
+
+npm package shape:
+  bin.agora → ./dist/cli/index.js
+  files: dist, messages (i18n), probes, README, LICENSE, CREDITS
+  engines.node: >=22
+
+Update / Uninstall:
+  Standard npm/pnpm patterns; no `agora update` command (7-cmd cap)
+  Uninstall removes tool but NOT user data (~/.agora/, project .agora/)
+
+Failure modes guarded:
+  - First-time bewilderment → banner with env check
+  - AI-agent install loop → -y documented
+  - User data loss → preservation guarantee
+  - Stale version blindness → doctor surfaces
+  - Banner fatigue → marker file suppression
+
+Full SPEC committed to `docs/infra/install.md` with Distribution Channels,
+First-Run UX, Update+Uninstall, Version Output sections.
+
+Next task: Stage 4-A.2 — Claude integration runtime (subprocess wrapper API,
+retry policy, error handling for `claude --print` per ADR-0005).
