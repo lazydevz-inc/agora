@@ -21,7 +21,7 @@
 | **`agora seed`** (3-B.3) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora new`** (3-B.4) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora resume`** (3-B.5) | **[SPEC]** Accepted 2026-05-03 |
-| `agora ralph` (3-B.6) | [OPEN] |
+| **`agora ralph`** (3-B.6) | **[SPEC]** Accepted 2026-05-03 |
 | `agora` (default) (3-B.7) | [OPEN] |
 
 ---
@@ -2724,5 +2724,339 @@ For corrupt state, error 20 with detailed `errors[]`:
 7. ~~**`agora new`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.4).
 8. ~~**`agora resume`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.5).
 
-9. **Per-command specs (remaining)** (Stage 3-B.6 through 3-B.7) — open
-   - In order: ralph → agora
+## `agora ralph` [SPEC] (Accepted 2026-05-03, Stage 3-B.6)
+
+> **Goal**: The implementation loop driver. Operational surface for every
+> Stage 2-B SPEC. Mostly consolidates flags + dialogs already designed;
+> this SPEC adds per-iteration display contract, Ctrl+C semantics, reset
+> ordering, and background execution semantics.
+
+### CLI signature
+
+```
+agora ralph [--parallel=<N> | --parallel-force=<N>]
+            [--skip-gate-0=<probe-list>]
+            [--skip-gate-2 --reason="..."]
+            [--skip-gate-3 --reason="..."]
+            [--skip-gate-4 --reason="..."]
+            [--reset-bypasses | --reset-bypass=<id>]
+            [--reset-cap]
+            [--json] [--locale=<code>] [-q | --verbose] [--no-color] [--config=<path>]
+```
+
+All flags inherit semantics from prior SPECs:
+- `--parallel`, `--parallel-force` — Stage 2-B.6 + ADR-0008
+- `--skip-gate-0=<list>` — Stage 2-B.1 + ADR-0006
+- `--skip-gate-{2,3,4} --reason` — Stage 2-B.7 (mandatory reason per Stage 3-A.3 R3-A)
+- `--reset-bypasses`, `--reset-bypass=<id>`, `--reset-cap` — Stage 2-B.7
+
+### Pre-flight + iteration loop algorithm
+
+```
+on_invoke_agora_ralph(args):
+  state = read(.agora/state.json)
+
+  # Phase precondition
+  if state.phase NOT IN ("ready_for_ralph", "in_ralph", "in_ralph_paused"):
+    error: "Cannot start Ralph from {state.phase}. Run agora resume or agora new."
+    exit 1
+
+  # Apply resets first (R3-A)
+  if --reset-bypasses:    clear_all_persistent_bypasses()
+  if --reset-bypass=<id>: clear_specific_bypass(id)
+  if --reset-cap:         restore_default_iteration_cap()
+    (after resets, stale bypass dialog SUPPRESSED for this session)
+
+  # Stale bypass reminder (Stage 2-B.7 R4-A) — only if no reset flag was used
+  if no_reset_flag AND persistent_bypasses_exist:
+    show_stale_bypass_dialog()  # [y]es/[n]o-reset/[s]how-history per bypass
+
+  # Apply session overrides
+  apply_session_flags(--parallel, --skip-gate-0, --skip-gate-{2,3,4})
+
+  # Gate 0 (always at session start)
+  gate_0_result = run_gate_0(active_probes_minus_skipped)
+  if not gate_0_result.passed:
+    show_remediation_dialog(gate_0_result.failures)
+    exit 2
+
+  # Phase transition + worker spawn
+  state.phase = "in_ralph"
+  if was_paused_or_resuming:
+    resume_workers_from_checkpoint()  # Stage 2-C.2
+  else:
+    spawn_initial_batch(parallelism)   # Stage 2-C.2
+
+  # Iteration loop
+  while not all_leaves_resolved():
+    iteration_result = run_one_iteration()
+    process_gates(iteration_result)  # Z1 / Z2 / cap dialogs / etc.
+
+  # All resolved
+  show_session_end_dialog()  # Stage 2-C.2 R4-A
+```
+
+### Per-iteration TUI display [R1-A: per-gate line + marker + detail]
+
+Each iteration renders this block as it executes:
+
+```
+[Iteration {N} — {leaf_id} ({short_label})]
+  Working... ({elapsed}s)
+
+  [Gate 1: deterministic]   ✓ lint, typecheck, build, tests pass
+  [Gate 2: functional QA]   ✓ 3/3 Playwright tests pass
+  [Gate 3: UI/UX]           — N/A (no UI changes)
+  [Gate 4: tech quality]    ✓ Aquinas Disputatio: approved (3 critics, 0 objections raised)
+  [Gate 5: alignment]       ✓ drift_score 0.08 (PASS)
+
+  ✓ Iteration {N} complete. {leaf_id} marked done.
+```
+
+When a gate fails / warns:
+
+```
+  [Gate 4: tech quality]    ⚠ Aquinas Disputatio: conditional approval
+                              SOLID critic: 1 minor objection (separated concerns)
+                              ↳ Concedo accepted; will refactor in next iter
+  [Gate 5: alignment]       ✓ drift_score 0.18 (PASS)
+```
+
+When a gate hard-fails:
+
+```
+  [Gate 1: deterministic]   ✗ tsc errors in src/capture/parser.ts:42
+  [Gate 2-5]                — skipped (Gate 1 must pass first)
+
+  Z1 self-correct: next iteration will receive build error context.
+```
+
+Layout principles:
+- Gate name in fixed-width brackets `[Gate N: name]` for visual alignment
+- Marker (`✓ ⚠ ✗ —`) immediately after for at-a-glance scan
+- Brief detail on same line (or wrapped/indented if longer)
+- Sub-detail (Disputatio rulings, drift reasoning) indented with `↳` arrow
+- All gate lines visible — no "compact" hiding (R1-B rejected)
+- No multi-paragraph dumps (R1-C rejected; full Disputatio detail goes to history events)
+
+R1-B (compact line `✓✓—✓✓`) rejected: loses diagnostic value when scanning a long Ralph log.
+R1-C (full multi-paragraph per gate) rejected: floods the screen during normal operation.
+
+### Ctrl+C handling [R2-A: graceful pause]
+
+```
+on_signal_SIGINT():
+  if mid_iteration:
+    finish_current_iteration_to_safe_checkpoint()
+    # Either: complete the current gate, OR mark iteration as "checkpoint_paused"
+  state.phase = "in_ralph_paused"
+  ralph_state.checkpoint = serialize_current_state()
+  write_atomically(state, ralph_state)
+  print:
+    """
+    ⏸ Ralph paused at iteration {N}, gate {G}.
+       Run `agora resume` to continue from this checkpoint.
+    """
+  exit 4  # paused / resumable per Stage 3-A.1
+```
+
+What "graceful" means:
+- An in-flight LLM call is allowed to complete (cancel mid-call wastes the response)
+- File writes finish atomically before pause registered
+- ralph_state.json reflects exact checkpoint (which iteration, which gate, in_progress_leaves)
+- agora resume picks up at that exact position, no replays
+
+If Ctrl+C is hit twice within 2 seconds: hard abort (matches user signal that
+they really mean stop now). State written at best-effort, exit 3 (user abort).
+`agora resume` may show a "session was forcibly aborted; some state may be
+inconsistent — run agora doctor" warning.
+
+R2-B (immediate abort) rejected: silent loss of progress.
+R2-C (confirm dialog) rejected: signal handlers shouldn't interactive-prompt;
+the safe path is "save what you have, exit cleanly."
+
+### Reset flags processing order [R3-A]
+
+```
+on_invoke_agora_ralph():
+  # Step 1: Apply resets BEFORE stale bypass dialog
+  if --reset-bypasses:    clear_all_persistent_bypasses()
+                          announce: "✓ All persistent bypasses cleared"
+  if --reset-bypass=<id>: clear_specific_bypass(id)
+                          announce: f"✓ Bypass cleared: {id}"
+  if --reset-cap:         restore_default_iteration_cap()
+                          announce: f"✓ Iteration cap restored to default ({default})"
+
+  # Step 2: Stale bypass dialog SUPPRESSED if any reset was applied
+  # Reason: user just took action; don't immediately re-prompt about bypasses
+  if any_reset_flag_applied():
+    skip_stale_bypass_dialog()
+  elif persistent_bypasses_exist():
+    show_stale_bypass_dialog()  # Per Stage 2-B.7 R4-A
+
+  # Step 3: continue normal flow
+```
+
+R3-B (ignore resets, still show dialog) rejected: redundant + confusing.
+R3-C (announce + still show dialog) rejected: same redundancy.
+
+### Background execution [R4-A: shell-native; no daemon flag]
+
+```
+agora ralph &              # backgrounded by shell; TTY usually still attached
+agora ralph > ralph.log &  # stdout redirected → JSON mode auto (3-A.1 R4-A)
+agora ralph --json &       # explicit JSON mode
+nohup agora ralph &        # detach from terminal session
+```
+
+Behavior in non-TTY / backgrounded:
+- I/O mode auto-detects to JSON (per 3-A.1)
+- Interactive dialogs that would have prompted (Z2, cap, stale bypass) instead
+  cause Ralph to enter `in_ralph_paused` state, write the dialog payload to
+  `state.json` as "pending_dialog", and exit 4 (paused/resumable)
+- User runs `agora ralph` again (or `agora resume`) → sees the pending dialog
+  in TUI mode, or supplies the choice via the per-dialog flag
+
+```json
+state.json on background-pause:
+{
+  "phase": "in_ralph_paused",
+  "pause_reason": "z2_mini_alignment_dialog_pending",
+  "pending_dialog": {
+    "type": "z2_mini_alignment",
+    "options": [
+      {"id": "proceed", "description": "..."},
+      {"id": "cancel", "description": "..."},
+      {"id": "abort", "description": "..."}
+    ]
+  },
+  ...
+}
+```
+
+R4-B (explicit `--daemon` flag) rejected: Unix shells already do this with
+`&` and `nohup`; adding a flag duplicates the platform.
+R4-C (foreground-only) rejected: Sang's "leave Ralph running while I sleep"
+use case is legitimate (Stage 2-B.5 R5-C reasoning).
+
+### Gate 0 cache interaction
+
+`agora ralph` shares Gate 0 cache with `agora doctor` (Stage 2-B.1 R3-A).
+When `agora ralph` starts:
+- If cache fresh (< 5min) → use cached results
+- If cache expired or absent → re-run probes
+- `--refresh` flag (only on doctor — ralph doesn't have its own --refresh) requires
+  user to run `agora doctor --refresh` first, then `agora ralph`
+
+This separation is intentional: ralph trusts the cache; doctor manages it.
+
+### JSON output during iteration
+
+In `--json` / non-interactive mode, ralph emits one JSON line per iteration
+to stdout (NDJSON format for streaming):
+
+```
+{"iteration": 1, "leaf_id": "leaf_001", "started_at": "...", "status": "running"}
+{"iteration": 1, "leaf_id": "leaf_001", "gate": 1, "result": "pass", "detail": "..."}
+{"iteration": 1, "leaf_id": "leaf_001", "gate": 5, "result": "pass", "drift_score": 0.08}
+{"iteration": 1, "leaf_id": "leaf_001", "completed_at": "...", "outcome": "completed"}
+{"iteration": 2, ...}
+```
+
+Each line is a complete JSON object — consumers can parse line-by-line.
+
+Final summary line on session-end:
+
+```
+{"session_complete": true, "total_leaves": 4, "completed": 4, "skipped": 0,
+ "iterations": 12, "duration_ms": 8045000, "result": {...}, "next": [...]}
+```
+
+### Final session-end dialog
+
+Per Stage 2-C.2 R4-A:
+
+```
+─────────────────────────────────────────────────────────────────
+  ✅ Ralph session complete
+─────────────────────────────────────────────────────────────────
+
+  Total leaves:      4
+  Completed:         4 (100%)
+  Auto-skipped:      0
+  Iterations:        12 (avg 3 per leaf)
+  Aporia events:     2 (both refined)
+  Total time:        2h 14m
+
+  ── What's next? ──
+    ◯  [Enter] Acknowledge and exit
+    ◯  [v] View detailed session log
+
+    > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+When `skipped > 0`, the dialog shifts to Stage 2-C.2 R4-A's 3-option form
+([r] re-align / [a] accept-as-deferred / [v] view-log).
+
+### Exit code
+
+- `0`: Ralph session completed successfully (all leaves resolved, user acknowledged)
+- `1`: parse error / phase precondition fail (must be ready_for_ralph or in_ralph_paused)
+- `2`: Gate 0 failed at start
+- `3`: user hard-abort (double Ctrl+C)
+- `4`: graceful pause (single Ctrl+C; pending dialog in non-interactive)
+
+### Boundaries
+
+- ❌ Compact gate display (R1-B rejected): loses diagnostic value.
+- ❌ Multi-paragraph gate detail (R1-C rejected): floods screen.
+- ❌ Immediate abort on Ctrl+C (R2-B rejected): silent loss.
+- ❌ Confirm dialog on Ctrl+C (R2-C rejected): signal handlers shouldn't prompt.
+- ❌ Stale bypass dialog after reset (R3-B/C rejected): redundant + confusing.
+- ❌ `--daemon` flag (R4-B rejected): shell `&` is the platform answer.
+- ❌ Foreground-only (R4-C rejected): legitimate background use case.
+- ❌ Skipping Gate 0 implicitly (must use --skip-gate-0=<list>).
+- ❌ Resuming from corrupt ralph_state (errors out → agora doctor).
+- ❌ Bypassing Gate 1 or Gate 5 (Stage 2-B.7 absolute prohibition; checked at parse time per 3-A.3).
+
+### Output consumed by
+
+- **Stage 6 implementation**: every algorithmic detail (Z1/Z2 escalation,
+  cap dialogs, per-iteration display) maps directly to module behavior.
+- **AI agents**: parse NDJSON stream to track progress in real-time.
+- **`agora resume`**: receives the in_ralph_paused state and knows which
+  iteration/gate to pick up from.
+- **`agora status`**: reads the same `ralph_state.json` to render progress.
+- **History store**: each iteration emits gate-result events to events.jsonl.
+
+### Failure modes specifically guarded
+
+- **Silent gate skip**: Gate 1 / Gate 5 bypass is structurally forbidden
+  at parse time; Gate 2/3/4 require --reason.
+- **Lost progress on Ctrl+C**: graceful pause writes checkpoint atomically.
+- **Stale bypass surprise**: dialog at session start unless explicitly reset.
+- **Background dialog deadlock**: pending dialogs stored in state.json,
+  surfaced on next interactive invocation.
+- **Streaming output buffering**: NDJSON line-flushed (not block-buffered)
+  in non-interactive mode for real-time agent consumption.
+- **F-Aquinas-4**: every bypass / override / reset announced + recorded.
+
+---
+
+## Open Questions for Stage 3
+
+1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
+2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
+3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
+4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
+5. ~~**`agora status`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.2).
+6. ~~**`agora seed`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.3).
+7. ~~**`agora new`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.4).
+8. ~~**`agora resume`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.5).
+9. ~~**`agora ralph`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.6).
+
+10. **`agora` (default)** (Stage 3-B.7) — open
+    - LAST per-command spec
+    - Context-aware default action; depends on all prior commands

@@ -489,4 +489,69 @@ Failure modes guarded:
 
 Full SPEC committed to `docs/cli/spec.md` under "`agora resume` [SPEC]".
 
-Next task: Stage 3-B.6 — `agora ralph` (most complex; many flags from prior specs need consolidation).
+### Stage 3-B.6 — DONE (2026-05-03)
+
+`agora ralph` SPEC accepted. Four decisions:
+
+- **R1-A**: Per-gate line + marker + brief detail. Compact (R1-B) loses diagnostic value; multi-paragraph (R1-C) floods screen.
+- **R2-A**: Ctrl+C → graceful pause (finish in-flight LLM call, atomic checkpoint, exit 4). Double Ctrl+C within 2s → hard abort. Immediate abort (R2-B) silent loss; confirm dialog (R2-C) signals shouldn't prompt.
+- **R3-A**: Reset flags applied first, then stale bypass dialog SUPPRESSED for this session. Ignore-reset (R3-B) and announce-then-still-prompt (R3-C) both redundant/confusing.
+- **R4-A**: Shell-native background (& or nohup). Non-TTY auto-detects to JSON. Pending dialogs stored in state.json + exit 4. Daemon flag (R4-B) duplicates shell; foreground-only (R4-C) loses legitimate use case.
+
+CLI signature consolidated:
+  agora ralph [parallel + skip-gate-* + reset-* flags from prior SPECs] + universal
+
+Pre-flight + iteration loop algorithm specified.
+
+Per-iteration TUI display layout:
+  [Iteration N — leaf_id (label)]
+  Working... (Ns)
+  [Gate N: name]   marker   brief detail
+                                ↳ sub-detail (indented arrow)
+  ✓ Iteration N complete OR Z1/Z2 escalation triggered
+
+Mockups:
+  - Ralph start + first iteration (happy path)
+  - Z2 escalation (3 consecutive Gate 5 fails) per Stage 2-A.10
+  - Session-end (all completed, no skipped)
+
+Background execution:
+  - agora ralph & → backgrounded by shell
+  - Non-TTY auto-detects JSON mode (3-A.1 R4-A)
+  - NDJSON stream output (one line per gate event)
+  - Pending dialogs serialize to state.json
+  - User resumes via agora ralph or agora resume
+
+NDJSON streaming format for non-interactive mode specified.
+
+Cache interaction: shared with agora doctor; --refresh only on doctor (separation of concerns).
+
+Exit codes:
+  0 = session completed
+  1 = parse error / phase precondition
+  2 = Gate 0 failed at start
+  3 = user hard-abort (double Ctrl+C)
+  4 = graceful pause (single Ctrl+C; pending dialog in non-interactive)
+
+Boundaries (rejections by name):
+  - Compact / multi-paragraph display
+  - Immediate abort / confirm dialog on Ctrl+C
+  - Stale dialog after reset (redundant)
+  - --daemon flag (shell platform)
+  - Foreground-only (kills "while I sleep" use case)
+  - Implicit Gate 0 skip
+  - Resuming from corrupt state
+  - Bypassing Gate 1 / Gate 5 (parse-time forbidden)
+
+Failure modes guarded:
+  - Silent gate skip → parse-time + reason requirement
+  - Lost progress on Ctrl+C → graceful pause + atomic checkpoint
+  - Stale bypass surprise → session-start dialog
+  - Background dialog deadlock → pending_dialog in state.json
+  - Streaming buffering → NDJSON line-flushed
+  - F-Aquinas-4 → every bypass/override/reset announced + recorded
+
+Full SPEC committed to `docs/cli/spec.md` under "`agora ralph` [SPEC]".
+
+Next task: Stage 3-B.7 — `agora` (default, context-aware) — LAST per-command spec.
+After 3-B.7, Stage 3 closes.
