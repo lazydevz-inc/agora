@@ -92,11 +92,49 @@ Mode A (recommended options + free input) for UX taste decisions.
 
 ---
 
-## Stage 3-A.1 — first task
+## Progress Log
 
-The first task is the **output format framework** because:
-- Every command's mockup will assume the framework
-- JSON output shape affects every command's serialization
-- Color and exit code rules need to be consistent
+### Stage 3-A.1 — DONE (2026-05-03)
 
-After 3-A.1: 3-A.2 (Next: pattern) → 3-A.3 (global flags) → per-command specs.
+Output Format Framework specified. Five decisions accepted:
+
+- **R1-A**: 6-color palette (cyan/dim/red/green/yellow + bold) + 11-icon set (◯◉✓✗⚠ⓘ📎🔍📊📄🔄). No other colors or emoji permitted.
+- **R2-A**: Universal JSON schema across all commands — command/version/timestamp/session_id/result.ok/result.data/next[]/warnings[]/errors[]. Per-command specs only define data payload shape.
+- **R3-A**: 7-tier exit codes (0/1/2/3/4/10/20 + 64+ reserved). Priority rule: env > config > gate > user > general > success.
+- **R4-A**: Auto-detect TTY + `AGORA_NON_INTERACTIVE=1` env override. JSON fallback for pipes/CI/non-TTY.
+- **R5-A**: v1 ships `en` + `ko` locales. F1 (locale correctness) enforced at build-time (catalogs) + run-time (LLM output validation).
+
+TUI rendering contract:
+- Divider/header/main/optional/Next-block/divider 6-section template
+- Header: left-aligned command + right-aligned bracketed context
+- @clack/prompts as primitive layer
+
+JSON output contract:
+- Single schema across commands
+- result.ok = exit code source of truth
+- next[] = auto-suggest in JSON form (Stage 3-A.2 will define)
+- warnings[] / errors[] always arrays
+
+Per-mode behavior table covering TUI / JSON / MCP differences.
+
+Locale resolution order: --locale flag > AGORA_LOCALE env > LANG/LC_ALL > en default.
+Korean validation includes specific check for "뭔는지" class of LLM typos.
+
+Boundaries enforced (rejections by name):
+  - Custom colors/emoji (R1-B/C rejected)
+  - Per-command JSON schema (R2-B rejected — consistency is value)
+  - OpenAPI strict definition (R2-C rejected — over-engineering)
+  - Single 0/1 exit code (R3-B rejected — loses signal)
+  - Per-gate exit codes (R3-C rejected — too granular)
+  - Always-explicit interactive flag (R4-B rejected — friction)
+  - TTY-only without env override (R4-C rejected — edge cases need escape)
+  - English-only at v1 (R5-B rejected — F1 must be exercised)
+  - Korean-only at v1 (R5-C rejected — English baseline for future contributors)
+  - ANSI codes leaking to JSON (stripped)
+  - Mid-command streaming in non-interactive (batched)
+
+Failure modes guarded: F1 (locale), F2 (purpose visible via next[]), color/emoji bloat, JSON schema drift, exit code ambiguity.
+
+Full SPEC committed to `docs/cli/spec.md` under "Output Format Framework [SPEC]".
+
+Next task: Stage 3-A.2 — Auto-suggest "Next:" Pattern (when it appears, how candidates ranked, max count, JSON↔TUI contract).
