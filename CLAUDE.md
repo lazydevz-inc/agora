@@ -322,7 +322,7 @@ hardcoded defaults            ← 최후
 ### 데이터 패턴
 
 - TypeScript에서 immutable 강제는 `readonly` + `as const` + zod schema 활용
-- 도메인 모델은 zod로 검증 (도입은 Stage 5 결정)
+- zod 도입은 Stage 4-A.3에서 결정됨 (config가 첫 사용처, `docs/infra/config.md`). 도메인 모델 zod 적용은 Stage 5+에서 자연스럽게 확장.
 - 비동기는 native Promise / async-await
 - Result 패턴은 `Result<T, E>` 헬퍼 도입 검토 (Stage 5)
 

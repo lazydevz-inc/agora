@@ -164,4 +164,69 @@ Full SPEC committed to `docs/infra/llm-integration.md` with Claude Runner API,
 Runtime Selection, Subprocess Invocation, Retry Policy, Default Timeout,
 Cache Layer, SDK Fallback Notification sections.
 
-Next task: Stage 4-A.3 — Config loading (per-project + global per ADR-0002).
+### Stage 4-A.3 — DONE (2026-05-03)
+
+Config loading specified. Five decisions accepted (all recommended):
+
+- **R1-A**: Adopt **Zod** for config validation in Stage 4 (brings forward
+  CLAUDE.md L324's "Stage 5 결정" — config is the first place that needs
+  runtime-validated external input). `.strict()` rejects unknown keys
+  (typo guard). `Result<T,E>` adoption (CLAUDE.md L327) still deferred to
+  Stage 5; loader throws + CLI catches → exit 20 in interim.
+- **R2-A**: Deep merge **per section** (key-level granular). Partial
+  overrides survive (global iteration_cap + project parallelism both
+  win). Arrays replace, not concatenate (avoids silent accumulation).
+- **R3-A**: Global config at `~/.agora/config.toml` always. No XDG. Aligned
+  with Stage 4-A.1's `~/.agora/.first_run` + `~/.agora/cache/` siblings.
+- **R4-A**: Direct `$EDITOR` file edit + `agora doctor` validates +
+  `agora doctor --explain-config` subflag shows merged effective config
+  with per-key provenance. **No `agora config` 8th command** (7-cmd cap).
+- **R5-A**: `version = 1` field required. Mismatch → exit 20 + migration
+  hint. **Manual migration only** at v1 (Sang is sole user; auto-rewrite
+  surprise too costly).
+
+v1 config sections inventory:
+  version, locale (top-level)
+  [ralph]:           parallelism, iteration_cap
+  [gate_5]:          threshold_ok/warn/fail, z1_max_attempts (with refine)
+  [gates.3.critics]: enabled[], disabled[]
+  [gates.4.critics]: enabled[], disabled[]
+  [probes]:          disabled[], forced[]   (mutually disjoint)
+  [bypass_alerts]:   stale_bypass_threshold_iterations
+  [preview_quality]: threshold (Y3 gate, 0.75 default)
+  [llm]:             cache_ttl_seconds, timeout_ms, retries
+
+Loader algorithm:
+  layers = [DEFAULTS, global, project (or --config), env, cli]
+  merged = deep_merge_per_section(...layers)
+  return ConfigSchema.parse(merged)   # throw → exit 20
+
+State vs config boundary made explicit:
+  config = policy (thresholds, defaults) → owned by loader
+  state  = history (bypass records, phase pointer) → state.json (Stage 2-C.3)
+  cache  = memoized work (gate0/drift/llm) → cache layer (Stage 2-B / 4-A.2)
+
+Env mapping: `AGORA_<DOTTED_KEY_UPPERCASED>` (e.g. AGORA_RALPH_PARALLELISM).
+Scalar coercion only; complex sections via TOML or `--config=<path>`.
+
+Boundaries enforced (rejections by name): no validation deferral, no
+section-replace merge, no XDG, no edit-wrapper subflag, no 8th command,
+no auto-migrate, no array deep-merge, no bypass-records-in-config, no
+probe-cache-TTL config knob.
+
+Failure modes guarded:
+  - Silent typo            → .strict() rejection
+  - Threshold inversion    → Zod refine
+  - Schema drift           → version field + manual migration
+  - Global value leak      → array replace, not concatenate
+  - Auto-rewrite surprise  → manual migration only at v1
+  - Bypass loss on reset   → bypass records in state, not config
+  - Mid-process reload gap → load once per process (matches 4-A.2)
+
+Full SPEC committed to `docs/infra/config.md` with 8 [SPEC] sections.
+
+CLAUDE.md L324 updated to reflect Zod adoption in Stage 4-A.3 (config
+first, domain models follow naturally in Stage 5+).
+
+Next task: Stage 4-A.4 — Probe registry implementation (Stage 2-B.1's
+19 v1 probes pattern + ADR-0006 Probe interface concretization).
