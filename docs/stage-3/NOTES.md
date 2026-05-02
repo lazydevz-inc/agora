@@ -327,4 +327,55 @@ Failure modes guarded:
 
 Full SPEC committed to `docs/cli/spec.md` under "`agora status` [SPEC]".
 
-Next task: Stage 3-B.3 — `agora seed` (view + edit operations: --edit, --override-gate5, --regen-tests).
+### Stage 3-B.3 — DONE (2026-05-03)
+
+`agora seed` SPEC accepted. Four decisions:
+
+- **R1-A**: Full seed view by default (Telos/Form/Material/Efficient/AC/Maturity/Genesis/Overrides). Section headers always present (empty if no content).
+- **R2-A**: Automatic cascade-reset on --edit, following SIBLING_REQUIREMENTS from Stage 2-A.7. One Plato Divided Line level drop. User informed via cascade preview before confirm.
+- **R3-A**: --override-gate5 reason mandatory + recorded in seed.metadata.gate5_overrides[] + surfaced as trust warning in agora doctor for 7 days.
+- **R4-A**: --regen-tests defaults to changed-AC only; --all forces full regen. Manual-edit dialog (Stage 2-B.2 R4-A) always applies.
+
+CLI signature:
+  agora seed                              # view (default)
+  agora seed --edit <field>               # edit + cascade
+  agora seed --override-gate5 <iter> <score>  # manual drift override
+  agora seed --regen-tests [--all]        # test regeneration
+
+Mode flags mutually exclusive (parse-time error on combos).
+
+Mockups for view (full), --edit (cascade preview), --override-gate5 (reason capture), --regen-tests (manual-edit dialog).
+
+JSON shapes: view mode (seed structure with maturity + overrides), action modes (operation confirmation with cascade list).
+
+Non-interactive --edit requires --value="..." flag (no editor in non-TTY).
+
+Exit codes: 0 success, 1 parse/exclusion/no-seed, 4 paused-state-after-edit.
+
+Cascade rule explicit:
+  NOESIS → DIANOIA, DIANOIA → PISTIS, PISTIS → EIKASIA, EIKASIA → EIKASIA
+  Cascaded fields keep value but lose maturity certification
+  Mini-alignment loop re-confirms naturally via Round Ordering planner
+
+Boundaries (rejections by name):
+  - Compact view (R1-B/C): seed is ground truth artifact
+  - No-cascade edit (R2-B): leaves validation inconsistent
+  - Per-cascade prompts (R2-C): tedium for common case
+  - Optional override reason (R3-B): silent F-Aquinas-4
+  - No override at all (R3-C): edge cases lost
+  - Always-all regen (R4-B): token waste + manual-edit destruction
+  - No --all option (R4-C): clean-slate sometimes correct
+  - Mode flag combos (mutual exclusivity)
+  - Non-TTY edit without --value
+  - Showing seed before alignment_complete
+
+Failure modes guarded:
+  - Silent stale-validation edit → cascade-reset
+  - Silent gate5 override → reason+record+doctor
+  - Manual test edit loss → mandatory dialog
+  - Mode confusion → exclusivity
+  - F-Aquinas-4 → all potentially-silent actions announced + recorded
+
+Full SPEC committed to `docs/cli/spec.md` under "`agora seed` [SPEC]".
+
+Next task: Stage 3-B.4 — `agora new` (entry point for fresh project workflow).

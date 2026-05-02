@@ -18,7 +18,7 @@
 | **Global Flags + Precedence** (3-A.3) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora doctor`** (3-B.1) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora status`** (3-B.2) | **[SPEC]** Accepted 2026-05-03 |
-| `agora seed` (3-B.3) | [OPEN] |
+| **`agora seed`** (3-B.3) | **[SPEC]** Accepted 2026-05-03 |
 | `agora new` (3-B.4) | [OPEN] |
 | `agora resume` (3-B.5) | [OPEN] |
 | `agora ralph` (3-B.6) | [OPEN] |
@@ -1607,5 +1607,444 @@ For `ralph_complete`:
 4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
 5. ~~**`agora status`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.2).
 
-6. **Per-command specs (remaining)** (Stage 3-B.3 through 3-B.7) — open
-   - In order: seed → new → resume → ralph → agora
+## `agora seed` [SPEC] (Accepted 2026-05-03, Stage 3-B.3)
+
+> **Goal**: View and edit the locked seed. Single command for every direct
+> user influence on the seed: viewing the artifact, editing fields (triggers
+> mini-alignment per Stage 2-A.5 R5-A), overriding Gate 5 drift scores
+> (Stage 2-B.4 manual override), regenerating tests (Stage 2-B.2).
+
+### CLI signature
+
+```
+agora seed                                       # view (default)
+agora seed --edit <field>                        # edit specific field
+agora seed --override-gate5 <iter_id> <score>    # manual drift override
+agora seed --regen-tests [--all]                 # trigger test regeneration
+```
+
+Mode flags are mutually exclusive: at most one of `--edit / --override-gate5
+/ --regen-tests` per invocation. Multiple → error code 1.
+
+Universal flags inherited from Stage 3-A.3.
+
+### Default view scope [R1-A: full seed]
+
+```
+─────────────────────────────────────────────────────────────────
+  agora seed                              [Stage: in_ralph]
+─────────────────────────────────────────────────────────────────
+
+  📄 Locked seed (session_xyz789, locked 2h 14m ago)
+
+  🎯 Telos
+     statement:       "Help me capture and connect what I read"
+     served_good:     "Reduce cognitive load of remembering ideas"
+     failure_signal:  "Notes pile up but never get re-read"
+
+  📐 Form
+     essential_structure: "Local-first CLI with capture + link primitives"
+     irreducible_parts:   ["capture", "link", "search", "render"]
+
+  🛠 Material
+     tech_stack:    [Node.js 22, SQLite, fzf]
+     infrastructure: [local filesystem only]
+
+  ⚙ Efficient
+     who:  "Sang (solo)"
+     when: "Evenings, ~30min sessions"
+     how:  "Manual capture from Kindle highlights"
+
+  📋 Acceptance Criteria (4)
+     1. Capture command stores timestamp + book/url
+     2. Capture command stores user-typed reflection
+     3. User adds [[note-id]] syntax in capture body
+     4. Search results show co-occurring notes within 100ms
+
+  📊 Maturity
+     telos.statement       NOESIS    (3 alts examined)
+     telos.served_good     NOESIS
+     telos.failure_signal  DIANOIA
+     form.essential_*      DIANOIA
+     form.irreducible_*    PISTIS
+     material.*            PISTIS
+     efficient.*           PISTIS
+     acceptance_criteria   DIANOIA
+
+  📎 Genesis (original Phase 1 intake)
+     "I want a place to remember what I read with a few people occasionally engaging"
+
+  ⚠ Active overrides:
+     - threshold: gate_5 fail = 0.50 (default 0.60)
+     - cap raised: 40 iterations (default 25)
+     - gate_5 manual override on iter_007 (3 days ago)
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora seed --edit telos.statement
+      Refine telos (triggers mini-alignment Z2 path)
+
+    ▸ agora ralph
+      Continue implementation
+
+─────────────────────────────────────────────────────────────────
+```
+
+Sections in order: Telos / Form / Material / Efficient / AC / Maturity /
+Genesis / Active overrides. Sections may be empty (e.g. no overrides) but
+section headers always present (R1-A: full info).
+
+If `state.phase < "alignment_complete"` (no locked seed yet):
+
+```
+─────────────────────────────────────────────────────────────────
+  agora seed                          [Stage: in_alignment]
+─────────────────────────────────────────────────────────────────
+
+  ⓘ No locked seed yet. Currently in alignment loop (round 4 of ~6).
+
+  Use `agora status` for alignment progress detail.
+  Use `agora resume` to continue alignment.
+
+─────────────────────────────────────────────────────────────────
+```
+
+### `--edit <field>` flow
+
+```
+agora seed --edit telos.statement
+```
+
+Interactive flow:
+
+```
+─────────────────────────────────────────────────────────────────
+  agora seed --edit telos.statement      [Stage: in_ralph → editing]
+─────────────────────────────────────────────────────────────────
+
+  Current value:
+    "Help me capture and connect what I read"
+
+  Current maturity: NOESIS (3 alts examined)
+
+  ⚠ Editing this field will:
+    - Reset its maturity to EIKASIA (Plato Divided Line)
+    - Cascade-reset dependent fields (form.*, AC.*) one level lower
+    - Trigger Plato Dihairesis re-decomposition on accept
+    - If Ralph is running, auto-pause it (state.phase → in_ralph_paused)
+    - Open mini-alignment loop at this field
+
+  Cascade preview (R2-A: automatic):
+    telos.served_good       NOESIS → DIANOIA
+    form.essential_structure DIANOIA → PISTIS
+    acceptance_criteria.*   DIANOIA → PISTIS
+
+  Continue? [y]es / [N]o
+  > _
+```
+
+On `y`:
+1. Opens `$EDITOR` with current value pre-populated (per Stage 2-A.3 editor escape contract)
+2. On editor save with non-empty content:
+   - `seed.statement` updated to new value
+   - Maturity cascade applied per R2-A
+   - State transitions: `in_ralph` → `in_ralph_paused` (if Ralph was running)
+   - `state.phase` becomes `in_alignment`
+   - Mini-alignment loop opens at the named field
+3. On editor save with empty content OR cancel:
+   - No changes applied
+   - "Edit canceled" message
+   - State unchanged
+
+### Cascade-reset rule [R2-A: automatic per SIBLING_REQUIREMENTS]
+
+When a field is edited, dependent fields per Validation Gates SPEC's
+SIBLING_REQUIREMENTS (Stage 2-A.7) drop one Plato Divided Line level:
+
+```
+NOESIS → DIANOIA
+DIANOIA → PISTIS
+PISTIS → EIKASIA
+EIKASIA → EIKASIA (floor)
+```
+
+Example for `--edit telos.statement`:
+
+```
+SIBLING_REQUIREMENTS lookup:
+  telos.served_good          requires telos.statement       → cascade
+  form.essential_structure   requires telos.statement       → cascade
+  acceptance_criteria.*      requires form.essential, telos → cascade
+
+Net effect:
+  telos.statement      → EIKASIA (full reset; awaiting new value)
+  telos.served_good    → DIANOIA (was NOESIS)
+  form.essential_*     → PISTIS  (was DIANOIA)
+  AC.* (each)          → PISTIS  (was DIANOIA)
+```
+
+Cascaded fields keep their existing **value** but lose maturity certification.
+Mini-alignment loop will re-confirm (or refresh) each one as needed.
+
+User does NOT manually edit each cascaded field — they're surfaced in the
+mini-alignment session naturally per Round Ordering planner (which finds
+the first not-settled field and proposes the next round).
+
+R2-B (no cascade) rejected: would leave validation in inconsistent state
+(form claiming DIANOIA defense vs telos that no longer holds). R2-C (per-cascade
+prompts) rejected: tedium for the common case where automatic is correct.
+
+### `--override-gate5 <iter_id> <score>` flow
+
+```
+agora seed --override-gate5 iter_007 0.10
+```
+
+Interactive flow:
+
+```
+─────────────────────────────────────────────────────────────────
+  agora seed --override-gate5            [Manual drift override]
+─────────────────────────────────────────────────────────────────
+
+  ⚠ Manual drift_score override
+     Iteration:  iter_007
+     Original:   0.42 (FAIL → triggered Z1)
+     Override:   0.10 (PASS)
+
+  This override:
+    - Reverses the Z1 escalation for iter_007
+    - Records as trust warning in seed.metadata.gate5_overrides
+    - Surfaces in `agora doctor` for 7 days
+
+  Reason for override (required, recorded permanently):
+  > _
+
+  [reason captured, then:]
+
+  ✓ Override applied.
+    seed.metadata.gate5_overrides += {
+      iter: "iter_007",
+      original_score: 0.42,
+      override_score: 0.10,
+      reason: "<your reason>",
+      timestamp: "2026-05-03T07:00:00Z"
+    }
+
+  Ralph state may now resume.
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora resume
+      Continue Ralph (override applied)
+
+─────────────────────────────────────────────────────────────────
+```
+
+Reason is **required** [R3-A]. Empty reason → command rejected (exit 1):
+
+```
+agora: error: --override-gate5 requires reason. Empty reason rejected.
+```
+
+Override is recorded:
+- In `seed.metadata.gate5_overrides[]` (immutable history)
+- Surfaced by `agora doctor` for 7 days as trust warning (then archived in metadata but no longer surfaced unless `--include-disabled`-style flag set)
+
+R3-B (optional reason) rejected: silent override is exactly the F-Aquinas-4
+pattern this guards against. R3-C (no override at all) rejected: legitimate
+edge cases exist (LLM judgment was clearly wrong + iteration is correct).
+
+### `--regen-tests [--all]` flow [R4-A]
+
+Default (`--regen-tests` without `--all`):
+
+```
+agora seed --regen-tests
+
+  📋 Detecting AC changes since last test generation...
+
+  Changed since last gen:
+    leaf_003 (AC content edited 5m ago)
+    leaf_004 (added 5m ago)
+
+  Unchanged:
+    leaf_001, leaf_002 (skipped)
+
+  Manual edit detected in:
+    leaf_002 (you edited the test file directly 2h ago)
+
+    Choose:
+      ◯ [k] Keep manual edit; skip regen for leaf_002
+      ◯ [o] Overwrite (lose manual edit; git diff preserves history)
+      ◯ [m] Show 3-way merge: original generated / your manual / new generated
+
+      > _
+
+  [user picks k]
+
+  Regenerating leaf_003... ✓
+  Regenerating leaf_004... ✓
+  Skipping leaf_002 (manual edit kept) ✓
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora ralph
+      Run Ralph with regenerated tests
+
+─────────────────────────────────────────────────────────────────
+```
+
+`--regen-tests --all` forces regeneration of every test file regardless of
+change detection. Manual-edit dialog still applies (R4-A: same as 2-B.2 R4-A
+mechanism).
+
+R4-B (always-all) rejected: token waste; loses manual edits without explicit
+intent. R4-C (no `--all` option) rejected: legitimate cases where the user
+wants clean-slate (e.g. test generation prompt itself was tuned).
+
+### Mode mutual exclusivity
+
+Only ONE of these may be present per invocation:
+
+```
+--edit <field>
+--override-gate5 <iter> <score>
+--regen-tests [--all]
+```
+
+Multiple → parse-time error per Stage 3-A.3 R3-A:
+
+```
+agora: error: --edit, --override-gate5, --regen-tests are mutually exclusive.
+              Choose one operation per invocation.
+```
+
+When none of the above flags set, mode = view (default).
+
+### JSON output schema
+
+View mode (`--json`):
+
+```json
+{
+  "command": "agora seed",
+  "result": {
+    "ok": true,
+    "data": {
+      "seed_locked_at": "2026-05-03T04:00:00Z",
+      "session_id": "session_xyz789",
+      "telos": {
+        "statement": "...",
+        "served_good": "...",
+        "failure_signal": "..."
+      },
+      "form": {
+        "essential_structure": "...",
+        "irreducible_parts": ["..."]
+      },
+      "material": {
+        "tech_stack": ["..."],
+        "infrastructure": ["..."]
+      },
+      "efficient": {
+        "who": "...",
+        "when": "...",
+        "how": "..."
+      },
+      "acceptance_criteria": [
+        {"id": "ac_001", "content": "..."},
+        ...
+      ],
+      "maturity": {
+        "telos.statement": "NOESIS",
+        ...
+      },
+      "genesis": "<phase 1 intake quote>",
+      "active_overrides": [
+        {"type": "threshold", "field": "gate_5_fail", "value": 0.50, "default": 0.60},
+        {"type": "cap_raised", "value": 40, "default": 25},
+        {"type": "gate5_override", "iter": "iter_007", "score": 0.10, "set_at": "..."}
+      ]
+    }
+  },
+  "next": [...]
+}
+```
+
+Edit / Override / Regen modes return action confirmation:
+
+```json
+{
+  "result": {
+    "ok": true,
+    "data": {
+      "operation": "edit",
+      "target_field": "telos.statement",
+      "previous_value": "...",
+      "new_value": "...",
+      "cascade_applied": [
+        {"field": "telos.served_good", "old_maturity": "NOESIS", "new_maturity": "DIANOIA"},
+        ...
+      ],
+      "state_transition": "in_ralph → in_ralph_paused → in_alignment"
+    }
+  }
+}
+```
+
+In non-interactive mode, `--edit` requires `--value="<new value>"` flag
+(or stdin pipe). Without it, errors out (no interactive editor in non-TTY mode).
+
+### Exit code
+
+- `0`: operation succeeded (or view rendered)
+- `1`: parse error / mutual-exclusion violation / no locked seed for view
+- `4`: edit operation paused state (Ralph auto-paused per --edit semantics)
+
+### Boundaries
+
+- ❌ Compact view (R1-B/C rejected): seed is the ground truth artifact;
+  every section is part of "knowing your project."
+- ❌ No-cascade edit (R2-B rejected): leaves validation inconsistent.
+- ❌ Per-cascade prompting (R2-C rejected): tedium for the common case.
+- ❌ Optional reason for gate5 override (R3-B rejected): silent F-Aquinas-4 pattern.
+- ❌ No gate5 override at all (R3-C rejected): legitimate edge cases lost.
+- ❌ Always-all regeneration (R4-B rejected): token waste + manual-edit destruction.
+- ❌ No --all option (R4-C rejected): clean-slate is sometimes correct.
+- ❌ Multiple mode flags in one invocation (mutual exclusivity).
+- ❌ Editing in non-TTY mode without `--value` (no path for non-interactive editor).
+- ❌ Showing seed before alignment_complete (refers user to status / resume).
+
+### Output consumed by
+
+- **AI agents**: read `--json` view to know seed shape; act on `next[]` for
+  edits / regen.
+- **Mini-alignment loop**: triggered by `--edit`; reads target_field +
+  cascade list to bound its scope.
+- **Ralph engine**: pauses on `--edit` (state.phase transition); resumes on
+  --override-gate5 (overrides take effect immediately).
+- **Test generator (Stage 2-B.2)**: invoked by `--regen-tests` with the
+  changed-AC list (or all-AC list if --all).
+- **`agora doctor`**: surfaces gate5 overrides as trust warnings for 7 days.
+
+### Failure modes specifically guarded
+
+- **Silent edit with stale validation**: cascade-reset enforces consistency;
+  user can't edit and pretend dependents are still valid.
+- **Silent gate5 override**: reason required + recorded + surfaced in doctor.
+- **Manual test edit lost**: regen always shows the manual-edit dialog.
+- **Mode confusion**: mutual exclusivity prevents accidental combo.
+- **F-Aquinas-4**: every potentially-silent action (override, cascade, regen)
+  is announced in TUI and recorded in metadata.
+
+---
+
+## Open Questions for Stage 3
+
+1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
+2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
+3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
+4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
+5. ~~**`agora status`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.2).
+6. ~~**`agora seed`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.3).
+
+7. **Per-command specs (remaining)** (Stage 3-B.4 through 3-B.7) — open
+   - In order: new → resume → ralph → agora
