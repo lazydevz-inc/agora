@@ -438,4 +438,55 @@ Failure modes guarded:
 
 Full SPEC committed to `docs/cli/spec.md` under "`agora new` [SPEC]".
 
-Next task: Stage 3-B.5 — `agora resume` (continues paused work; dispatches based on state.phase).
+### Stage 3-B.5 — DONE (2026-05-03)
+
+`agora resume` SPEC accepted. Three decisions:
+
+- **R1-A**: "Actionable" phases (alignment_complete, in_handoff, ready_for_ralph) prompt before transition. Resume = "continue from pause", not "auto-progress to next phase."
+- **R2-A**: `ralph_complete` re-shows the same session-end dialog persistently. User must explicitly choose [r] re-align / [a] accept-as-deferred / [v] view-log.
+- **R3-A**: Corrupt state.json → exit 20 + agora doctor recommendation. Single SoT means no disambiguation; corruption needs fixing.
+
+CLI signature: agora resume + universal flags only (no command-specific).
+
+Phase dispatch table for all 8 state.phase values per Stage 2-C.3 algorithm.
+
+Mockups:
+  - in_alignment resume (most common — header + normal loop UI)
+  - no .agora/ (info + Next: agora new)
+  - ralph_complete (full session-end dialog re-rendered)
+  - corrupt state (error with detail + agora doctor hint)
+
+State transition map: per-phase resume effect on state.phase enumerated.
+
+Non-interactive mode flags for prompts:
+  --auto-progress=yes/no for actionable phases
+  --ralph-complete-action=re_align/accept_deferred/view_log for ralph_complete
+
+JSON output:
+  Default: previous_phase, new_phase, session_id, resumed_at_field
+  Corrupt state: errors[] with field + got + expected_one_of + fix
+
+Exit codes:
+  0 = resumed successfully
+  1 = no .agora/ OR non-interactive without choice flag
+  3 = user abort/cancel
+  20 = corrupt state.json
+
+Boundaries (rejections by name):
+  - Auto-progress through actionable (R1-B): violates resume semantic
+  - Always-confirm including in-progress (R1-C): unambiguous intent
+  - Bare "already complete" (R2-B): silently abandons skipped leaves
+  - Auto-accept-as-deferred (R2-C): silent F-Aquinas-4
+  - Multi-session selector (R3-B): single SoT
+  - Auto-pick most-recent (R3-C): silent guess on corruption
+
+Failure modes guarded:
+  - Silent phase-jumping → R1-A confirmation prompts
+  - Skipped leaves abandoned → R2-A persistent dialog
+  - Acting on corrupt state → R3-A errors out
+  - Lost user input → reads last_answered_field
+  - F-Aquinas-4 → every state-mutating action requires user input
+
+Full SPEC committed to `docs/cli/spec.md` under "`agora resume` [SPEC]".
+
+Next task: Stage 3-B.6 — `agora ralph` (most complex; many flags from prior specs need consolidation).

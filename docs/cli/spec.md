@@ -20,7 +20,7 @@
 | **`agora status`** (3-B.2) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora seed`** (3-B.3) | **[SPEC]** Accepted 2026-05-03 |
 | **`agora new`** (3-B.4) | **[SPEC]** Accepted 2026-05-03 |
-| `agora resume` (3-B.5) | [OPEN] |
+| **`agora resume`** (3-B.5) | **[SPEC]** Accepted 2026-05-03 |
 | `agora ralph` (3-B.6) | [OPEN] |
 | `agora` (default) (3-B.7) | [OPEN] |
 
@@ -2406,5 +2406,323 @@ dialog has a non-interactive equivalent flag.
 6. ~~**`agora seed`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.3).
 7. ~~**`agora new`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.4).
 
-8. **Per-command specs (remaining)** (Stage 3-B.5 through 3-B.7) — open
-   - In order: resume → ralph → agora
+## `agora resume` [SPEC] (Accepted 2026-05-03, Stage 3-B.5)
+
+> **Goal**: Continue paused or in-progress work. Single dispatcher based
+> on `state.phase` per Stage 2-C.3 algorithm. Largely mechanical
+> formalization of decisions already made.
+
+### CLI signature
+
+```
+agora resume [--json] [--locale=<code>] [-q | --verbose] [--no-color] [--config=<path>]
+```
+
+No command-specific flags. All universal flags from Stage 3-A.3.
+
+### Phase-dispatch algorithm (per Stage 2-C.3)
+
+```
+on_resume():
+  state = read(.agora/state.json)
+  if state is None:
+    show_no_project_message()
+    exit 1
+
+  match state.phase:
+    "in_alignment" | "in_alignment_paused":
+      → resume alignment loop from state.last_answered_field
+    "alignment_complete":
+      → R1-A prompt: "Seed locked but handoff not run. Run handoff now? [Enter]/[a]"
+    "in_handoff":
+      → R1-A prompt: "Tree review was in progress. Show tree dialog again? [Enter]/[a]"
+    "ready_for_ralph":
+      → R1-A prompt: "Handoff complete. Start Ralph? [Enter]/[a]"
+    "in_ralph" | "in_ralph_paused":
+      → load ralph_state.json + resume workers from checkpoint
+    "ralph_complete":
+      → R2-A: re-show session-end dialog (per Stage 2-C.2)
+```
+
+### Confirmation prompt for "actionable" phases [R1-A]
+
+For `alignment_complete`, `in_handoff`, `ready_for_ralph`, the user is asked
+before any state transition happens. `agora resume` does NOT automatically
+jump multiple phases.
+
+Example for `ready_for_ralph`:
+
+```
+─────────────────────────────────────────────────────────────────
+  agora resume                          [Stage: ready_for_ralph]
+─────────────────────────────────────────────────────────────────
+
+  ⓘ Handoff complete. Tree locked.
+    Tests generated: 4 files
+    Ready to start Ralph implementation.
+
+  Start Ralph now?
+    ◯  [Enter] yes — start Ralph (state → in_ralph)
+    ◯  [a] abort — stay at ready_for_ralph
+
+  > _
+```
+
+R1-B (auto-progress) rejected: agora resume "resumes" — not "auto-progress next phase."
+The user invoked `resume` because they want continuity, not unbidden state transitions.
+
+R1-C (always-confirm including alignment/ralph in-progress) rejected: those
+phases are *literally paused* mid-work; the user's intent on calling `resume`
+is unambiguous (continue exactly where stopped).
+
+### Mockup — most-common case (in_alignment resume)
+
+```
+─────────────────────────────────────────────────────────────────
+  agora resume                          [Stage: in_alignment]
+─────────────────────────────────────────────────────────────────
+
+  ▸ Resuming alignment session_xyz789
+    Last answered: telos.served_good (round 4 of ~6)
+    Idle since: 5h 23m ago
+
+  [Round 5 / ~6]
+  ⓘ Why this question?
+     Filling: seed.form.essential_structure (currently empty)
+     Without form, AC generation has no shape
+
+  📎 Building on your last answer:
+     "Help me notice when I'm rationalizing instead of reasoning"
+
+  ?  What is the essential structure?
+
+     ◯  CLI tool
+     ◯  Web app
+     ◯  Library (consumed by other tools)
+     ◯  Browser extension
+
+     [Enter a number] · [type your own answer] · [Ctrl+C pause]
+     > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+The resume header summary (▸ block) renders once at session start, then
+the normal alignment loop UI takes over.
+
+### Mockup — no project state
+
+```
+─────────────────────────────────────────────────────────────────
+  agora resume                                  [Stage: —]
+─────────────────────────────────────────────────────────────────
+
+  ⓘ Nothing to resume.
+    No project state found in this folder.
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora new [name]
+      Start a new project workflow
+
+    ▸ agora doctor
+      Verify environment is ready
+
+─────────────────────────────────────────────────────────────────
+```
+
+Exit code 1.
+
+### Mockup — `ralph_complete` re-shown dialog [R2-A]
+
+```
+─────────────────────────────────────────────────────────────────
+  agora resume                        [Stage: ralph_complete]
+─────────────────────────────────────────────────────────────────
+
+  ✅ Ralph session complete
+
+  Total leaves:      4
+  Completed:         3 (75%)
+  Auto-skipped:      1
+
+  ⚠ Skipped leaves require attention:
+    1. leaf_004: cooccurrence_display
+       reason: auto_skipped_after_3_unresolved_z2
+
+  ── What's next? ──
+    ◯  [r] Re-align skipped leaves (start mini-alignment for each)
+    ◯  [a] Accept skipped as deferred (record in seed.metadata, end session)
+    ◯  [v] View detailed session log
+
+    > _
+
+─────────────────────────────────────────────────────────────────
+```
+
+This is the same dialog from Stage 2-C.2 R4-A session-end. It persists in
+state until the user explicitly chooses [r], [a], or [v]. `agora resume`
+re-renders it identically as many times as the user invokes resume.
+
+R2-B (simple "already complete" message) rejected: skipped leaves require
+attention; bare "complete" message would silently abandon them.
+R2-C (auto-accept-as-deferred) rejected: silent F-Aquinas-4 pattern.
+
+### Corrupt / ambiguous state handling [R3-A]
+
+If `.agora/state.json` is unreadable (parse error, missing required fields,
+contradicts other files):
+
+```
+─────────────────────────────────────────────────────────────────
+  agora resume                                                 ✗
+─────────────────────────────────────────────────────────────────
+
+  ✗ State error: cannot read or parse .agora/state.json
+
+  Detail:
+    Field 'phase' is missing or invalid (got: "unknown_phase")
+    Expected one of: in_alignment, in_alignment_paused, alignment_complete,
+                     in_handoff, ready_for_ralph,
+                     in_ralph, in_ralph_paused, ralph_complete
+
+  ── Next: ────────────────────────────────────────────────────
+    ▸ agora doctor
+      Diagnose .agora/ corruption
+
+─────────────────────────────────────────────────────────────────
+```
+
+Exit code 20 (config error per Stage 3-A.1).
+
+R3-A's principle: **single source of truth (state.json) is authoritative**.
+If it's corrupt, we don't try to disambiguate — we tell the user to fix it.
+
+R3-B (multi-session selector) rejected: there's structurally only one active
+state per `.agora/`; any "multiple sessions" implies corruption.
+R3-C (auto-pick most-recent) rejected: silent guessing on corrupt state
+risks acting on the wrong assumption.
+
+### State transition map (in_progress → resumed)
+
+```
+agora resume's effect on state.phase:
+
+  in_alignment            → in_alignment        (continues; same phase)
+  in_alignment_paused     → in_alignment        (resumes from pause)
+  alignment_complete      → in_handoff          (only if user chose Enter)
+                            stays alignment_complete (if user [a] abort)
+  in_handoff              → in_handoff          (re-entry of tree review)
+                            (re-shows dialog)
+  ready_for_ralph         → in_ralph            (only if user chose Enter)
+                            stays ready_for_ralph (if [a] abort)
+  in_ralph                → in_ralph            (continues)
+  in_ralph_paused         → in_ralph            (resumes workers)
+  ralph_complete          → ralph_complete      (re-shows session-end dialog)
+                            persists until [r] / [a] / [v]
+```
+
+### JSON output
+
+```json
+{
+  "command": "agora resume",
+  "result": {
+    "ok": true,
+    "data": {
+      "previous_phase": "in_alignment_paused",
+      "new_phase": "in_alignment",
+      "session_id": "session_xyz789",
+      "resumed_at_field": "telos.served_good"
+    }
+  },
+  "next": [...]
+}
+```
+
+For confirmation-prompt phases (alignment_complete / in_handoff / ready_for_ralph)
+in non-interactive mode, error 1 unless `--auto-progress=yes` flag is set:
+
+```bash
+agora resume --json --auto-progress=yes   # equivalent to pressing Enter on R1-A prompt
+agora resume --json --auto-progress=no    # equivalent to [a] abort
+```
+
+For `ralph_complete` in non-interactive mode, error 1 unless choice flag set:
+
+```bash
+agora resume --json --ralph-complete-action=re_align    # [r]
+agora resume --json --ralph-complete-action=accept_deferred  # [a]
+agora resume --json --ralph-complete-action=view_log    # [v]
+```
+
+For corrupt state, error 20 with detailed `errors[]`:
+
+```json
+{
+  "result": {"ok": false, "data": null},
+  "errors": [
+    {
+      "code": "config_invalid_state_json",
+      "field": "phase",
+      "got": "unknown_phase",
+      "expected_one_of": ["in_alignment", ...],
+      "fix": "Run agora doctor to diagnose"
+    }
+  ]
+}
+```
+
+### Exit code
+
+- `0`: resumed successfully
+- `1`: no .agora/ to resume (nothing to do) OR non-interactive without choice flag
+- `3`: user chose abort/cancel in confirmation prompt
+- `20`: config error (corrupt state.json)
+
+### Boundaries
+
+- ❌ Auto-progress through actionable phases (R1-B rejected): violates
+  resume's "continue from pause" semantic.
+- ❌ Always-confirm including in-progress phases (R1-C rejected): paused
+  alignment/ralph have unambiguous user intent on resume.
+- ❌ Bare "already complete" for ralph_complete (R2-B rejected): silently
+  abandons skipped leaves.
+- ❌ Auto-accept-as-deferred (R2-C rejected): silent F-Aquinas-4.
+- ❌ Multi-session disambiguation (R3-B rejected): single state.json is truth.
+- ❌ Auto-pick most-recent (R3-C rejected): silent guess on corruption.
+- ❌ State mutation without confirmation in actionable phases (R1-A enforces).
+- ❌ Hiding the no-state hint (always tells the user about `agora new`).
+
+### Output consumed by
+
+- **`agora new` Case B / D**: when user picks "Resume" in the warning dialog,
+  internal call equivalent to `agora resume`.
+- **`agora` (default)**: shares phase-dispatch logic; default action when
+  state is in-progress is to invoke resume's behavior.
+- **AI agents**: parse JSON to know the previous → new phase transition.
+- **Scripts**: rely on exit code for "is there active work to resume?"
+
+### Failure modes specifically guarded
+
+- **Silent phase-jumping**: R1-A confirmation prompts prevent.
+- **Skipped leaves abandoned**: ralph_complete dialog persists per R2-A.
+- **Acting on corrupt state**: R3-A errors out instead of guessing.
+- **Lost user input on resume**: alignment loop reads `last_answered_field`
+  to start at the correct round.
+- **F-Aquinas-4**: every state-mutating action requires explicit user input.
+
+---
+
+## Open Questions for Stage 3
+
+1. ~~**Output Format Framework**~~ ✅ Resolved 2026-05-03 (Stage 3-A.1).
+2. ~~**Auto-suggest "Next:" Pattern**~~ ✅ Resolved 2026-05-03 (Stage 3-A.2).
+3. ~~**Global Flags + Precedence**~~ ✅ Resolved 2026-05-03 (Stage 3-A.3).
+4. ~~**`agora doctor`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.1).
+5. ~~**`agora status`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.2).
+6. ~~**`agora seed`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.3).
+7. ~~**`agora new`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.4).
+8. ~~**`agora resume`**~~ ✅ Resolved 2026-05-03 (Stage 3-B.5).
+
+9. **Per-command specs (remaining)** (Stage 3-B.6 through 3-B.7) — open
+   - In order: ralph → agora
