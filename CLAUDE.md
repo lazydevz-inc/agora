@@ -91,10 +91,11 @@
 **Agora = 고대 철학자들이 모이는 광장. AI 코딩 에이전트의 alignment harness.**
 
 > - License: MIT (provisional, ADR-0007 — Q00의 Ouroboros 저작권 보존, CREDITS.md 참조)
-> - Status: **Stage 4 (Infra + LLM Integration + Install) — 진행 중**
+> - Status: **Stage 5 (Internal Architecture + Philosopher Runbooks + Prompts) — 진행 중**
 > - Stage 1 closed: 2026-04-27 (`docs/stage-1/CLOSED.md`, tag `v0.1.0-stage-1`)
 > - Stage 2 closed: 2026-05-03 (`docs/stage-2/CLOSED.md`, tag `v0.2.0-stage-2`)
 > - Stage 3 closed: 2026-05-03 (`docs/stage-3/CLOSED.md`, tag `v0.3.0-stage-3`)
+> - Stage 4 closed: 2026-05-03 (`docs/stage-4/CLOSED.md`, tag `v0.4.0-stage-4`)
 > - Repo: github.com/lazydevz-inc/agora (private indefinitely, ADR-0002 + ADR-0007 — public-release는 명시적 전략 결정 시에만)
 > - Package: `@lazydevz/agora` (npm 미공개)
 
@@ -366,8 +367,8 @@ UX expertise-aware split:
 | **1** | Philosophy + North Star | MANIFESTO, north-star, 5 philosophy docs | ✅ 완료 (2026-04-27, `docs/stage-1/CLOSED.md`) |
 | **2** | Two-Loop Specification | alignment-loop, ralph-loop, handoff 검증 게이트 | ✅ 완료 (2026-05-03, `docs/stage-2/CLOSED.md`, tag `v0.2.0-stage-2`) |
 | **3** | CLI Surface Detail | cli/spec, 모든 명령/플래그/스크린 | ✅ 완료 (2026-05-03, `docs/stage-3/CLOSED.md`, tag `v0.3.0-stage-3`) |
-| **4** | Infra + LLM Integration + Install | install, llm-integration, MCP plan | 🟡 진행 중 (`docs/stage-4/NOTES.md`) |
-| **5** | Internal Architecture + Runbooks | 모듈 그래프, 철학자별 runbook, prompt library | ⏳ |
+| **4** | Infra + LLM Integration + Install | install, llm-integration, config, probes, errors-and-telemetry | ✅ 완료 (2026-05-03, `docs/stage-4/CLOSED.md`, tag `v0.4.0-stage-4`) |
+| **5** | Internal Architecture + Runbooks | 모듈 그래프, 철학자별 runbook, prompt library | 🟡 진행 중 (`docs/stage-5/NOTES.md`) |
 | **6+** | Implementation (vertical slices) | 첫 vertical slice → 누적 | ⏳ |
 
 각 Stage는 **명시적 게이트**: Sang의 승인 없이 다음 Stage 진입 금지.
@@ -403,5 +404,5 @@ UX expertise-aware split:
 
 ---
 
-**Last Updated**: 2026-04-27
-**Version**: 0.0.1-alpha.0 (Stage 1 closing)
+**Last Updated**: 2026-05-03
+**Version**: 0.0.1-alpha.0 (Stage 4 closed, Stage 5 active)
