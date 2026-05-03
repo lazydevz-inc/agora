@@ -227,6 +227,7 @@ LAYER 0 (no deps within src/, only stdlib + zod/commander/clack/picocolors):
   errors/types.ts    (AgoraError type only — codes.ts is layer 0 too)
   errors/codes.ts    (ERROR_CATALOG, no runtime deps)
   i18n/              (catalog lookup with no other src/ dep)
+  prompts/           (generated PROMPT_LIBRARY + lookup API — Stage 5-A.4)
 
 LAYER 1 (depends on Layer 0):
   config/            (schema + loader + env + explain)

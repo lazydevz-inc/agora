@@ -442,3 +442,109 @@ Outstanding (not blocking 5-A.4):
 
 Verdict from review agent: "fix before 5-A.4" — addressed. Proceeding
 to Stage 5-A.4 (prompt library structure) on the corrected runbooks.
+
+### Stage 5-A.4 — DONE (2026-05-03)
+
+Prompt library structure + storage specified. Five decisions accepted
+(all recommended).
+
+- **R1-A**: Auto-generated TypeScript module at `src/prompts/_generated.ts`.
+  `as const satisfies Record<string, PromptEntry>` gives compile-time key
+  safety + literal types + Zod-validated shape. Zero runtime parse, zero
+  new deps. PromptKey literal union derived from object keys — typo in
+  lookup fails compile. R1-B (YAML) rejected (parser dep + parse cost +
+  no compile-time check); R1-C (JSON) rejected (multi-line strings ugly,
+  no compile-time check).
+- **R2-A**: New feature folder `src/prompts/` (LAYER 0 — zero inward dep
+  on src/<feature>/). Files: `_generated.ts` / `types.ts` / `index.ts`
+  / `interpolation.ts` + `scripts/gen-prompts.ts`. Auto-bundled into
+  `dist/`; no npm `files` array change needed. Module-graph LAYER 0 list
+  extended in this commit. R2-B (yaml at repo root) rejected (parser
+  dep, parse cost, npm files change); R2-C (markdown) rejected (still
+  needs conversion script).
+- **R3-A**: Hybrid library — both philosopher (12) AND critic (10) prompts
+  in same library, namespaced keys. Philosopher keys: `<owner>:<prompt_id>`
+  (e.g. `husserl:phase-minus-1-bracket`). Critic keys: `critic:<critic_id>`
+  (e.g. `critic:tech-solid`). Total: 22 entries. Single SoT, uniform
+  Stage 6 lookup, no two-system drift. Source-of-truth split preserved:
+  philosopher prompts canonical in runbooks, critic prompts canonical
+  in `src/critics/definitions/<id>.ts` exported `prompt` const. R3-B
+  (philosopher only) rejected (drift, doubled lookup paths); R3-C
+  (separate critic library) rejected (two libraries to sync).
+- **R4-A**: Manual `pnpm gen:prompts` + CI `pnpm lint:prompts` (regen
+  → diff against committed → fail on mismatch). Pre-commit hook deferred
+  to Stage 6 (add only if real workflow shows chronic forgotten regens).
+  Fingerprint algorithm: sha256 of normalized (system + user) text,
+  whitespace-normalized so editor auto-format doesn't trigger spurious
+  changes. R4-B (forced pre-commit) rejected (friction without need,
+  ADR-0001 minimalism); R4-C (build-time only) rejected (dev mode goes
+  stale silently).
+- **R5-A**: Two-function API — `getPrompt(key)` (raw entry) and
+  `renderPrompt(key, context)` (interpolation + system/user split).
+  Compile-time key safety via PromptKey literal union. Two-sided
+  interpolation validation: (1) declared placeholder missing from
+  context → throw `internal.invariant-violation`; (2) template uses
+  `{name}` not declared → throw same. Programming errors caught
+  immediately, never silently filled. R5-B (direct named imports per
+  prompt) rejected (22 exports clutter, dynamic critic lookup broken);
+  R5-C (both APIs) rejected (surface duplication).
+
+Library Entry schema (Zod):
+  PromptEntrySchema = {
+    namespace: "philosopher" | "critic",
+    owner: kebab-case identifier,
+    runbook?: string + runbook_revision?: int,    // iff philosopher
+    critic_def?: string,                           // iff critic
+    system_prompt: string,
+    user_prompt_template: string,
+    placeholders: string[],
+    fingerprint: "sha256:<64-hex>",
+    used_by: string[],                             // src/ files importing this prompt
+  }
+  .strict() rejects unknown keys (generator typo guard)
+  .refine() enforces namespace ↔ pointer field correspondence
+
+Generator algorithm specified (Stage 6 contract):
+  1. Discover sources (runbook .md + critic .ts)
+  2. Parse runbook section 4 + sub-sections (### 4.X <prompt_id>)
+  3. Extract critic prompts via TS compiler API or strict regex
+  4. Preserve `used_by` from prior _generated.ts
+  5. Validate against PromptEntrySchema
+  6. Sort (philosopher first, then critic, alphabetical within)
+  7. Emit single file
+  8. Run `pnpm typecheck --noEmit` to verify compiles
+
+Module-graph update (in same commit):
+  LAYER 0 list now includes `prompts/` as 6th entry
+  Tree section adds full src/prompts/ subtree
+
+Boundaries enforced (16 rejections by name).
+
+Failure modes guarded:
+  - Library out of sync with source         → CI lint regen + diff
+  - Manual edit slipping in                 → header banner + CI catches
+  - Typo in lookup key                      → compile-time PromptKey check
+  - Missing placeholder at runtime          → throw with structured context
+  - Undeclared placeholder used in template → throw same
+  - Critic added but library forgotten      → CI lint fails
+  - Runbook revised but library forgotten   → fingerprint mismatch
+  - Whitespace-only edit changing fingerprint → normalization prevents
+  - Cross-namespace key collision           → namespace prefixes disjoint
+  - src/prompts/ becoming god module        → LAYER 0 zero-inward-dep
+
+Cross-references for downstream:
+  - Stage 5-A.5 (locale catalog) may extend generator to validate
+    placeholder ↔ catalog key relationships if surfaced as need
+  - Stage 5-A.6 (Result<T,E>) may convert renderPrompt's throw to
+    Result.err in one place if adopted
+  - Stage 6 generator (scripts/gen-prompts.ts) — picks markdown parser
+    (likely lightweight per ADR-0001)
+
+Full SPEC committed to `docs/architecture/prompt-library.md` with 7
+[SPEC] sections + library entry schema + generator algorithm + boundaries
++ failure modes + output consumers.
+
+Next task: Stage 5-A.5 — Locale catalog content rules (en/ko parity
+keys, naming convention, CI parity assertion). Both philosopher prompts
+and critic prompts may reference locale catalog keys; this SPEC will
+clarify if/how that integration works.
