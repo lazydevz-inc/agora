@@ -544,7 +544,113 @@ Full SPEC committed to `docs/architecture/prompt-library.md` with 7
 [SPEC] sections + library entry schema + generator algorithm + boundaries
 + failure modes + output consumers.
 
-Next task: Stage 5-A.5 — Locale catalog content rules (en/ko parity
-keys, naming convention, CI parity assertion). Both philosopher prompts
-and critic prompts may reference locale catalog keys; this SPEC will
-clarify if/how that integration works.
+### Stage 5-A.5 — DONE (2026-05-03)
+
+Locale catalog content rules specified. Five decisions accepted (all
+recommended).
+
+- **R1-A**: JSON files at `messages/en.json` + `messages/ko.json` (repo
+  root, per Stage 4-A.1). Build-time TypeScript JSON import via relative
+  path `../../messages/<locale>.json` from `src/i18n/catalog.ts`. Native
+  parse, zero new deps, i18n-tool compatible. R1-B (TS modules) rejected
+  (build pipeline complexity, tool incompat); R1-C (TOML/YAML) rejected
+  (dep + no native benefit).
+- **R2-A**: Dot-segmented namespace, snake_case within. 7 reserved
+  top-namespaces: `errors.*` (mirrors Stage 4-A.6 ERROR_CATALOG),
+  `philosophers.*` (mirrors runbook owner), `cli.*` (per command +
+  `cli.global.*`), `probes.*` (per probe id), `gates.*` (gate failures),
+  `alignment.*` (phase user prompts), `ralph.*` (Ralph orchestrator
+  user-facing). Max segment depth 4. `.fix` is the ONLY reserved suffix
+  at v1 (Stage 4-A.6 R5-A pattern). New top-namespace requires SPEC update.
+  R2-B (flat keys) rejected (lose namespace visibility); R2-C (camelCase)
+  rejected (i18n convention mismatch).
+- **R3-A**: Hybrid JSON structure — nested object for sections, but
+  `.fix` paired keys stored as **flat leaf with dots in name**
+  (e.g. `"missing_version.fix": "..."` directly under `errors.config`,
+  not nested as `{ missing_version: { fix: "..." } }`). Lookup algorithm
+  walks nested object trying remaining-segments-as-flat-key at each
+  depth. Best of both: visual grouping + natural-reading dot path.
+  R3-B (pure flat) rejected (no orientation for translators); R3-C
+  (pure nested) rejected (`.fix` boilerplate per entry).
+- **R4-A**: `pnpm lint:locale` runs 3 checks:
+    1. en/ko keyset parity (load-bearing F1 enforcement — exits 4 on
+       any missing key in either direction)
+    2. ERROR_CATALOG cross-ref (every message_key/fix_key exists in
+       both catalogs)
+    3. Placeholder consistency (en/ko strings for same key use same
+       `{placeholder}` set — translator can't drop or add)
+  All three exit code 4 (Stage 4-A.6 ERROR_CATALOG `gate.gate-1-deterministic-fail`).
+  Runs alongside typecheck/lint/test in CI. R4-B (TS typed-key Record)
+  rejected (fights R1-A JSON); R4-C (runtime check) rejected (too-late
+  discovery).
+- **R5-A**: Catalog (user-facing) and prompt library (LLM-facing) are
+  separate concerns; almost no overlap. **Prompts are English-only at v1**
+  (LLM most capable in English; multi-locale prompts explode fingerprint +
+  revision tracking). LLM responses flow through render layer; user-facing
+  parts come from catalog when locale-dependent.
+
+  **Small overlap**: prompt placeholders MAY carry catalog-resolved values
+  (e.g. ko user gets a Korean alternative phrased to fit Husserl's bracketing
+  pattern, embedded in English prompt template — Claude handles mixed-language
+  fine).
+
+  Boundary table:
+    Catalog: error messages, CLI text, banner/status, doctor output,
+             phase intros, locale-aware placeholder values
+    Library: LLM system + user templates, critic prompts, Aquinas stage
+             prompts, prompt structural rules, placeholder shapes
+
+  R5-B (multi-locale prompts) rejected (fingerprint × locale, no evidence);
+  R5-C (placeholder injection as primary mechanism) rejected (overlap is
+  exception, not primary).
+
+Lookup API (`src/i18n/index.ts`):
+  setLocale(locale: Locale) / getLocale() / SUPPORTED_LOCALES
+  localized(key, ctx?) → string
+    Looks up key in current-locale catalog; throws on missing key
+    (no silent en fallback for ko — F1 enforcement)
+    Interpolates {name} via context Record
+  loadCatalog(locale) → catalog object
+
+Circular dep resolution (i18n ↔ errors):
+  i18n imports `@/errors/types` ONLY (types, no logic)
+  i18n does NOT import `@/errors/build` (which imports i18n)
+  Missing-key error self-throws bare AgoraErrorThrown inline with
+    HARDCODED ENGLISH MESSAGE — documented as the ONE F1 exception
+    (developer-facing internal bug; user never sees in normal operation)
+
+Initial catalog scaffold inventory (Stage 6 contract):
+  errors.*       ~30 keys (mirrors ERROR_CATALOG entries)
+  philosophers.* ~40 keys (mirrors runbook section 9 namespaces)
+  cli.*          ~25 keys (per Stage 3-B command SPECs)
+  probes.*       ~38 keys (.fix + .detail per 19 probes)
+  gates.*        ~5 keys
+  alignment.*    ~10 keys (phase intros/summaries)
+  ralph.*        ~5 keys
+  Total v1: ~150 keys × 2 locales = ~300 strings (manageable single-session
+  population per locale)
+
+Boundaries enforced (16 rejections by name).
+
+Failure modes guarded:
+  - Korean user sees English fallback           → CI Check 1 keyset parity
+  - Code references key not in catalog          → CI Check 2 ERROR_CATALOG ref
+  - Translator breaks placeholder set           → CI Check 3 placeholder check
+  - Catalog itself broken at runtime            → hardcoded-en self-throw
+  - Circular i18n ↔ errors dependency           → types-only one-way import
+  - Locale not resolved at startup              → setLocale() in CLI entry
+  - Multi-line prompt translation drift         → prompts English-only
+
+Cross-references for downstream:
+  - Stage 5-A.6 (Result<T,E>) — if adopted, localized() return signature
+    converts to Result<string, AgoraError> in one place
+  - Stage 6 implementation — populates messages/en.json + ko.json per
+    Initial Scaffold inventory; adds pnpm lint:locale to CI
+
+Full SPEC committed to `docs/architecture/locale-catalog.md` with 7
+[SPEC] sections + lookup API + initial scaffold + boundaries +
+failure modes + output consumers.
+
+Next task: Stage 5-A.6 — Result<T,E> adoption decision (CLAUDE.md L327
+carry-over). Final Stage 5 sub-question. Also small scope: shape decision
++ when-to-use vs when-to-throw policy.
