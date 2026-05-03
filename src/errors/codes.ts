@@ -174,6 +174,12 @@ export const ERROR_CATALOG = {
     exit_code: 1,
     message_key: "errors.io.disk_full",
   },
+  "io.editor-unavailable": {
+    category: "io",
+    exit_code: 1,
+    message_key: "errors.io.editor_unavailable",
+    fix_key: "errors.io.editor_unavailable.fix",
+  },
 
   // ─── internal category — exit 1 + crash report ───
   "internal.uncaught": {

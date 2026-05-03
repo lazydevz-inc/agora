@@ -44,7 +44,9 @@
     },
     "io": {
       "permission_denied": "{path} 접근 권한이 없습니다.",
-      "disk_full": "{path}에 쓰기 중 디스크가 가득 찼습니다."
+      "disk_full": "{path}에 쓰기 중 디스크가 가득 찼습니다.",
+      "editor_unavailable": "편집기를 찾을 수 없습니다: {detail}",
+      "editor_unavailable.fix": "$EDITOR 환경변수를 선호하는 편집기 (vim, nano, code -w 등)로 설정하거나 vim/nano/vi 중 하나를 설치하세요."
     },
     "internal": {
       "uncaught": "내부 오류: {detail}. Agora의 버그입니다.",
@@ -90,6 +92,17 @@
       "constructing": "Claude로 대안을 구성하는 중 (LLM 호출 1회)...",
       "ask_surprising": "그동안 모르고 있던 가정을 깨달은 순간이 있었나요?"
     },
+    "intake": {
+      "intro": "Phase 1 — open intake",
+      "prompt_brownfield": "오늘 무엇을 작업하시겠어요?\n\nⓘ 프로젝트 시그널 ({ingested_doc_list})은 이미 읽었습니다. 프로젝트가 뭔지 다시 설명할 필요 없이, 오늘 여기서 하고 싶은 일을 말씀해주세요.\n\nEnter만 눌러 $EDITOR로 긴 입력을 작성할 수 있습니다.",
+      "prompt_greenfield": "무엇을 만들고 싶으신가요?\n\nⓘ 새로 시작하는 프로젝트인 것 같습니다. 가능한 한 많이 알려주세요 — 무엇인지, 왜 원하는지, 어떤 모양을 상상하는지. 지금 더 많이 말할수록 이후 질문이 줄어듭니다.\n\nEnter만 눌러 $EDITOR로 긴 입력을 작성할 수 있습니다.",
+      "empty_reprompt": "편집기가 빈 내용을 반환했습니다. 최소 한 문장은 필요합니다 — 다시 시도해주세요.",
+      "reprompt_short": "하고 싶은 일을 한 문장으로",
+      "editor_opening": "$EDITOR로 긴 입력을 위해 편집기를 엽니다...",
+      "soft_cap_warning": "긴 입력 ({bytes} 바이트) — 좋습니다. 더 쓰셔도 되고, `agora`를 다시 실행해 다듬어도 됩니다.",
+      "hard_cap_truncated": "입력이 {bytes} 바이트였습니다 — 16 KB로 잘렸습니다. 캡처된 텍스트는 잘린 부분까지입니다.",
+      "echo": "확인. {method} 방식으로 {word_count} 단어 캡처. 예상 라운드 (시드 잠금까지): {estimated_rounds}."
+    },
     "resume": {
       "no_session": "이어서 진행할 작업이 없습니다.",
       "suggest_new": "현재 디렉토리에 프로젝트 상태가 없습니다. `agora new <name>`으로 시작하거나, `agora doctor`로 환경을 점검하세요.",
@@ -98,9 +111,9 @@
       "resuming_alignment": "Alignment 세션 이어가기 [단계: {phase}]",
       "alignment_progress": "  마지막 활동: alignment 단계 {phase}, 라운드 {round}",
       "next_phase_minus_1": "다음: `agora bracket` — Husserl Phase −1 실행 (greenfield 기본).",
-      "next_phase_1_pending": "      `agora intake` — Phase 1 open intake (다음 슬라이스 예정).",
+      "next_phase_1_pending": "      `agora intake` — Phase 1 open intake.",
       "next_bracket_desc": "Intake 전에 Husserl Phase −1 (Epoché) 실행",
-      "next_intake_desc": "Phase 1 open intake — 아직 미구현",
+      "next_intake_desc": "Phase 1 open intake — raw context 수집",
       "bracket_done": "Husserl Phase −1은 이미 완료되었습니다 (alignment.phase = -1).",
       "alignment_runtime_pending": "Phase {phase} 런타임은 이 빌드에서 아직 구현되지 않았습니다.",
       "next_alignment_runtime_desc": "이 단계의 alignment 런타임은 향후 슬라이스에서 추가 예정",

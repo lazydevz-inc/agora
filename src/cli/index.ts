@@ -13,6 +13,7 @@ import { AgoraErrorThrown } from "../errors/types.js";
 import { setLocale } from "../i18n/index.js";
 import { runBracketCommand } from "./commands/bracket.js";
 import { runDoctorCommand } from "./commands/doctor.js";
+import { runIntakeCommand } from "./commands/intake.js";
 import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
 import { runResumeCommand } from "./commands/resume.js";
@@ -69,6 +70,10 @@ async function main(): Promise<void> {
   }
   if (command === "resume") {
     await dispatchResume(flags, mode, useColor);
+    return;
+  }
+  if (command === "intake") {
+    await dispatchIntake(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -194,6 +199,26 @@ async function dispatchResume(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchIntake(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runIntakeCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    // user.confirmation-required → exit 2 (over-intake guard); other
+    // user.* → exit 2; state.* → exit 20; default exit 1.
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -208,6 +233,7 @@ function printHelp(): void {
   console.log("  agora new [name]  Start a new alignment session (Phase 0 auto-scan)");
   console.log("  agora bracket     Run Husserl Phase −1 Epoché (interactive)");
   console.log("  agora resume      Resume work from current state.json phase");
+  console.log("  agora intake      Run Phase 1 open intake (interactive)");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

@@ -44,7 +44,9 @@
     },
     "io": {
       "permission_denied": "Permission denied accessing {path}.",
-      "disk_full": "Disk full when writing to {path}."
+      "disk_full": "Disk full when writing to {path}.",
+      "editor_unavailable": "No editor available: {detail}",
+      "editor_unavailable.fix": "Set $EDITOR env var to your preferred editor (vim, nano, code -w, etc.) or install one of vim/nano/vi."
     },
     "internal": {
       "uncaught": "Internal error: {detail}. This is a bug in Agora.",
@@ -90,6 +92,17 @@
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
+    "intake": {
+      "intro": "Phase 1 — open intake",
+      "prompt_brownfield": "What would you like to work on?\n\nⓘ I've already read your project signals ({ingested_doc_list}). Don't re-explain what the project is — tell me what you want to do here today.\n\nPress Enter alone to open $EDITOR for longer thoughts.",
+      "prompt_greenfield": "What would you like to build?\n\nⓘ This looks like a fresh start. Tell me as much as you can — what it is, why you want it, what shape you imagine. The more you say now, the fewer questions later.\n\nPress Enter alone to open $EDITOR for longer thoughts.",
+      "empty_reprompt": "Editor returned empty. Need at least one sentence — try again.",
+      "reprompt_short": "One sentence describing what you want to do",
+      "editor_opening": "Opening $EDITOR for long-form input...",
+      "soft_cap_warning": "Long input ({bytes} bytes) — that's good. Continue if you want, or run `agora` again to refine.",
+      "hard_cap_truncated": "Input was {bytes} bytes — truncated to 16 KB. The truncated text is what was captured.",
+      "echo": "OK. Captured {word_count} words via {method}. Estimated rounds to seed lock: {estimated_rounds}."
+    },
     "resume": {
       "no_session": "Nothing to resume.",
       "suggest_new": "No project state found in this folder. Run `agora new <name>` to start, or `agora doctor` to verify the environment.",
@@ -98,9 +111,9 @@
       "resuming_alignment": "Resuming alignment session [phase: {phase}]",
       "alignment_progress": "  Last activity: alignment phase {phase}, round {round}",
       "next_phase_minus_1": "Next: `agora bracket` — run Husserl Phase −1 (greenfield default).",
-      "next_phase_1_pending": "      `agora intake` — Phase 1 open intake (TBD next slice).",
+      "next_phase_1_pending": "      `agora intake` — Phase 1 open intake.",
       "next_bracket_desc": "Run Husserl Phase −1 (Epoché) before intake",
-      "next_intake_desc": "Phase 1 open intake — not yet implemented",
+      "next_intake_desc": "Phase 1 open intake — collect raw context",
       "bracket_done": "Husserl Phase −1 already complete (alignment.phase = -1).",
       "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
       "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",

@@ -26,6 +26,7 @@ agora status    (6-A.4) — state foundation
 agora new       (6-A.5) — Phase 0 auto-scan
 agora bracket   (6-A.6) — Husserl Phase −1 (first philosopher)
 agora resume    (6-A.7) — phase orchestrator (8-phase dispatch)
+agora intake    (6-A.8) — Phase 1 open intake (interactive)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -1228,3 +1229,282 @@ Next task: Stage 6-A.8 — likely candidates:
       project level.
   (e) Remaining 14 probes (Stage 4-A.4 cookie-cutter batch) —
       lazydevz stack coverage (vercel/supabase/anthropic/...).
+
+### Stage 6-A.8 — DONE (2026-05-04)
+
+**Eighth vertical slice: `agora intake` (Phase 1 open intake) — second
+philosopher-free interactive command + first $EDITOR escape implementation +
+Phase1Result schema.** Auto-selected per Sang's "너가 추천한 방향으로 진행해줘"
+on Q2 — option (a) from prior NOTES, the strategic priority continuation
+of resume → intake → Aristotle path. Bridges 6-A.7's `intake_pending` hint
+to a live command; alignment loop now reaches Phase 1 end-to-end (Phase 0
+auto-scan from `agora new` → Husserl Phase −1 from `agora bracket` → Phase 1
+open intake from `agora intake`). Phase 2 philosopher rounds still pending.
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: separate `agora intake` shortcut command (mirroring 6-A.6 bracket).
+  7-cmd cap from ADR-0001 covers primary commands (doctor/status/seed/new/
+  resume/ralph/default); bracket/ping/intake are explicit philosopher /
+  philosopher-adjacent shortcuts.
+- R2-A: SPEC L210-234 brownfield/greenfield prompt verbatim through locale
+  catalog. brownfield references ingested doc list (.git, deps count, src/);
+  greenfield asks what/why/shape 3 dimensions.
+- R3-A: 8 KB soft cap (warning, no truncate) + 16 KB hard cap (truncate +
+  intake_truncated flag). UTF-8-codepoint-aware truncation guard — never
+  splits a multi-byte codepoint mid-character.
+- R4-A: full $EDITOR escape contract — temp file at .agora/cache/intake-
+  {ts}.md + comment header + spawn $EDITOR (env || vim || nano || vi
+  fallback chain) + comment-line stripping after editor close. New
+  io.editor-unavailable ERROR_CATALOG entry + en/ko locale entries.
+- R5-A: Phase1Result Zod schema per alignment-loop.md L273-281
+  (raw_intake / intake_method / intake_word_count / intake_byte_size /
+  intake_truncated / intake_duration_ms / estimated_rounds + classification
+  + created_at). state.alignment.phase: 0|-1 → 1 transition. session_id
+  history/ persistence deferred (no session_id concept in schema yet).
+
+Files shipped:
+
+src/shared/editor.ts (LAYER 0 — new, ~95 LOC):
+  openEditorAndRead({ filePath, initialContent }) → string:
+    1. Write initial content (caller supplies header) to filePath
+    2. pickEditor: $EDITOR → vim → nano → vi (uses `which` for availability)
+    3. spawnEditorInteractive: spawn(cmd, [path], stdio: "inherit")
+    4. Read file back, stripCommentLines (HTML-style block + line comments)
+  Throws AgoraErrorThrown("io.editor-unavailable") when no editor found.
+  stripCommentLines exported for unit testing.
+
+src/alignment/phase-1-intake.ts (LAYER 2 — new, ~210 LOC):
+  IntakeMethodSchema = "inline" | "editor" | "paste"
+  Phase1ResultSchema (Zod): raw_intake (min 1) / method / word_count /
+    byte_size / truncated / duration_ms / estimated_rounds /
+    classification / created_at (ISO 8601)
+  IntakeUi interface: askInline / openEditor / askReprompt /
+    displaySoftCap / displayHardCap / displayEcho — adapter pattern
+    mirrors HusserlUi (Stage 6-A.6).
+  Constants: SOFT_CAP_BYTES=8192, HARD_CAP_BYTES=16384.
+  estimateRounds(wordCount): "<50: 5–8 rounds (lots to clarify)",
+    "50-300: 3–5 rounds", ">300: 2–3 rounds" (per SPEC L266-270).
+  countWords(input): trim + split on \s+, returns 0 for empty/whitespace.
+  runPhase1Intake(input, ui) → Result<Phase1Result>:
+    1. collectInput: handles inline → paste/inline classify; empty →
+       openEditor → editor; empty editor → askReprompt → inline OR
+       user.aborted (empty twice, exit 2 per SPEC L254).
+    2. Cap mechanics: byte_size >=16KB → truncateToBytes (UTF-8 boundary
+       safe, walks back over continuation bytes) + displayHardCap;
+       >=8KB → displaySoftCap, no truncate.
+    3. Compute word count + estimated rounds.
+    4. displayEcho (mechanical, no LLM).
+    5. Validate against Phase1ResultSchema, return Result.
+
+src/cli/commands/intake.ts (LAYER 3 — new, ~205 LOC):
+  runIntakeCommand(flags, positional):
+    1. Refuse if no .agora/ → user.aborted (exit 2)
+    2. Load scan.json (re-run Phase 0 if missing)
+    3. Load state.json — refuse if alignment.phase >= 1 (no over-intake →
+       user.confirmation-required, exit 2)
+    4. composeIntakePrompt(scan): brownfield (with doc hints) vs greenfield
+       via locale catalog
+    5. clack intro + buildClackUi adapter (text() + log.info/warn/success,
+       openEditorAndRead with cache temp file)
+    6. runPhase1Intake → Phase1Result
+    7. writeJsonAtomic(.agora/intake.json)
+    8. saveState → alignment.phase: 1
+    9. clack outro + buildEnvelope (next: agora resume → Phase 2 pending)
+
+src/cli/index.ts:
+  Added "intake" command dispatch + dispatchIntake helper. exit code mapping:
+    state → 20, user → 2, default → 1.
+  printHelp() updated with "agora intake" line.
+
+src/cli/commands/resume.ts (modified):
+  Removed " (TBD)" suffix from "agora intake" string in three deferred
+  hint locations (alignment phase 0 / phase -1 / next_intake_desc).
+  resume.next[*].command now points to live `agora intake`.
+
+src/errors/codes.ts (modified):
+  Added "io.editor-unavailable" entry — category io, exit 1, message_key
+  errors.io.editor_unavailable + fix_key suggesting $EDITOR setup.
+
+messages/en.json + ko.json:
+  +9 keys × 2 locales under cli.intake.* = 18 strings:
+    intro / prompt_brownfield (with {ingested_doc_list}) / prompt_greenfield
+    empty_reprompt / reprompt_short / editor_opening
+    soft_cap_warning (with {bytes}) / hard_cap_truncated (with {bytes})
+    echo (with {word_count}, {method}, {estimated_rounds})
+  +2 keys × 2 locales under errors.io.* = 4 strings:
+    editor_unavailable / editor_unavailable.fix
+  +0 keys but 4 string updates under cli.resume.* (TBD removal).
+  Total: +22 strings net new.
+
+Tests (2 new files; total 19 files / 126 tests, was 17/107):
+
+tests/unit/alignment/phase-1-intake.test.ts (14 tests):
+  Input classification:
+    - inline single-line → method=inline
+    - multi-line inline → method=paste
+    - empty inline → editor returns content → method=editor
+    - empty inline → empty editor → reprompt → user types → method=inline
+    - empty twice → user.aborted (category=user)
+  Cap mechanics:
+    - <8KB → no warnings, no truncate
+    - >=8KB <16KB → soft cap warning, no truncate
+    - >=16KB → hard cap + intake_truncated=true + byte_size==16384
+    - UTF-8 codepoint boundary preserved on hard truncate (한 character)
+  Estimated rounds + word count:
+    - countWords whitespace + empty handling
+    - estimateRounds bucket boundaries (0/49/50/300/301)
+    - displayEcho called with computed values (mechanical, no LLM)
+  Schema:
+    - Phase1Result validates against Phase1ResultSchema
+    - classification preserved from input
+
+tests/unit/shared/editor.test.ts (5 tests):
+  stripCommentLines:
+    - removes single-line HTML comments
+    - removes multi-line block comments
+    - preserves blank lines + trims surrounding whitespace
+    - returns empty when only comments
+    - preserves real content when no comments
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (3 pre-existing cognitive-complexity warnings, no errors)
+  pnpm test     ✓ 19 files, 126 tests
+  pnpm lint:locale ✓ (3 checks: parity / ERROR_CATALOG xref / placeholder)
+  pnpm build    ✓
+  Manual:
+    $ # /tmp/empty
+    $ node dist/cli/index.js intake
+      agora: error: Aborted by user.
+      exit=2
+
+    $ # state.json with alignment.phase=1 (already past intake)
+    $ node dist/cli/index.js intake
+      agora: error: User confirmation required: Phase 1 intake already
+        complete (alignment.phase=1). Re-running would overwrite
+        intake.json. Remove .agora/intake.json or run `agora resume`...
+      exit=2
+
+    $ # state.json with alignment.phase=0 (fresh from agora new)
+    $ node dist/cli/index.js resume --json | jq '.next[].command'
+      "agora bracket"
+      "agora intake"   ← live, no (TBD) suffix
+
+  Manual interactive run deferred to TTY (clack interactive same as bracket).
+  Phase1Intake logic fully covered by unit tests with StubUi.
+
+Surprises encountered + decisions made:
+
+1. **PhaseSchema alignment.phase enum constraint check**: state/types.ts
+   AlignmentProgressSchema declares `phase: z.number().int().min(-1).max(2)`.
+   Phase 1 = 1 (within bounds). No schema change needed. Future Phase 2
+   work (round 1+) advances to phase=2 within same constraint.
+
+2. **JSON envelope exit_code field shows 5 for user.confirmation-required
+   despite process actually exiting 2**: pre-existing render.ts mapping uses
+   category-only (user → 5) but ERROR_CATALOG has per-error exit codes
+   (confirmation-required = 2, aborted = 2) and dispatchIntake correctly
+   honors them at process.exit time. JSON envelope reads the wrong field.
+   Same issue affects status/doctor/etc — render.ts needs its own
+   ergonomics slice to consume catalog exit_code instead of category-only.
+   Process actual exit is correct.
+
+3. **IntakeUi.openEditor swallows editor errors → empty content**: when
+   editor unavailable or non-zero exit, intake.ts's clack adapter catches
+   and returns "" so the orchestrator triggers the re-prompt path.
+   Alternative was to bubble io.editor-unavailable as a hard error;
+   chose UX-first defer (user can still type inline) per "biased over
+   un-biased" CLAUDE.md principle.
+
+4. **UTF-8 codepoint boundary truncation needed explicit guard**: naive
+   `Buffer.subarray(0, 16384).toString("utf8")` would split a 한자
+   (3-byte) at the boundary, producing invalid UTF-8. Walking back over
+   continuation bytes (10xxxxxx pattern) finds the safe cut point. Added
+   regression test with HARD_CAP_BYTES copies of '한' as filler.
+
+5. **Comment header in temp file for $EDITOR**: SPEC L309-317 specifies
+   the `<!-- ... -->` header. Used HTML comment style (markdown standard).
+   stripCommentLines handles both single-line `<!-- x -->` and multi-line
+   `<!--\n  multi\n-->` blocks. Kept this in shared/editor.ts (not the
+   intake command) so future commands using editor escape get the same
+   behavior automatically.
+
+6. **estimated_rounds is a string, not a number**: SPEC L267-269 examples
+   are formatted strings ("5–8 rounds (lots to clarify)" / "3–5 rounds" /
+   "2–3 rounds"). Kept as string per spec — Phase 2 round-planner can
+   parse if needed; mostly a UX hint not a commitment.
+
+Lessons / observations:
+- **IntakeUi adapter pattern works exactly like HusserlUi** — 5 methods,
+  tests inject deterministic stubs, production wires @clack/prompts.
+  The pattern is now generalizable: any future interactive philosopher /
+  alignment phase command should follow Husserl + Phase-1-Intake template.
+- **stripCommentLines belongs in shared/editor.ts, not in intake.ts**:
+  any future use of $EDITOR (e.g. `agora seed --edit`, future ralph
+  bypass justification editor) will need the same comment-stripping.
+  LAYER 0 placement is correct.
+- **Cap mechanics + UTF-8 guard fit cleanly in pure functions** — both
+  `truncateToBytes` and `estimateRounds` are static + deterministic,
+  exported for unit tests, no mocking needed.
+- **The "biased product" principle pays off in editor failure UX**: when
+  editor isn't available, we don't crash — we degrade to inline retry.
+  User isn't blocked by environment friction.
+
+Outstanding (intentional defer):
+  - JSON envelope exit_code field uses category-only mapping (render.ts):
+    should consume per-error exit_code from ERROR_CATALOG. Current
+    workaround is dispatcher overrides at process.exit. Future ergonomics
+    slice unifies.
+  - Session_id concept + .agora/history/{session_id}/intake.md persistence:
+    SPEC L321 wants editor temp file moved to history/ for audit.
+    Currently temp file stays in .agora/cache/intake-{ts}.md (gitignored).
+    Lands when session_id materializes (likely Phase 2 or handoff slice).
+  - `--non-interactive` stdin intake (Mode 2 per ADR-0005): SPEC L330-331
+    notes "No reading from stdin in non-TTY mode unless explicit
+    --non-interactive flag is set". Defer until first scripted-use surfaces.
+  - prior_intake re-entry detection: re-running `agora intake` when
+    intake.json already exists currently refused via state.alignment.phase
+    >= 1 guard. SPEC may want a user-confirm overwrite path; defer.
+  - Manual editor invocation test (vim/nano/vi spawn integration): defer
+    until first cross-platform test infrastructure (Windows path testing).
+  - LOW_CONFIDENCE_BANNER prepend for low-confidence brownfield (SPEC
+    L221-222): Phase 0 doesn't yet capture confidence; defer until Phase 0
+    confidence model lands.
+  - Editor temp file cleanup: currently writes to .agora/cache/intake-{ts}.md
+    and never deletes. Per existing .agora/cache/ gitignore convention this
+    is fine for v1; cleanup could go into doctor --refresh later.
+  - Integration test for `agora intake` interactive run: requires TTY mock
+    or PTY-based test infra. Same defer as bracket (6-A.6).
+
+Stage 6 status: 8 slices done. Working commands:
+  agora --version (6-A.1)
+  agora doctor   (6-A.2)
+  agora ping     (6-A.3)
+  agora status   (6-A.4)
+  agora new      (6-A.5)
+  agora bracket  (6-A.6)
+  agora resume   (6-A.7)
+  agora intake   (6-A.8)  ← NEW
+
+**Alignment loop entry-to-Phase-1 path is now complete end-to-end:**
+  agora new → (Phase 0 auto-scan)
+    → agora bracket (greenfield) OR agora resume (brownfield)
+    → agora intake (Phase 1 open intake)
+    → agora resume (Phase 2 runtime — pending next slices)
+
+Next task: Stage 6-A.9 — likely candidates:
+  (a) Aristotle Phase 2 telos round (`agora resume` advances when
+      alignment.phase=1 → invoke Aristotle telos prompt → save round
+      result → bump round counter). Needs Phase 1 intake.json as input.
+      Second philosopher implementation; cements the multi-philosopher
+      orchestration pattern.
+  (b) prompt-library generator (Stage 5-A.4 impl): now have TWO inline
+      prompts (Husserl + about-to-add Aristotle). Generator pays off
+      starting at the second. Refactors HUSSERL_SYSTEM out of
+      husserl.ts; sets pattern for all 5 philosophers.
+  (c) `src/config/` + TOML + Zod: unblocks user customization of probe
+      list, locale defaults, future per-project alignment settings.
+  (d) Remaining 14 probes: cookie-cutter batch.
+  (e) ergonomics slice: render.ts envelope exit_code unification +
+      version: "unknown" outside-cwd fix (status/new/resume/bracket/intake
+      all share this).

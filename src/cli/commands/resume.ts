@@ -150,7 +150,7 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
     next.push({
       id: "intake_pending",
       description: localized("cli.resume.next_intake_desc"),
-      command: "agora intake (TBD)",
+      command: "agora intake",
     });
   } else if (ap === -1) {
     // Husserl bracketed; intake is the next concrete step.
@@ -159,7 +159,7 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
     next.push({
       id: "intake_pending",
       description: localized("cli.resume.next_intake_desc"),
-      command: "agora intake (TBD)",
+      command: "agora intake",
     });
   } else {
     // ap is 1 or 2 — runtime not yet implemented.
