@@ -372,13 +372,171 @@ Outstanding (intentional defer):
 Stage 6 status: 2 slices done. Foundation + agora --version + agora doctor
 all working end-to-end with cache + locale + JSON envelope.
 
-Next task: Stage 6-A.3 — pick third vertical slice. Likely candidates:
-  (a) Remaining 14 probes (Tier 1+2 + Tier 3-partial) — fast follow on
-      6-A.2 pattern
-  (b) `src/config/` + TOML loader (Stage 4-A.3 implementation) — unblocks
-      [probes].disabled wiring + many other features
-  (c) `ClaudeRunner` + cli-runner subprocess (Stage 4-A.2) — unblocks
-      first philosopher (Husserl) + drift_score
-  (d) `src/state/` + `state.json` reader/writer (Stage 2-C.3) — needed
-      before alignment loop touches phase pointer
-Q3 framing follows the same Mode B pattern.
+### Stage 6-A.3 — DONE (2026-05-04)
+
+**Third vertical slice: ClaudeRunner (CLI-only) + `agora ping` command.**
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: ClaudeRunner CLI-only + `agora ping` command (LLM unlock + verifiable)
+- R2-A: CLI-only this slice; SDK fallback DEFERRED (no `@anthropic-ai/claude-agent-sdk` dep)
+- R3-A: Full Stage 4-A.2 R4-A cache (`.agora/cache/llm_responses.json`,
+  per-project, soft limit 100 + LRU 20% eviction, source: "cache" substituted)
+- R4-A: New hidden-ish `agora ping [prompt]` command — defaults to
+  "Reply with exactly the word: pong"; always skips cache (real LLM call)
+- R5-A: SDK binding DEFERRED — no new dep, no premature implementation;
+  no_runner_available throw is the placeholder
+
+Files shipped:
+  src/shared/spawn.ts            — Generic LAYER 0 helper for subprocess
+                                   execution with timeout + SIGTERM/SIGKILL
+                                   escalation. Used by probes/runner (refactored
+                                   to consume) AND llm/cli-runner (new caller).
+                                   Atomically replaces the duplicated logic.
+  src/llm/runner.ts              — ClaudeRunner interface + ClaudeCallOptions +
+                                   ClaudeResponse + ClaudeError discriminated union
+                                   (per Stage 4-A.2 R1-A)
+  src/llm/cli-runner.ts          — ClaudeCliRunner class implementing
+                                   ClaudeRunner via `claude --print
+                                   --output-format json`. Retry policy
+                                   (3 attempts, exponential 1s/4s, rate-limit
+                                   special case 10s/30s). Stdin for prompts
+                                   >1024 chars or multi-line; argv otherwise.
+                                   Transient classification (timeout / rate /
+                                   invalid_response = retry; auth / no_runner /
+                                   internal = bubble immediately).
+  src/llm/cache.ts               — LLMCache file-backed at
+                                   `.agora/cache/llm_responses.json`. Soft
+                                   limit 100 + LRU 20% eviction. ttl_seconds=0
+                                   means no cache. Error responses NEVER
+                                   cached. source: "cache" substituted on hit.
+  src/llm/cached-runner.ts       — CachedRunner wrapper composition (decorator
+                                   pattern). Inner runner injected; checks
+                                   cache before delegating; sets cache on
+                                   successful response when cache_key + ttl set.
+  src/llm/selection.ts           — selectRuntime(cwd) — once-per-process
+                                   selection. Tries `claude --version` (cheap
+                                   liveness; <3s timeout). On success: returns
+                                   `CachedRunner(new ClaudeCliRunner(), cache)`.
+                                   On failure: throws no_runner_available with
+                                   message saying SDK fallback not yet implemented.
+                                   _resetSelectionForTests() helper.
+  src/cli/commands/ping.ts       — runPingCommand: takes positional args as
+                                   prompt (default "Reply with exactly the
+                                   word: pong"), invokes runner, renders TUI
+                                   (✓ pong + response + meta line) or JSON
+                                   envelope. Maps ClaudeError.code → ErrorCode
+                                   for unified error path.
+  src/cli/index.ts               — added "ping" command dispatch + help line
+
+  src/probes/runner.ts           — REFACTORED: now imports `spawnExec` from
+                                   `shared/spawn.js`. Local probeShellExec
+                                   is a thin adapter for ProbeContext interface.
+                                   Removed local spawn/escalateKill duplication.
+                                   Probe tests still pass (5/5 in runner.test.ts,
+                                   6/6 in cache.test.ts).
+
+Tests (3 new files; total now 11 files / 68 tests, was 8/57):
+  tests/unit/llm/cache.test.ts          — 6 tests:
+                                          - set/get within TTL with source: cache
+                                          - never caches error responses
+                                          - ttl_seconds=0 means no cache
+                                          - invalidate removes entry
+                                          - flush writes file; reload sees
+                                          - expired entries pruned on get
+  tests/unit/llm/cached-runner.test.ts  — 4 tests:
+                                          - delegates when no cache_key
+                                          - caches when cache_key + ttl set
+                                          - does NOT cache when ttl=0
+                                          - does NOT cache failed responses
+  tests/integration/cli-ping.test.ts    — 1 test:
+                                          - JSON envelope shape stable
+                                            (success or error path both valid)
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (no warnings)
+  pnpm test     ✓ 11 files, 68 tests
+  pnpm lint:locale ✓
+  pnpm build    ✓
+  Manual:
+    $ node dist/cli/index.js ping
+      → "✓ pong\n─────\npong\n─────\n1 attempt(s) · 9031ms · source: subprocess"
+    $ node dist/cli/index.js ping --json | jq
+      → envelope: command="agora ping", ok=true, data.source=subprocess,
+        data.attempts=1, data.response="pong"
+    $ node dist/cli/index.js doctor (still works after spawn refactor)
+      → 5/5 probes, summary line, exit 0
+
+Surprises encountered + decisions made:
+
+1. claude CLI does NOT support `--max-tokens`:
+   Stage 4-A.2 SPEC anticipated --max-tokens flag (it's standard for the
+   Anthropic API). claude CLI uses --effort / --max-budget-usd instead.
+   Resolution: dropped --max-tokens from buildArgs; max_tokens in
+   ClaudeCallOptions is informational. Future slice may map max_tokens →
+   --effort heuristic. Stage 4-A.2 SPEC L46-49 (max_tokens declaration)
+   needs Rev 2 note.
+
+2. claude --output-format json emits a JSON ARRAY of streaming events,
+   not a single envelope:
+   Original parser expected `{ result: "..." }`. Actual: array of
+   {type: "system"|"assistant"|"rate_limit_event"|"result"} events.
+   The terminal `type: "result"` event holds the final response.
+   Resolution: parser walks events in reverse, finds last result event,
+   extracts result.result string. Also handles is_error flag.
+
+3. SIGKILL escalation extracted to shared/spawn:
+   Both probes/runner and llm/cli-runner need spawn-with-timeout-and-kill.
+   Decision: extract to shared/spawn.ts (LAYER 0). Refactored probes/
+   runner in same slice (small touch, kept tests green). DRY foundation
+   for any future subprocess caller.
+
+4. CachedRunner composition cleanly separates concerns:
+   Inner runner does the work; wrapper handles cache. Test became trivial
+   with fake CountingRunner (4 tests, no real LLM needed). Stage 4-A.2
+   R1-A composition pattern validated.
+
+5. selectRuntime() module-level singleton:
+   Per Stage 4-A.2 R5-A: "selection runs once per process; re-detect
+   requires restart". Implemented as module-level `cached` variable +
+   `_resetSelectionForTests()` helper. Intentional process-lifetime cache.
+
+Lessons for next slice:
+- shared/spawn is now battle-tested; future subprocess callers (e.g.
+  Playwright CLI runner for Gate 2) can reuse without re-implementing
+  timeout/kill.
+- Real LLM call cost: Sang's machine took ~9 seconds for "pong" with
+  16k cache_read input tokens. Cache layer pays for itself immediately
+  on repeated dev iterations.
+- ClaudeCallOptions.max_tokens is now a no-op; Stage 4-A.2 SPEC needs
+  Rev 2 for accuracy when next reading.
+- JSON envelope for error case still uses generic "agora" command label
+  (emitAgoraError in render.ts). Consider passing command context per
+  call for richer errors. Defer to next ergonomics slice.
+
+Outstanding (intentional defer):
+  - SDK fallback (`ClaudeSdkRunner`): need `@anthropic-ai/claude-agent-sdk`
+    dep + ADR-0001 justification. Defer until first user without claude
+    CLI hits no_runner_available
+  - SDK fallback notification UX (Stage 4-A.2 R5-A): tied to SDK runner
+  - max_tokens → claude --effort mapping: future ergonomics
+  - emitAgoraError command context: future ergonomics
+  - Stage 4-A.2 SPEC Rev 2 note about max_tokens being CLI-incompatible
+  - 14 remaining probes (still deferred from 6-A.2)
+  - `src/config/` + TOML loader (still deferred)
+  - `src/state/` + state.json (still deferred)
+
+Stage 6 status: 3 slices done. Foundation + version + doctor + ping all
+working end-to-end. **First real LLM call from Agora succeeded.** Next
+slices unlock first philosopher implementations (need state.json + maybe
+prompt-library generator) OR fill out probe inventory OR add config loader.
+
+Next task: Stage 6-A.4 — pick fourth vertical slice. Likely candidates:
+  (a) `src/state/` + `agora resume` skeleton (Stage 2-C.3 implementation)
+      — foundation for any philosopher persistence
+  (b) `src/config/` + TOML + Zod (Stage 4-A.3) — unblocks [probes].disabled
+      + future Ralph parallelism etc.
+  (c) Remaining 14 probes (cookie-cutter)
+  (d) Husserl Phase −1 first philosopher implementation (needs state +
+      prompt-library generator + first run of `agora new`)
+Q4 framing follows the same Mode B pattern.
