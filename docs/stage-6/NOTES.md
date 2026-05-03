@@ -31,6 +31,7 @@ agora telos     (6-A.9) — Aristotle Phase 2 telos round (interactive, 2nd phil
 (6-A.10) — prompt-library generator infrastructure (no new command; pnpm gen:prompts)
 agora form      (6-A.11) — Aristotle Phase 2 form round (essential structure + irreducible parts)
 agora material  (6-A.12) — Aristotle Phase 2 material round (tech stack + data shape + infrastructure)
+agora efficient (6-A.13) — Aristotle Phase 2 efficient round (who + when + how) — Phase 2 COMPLETE
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -2382,5 +2383,141 @@ Next task: Stage 6-A.13 — likely candidates:
       causes; bumps maturity from default → noesis when rigor met.
   (c) `agora round` orchestrator consolidation (11+ commands now).
   (d) Socrates case-probing of telos/form/material claims.
+  (e) `src/config/` + TOML + Zod.
+  (f) Remaining 14 probes.
+
+### Stage 6-A.13 — DONE (2026-05-04)
+
+**Thirteenth vertical slice: `agora efficient` — Aristotle Phase 2
+round 4 (who/when/how — final Aristotle cause).** Auto-selected per
+session cadence + completion of Aristotle's contribution to Phase 2.
+**All 4 Aristotle causes are now captured.** Lightest of the four
+causes; no F-rule mitigation; pistis is the floor.
+
+Cookie-cutter from material slice (without the brownfield wrinkle).
+Single-LLM-call extraction; 3 questions asked locally.
+
+Decisions made inline:
+  - EfficientClaim Zod schema: who / when / how / maturity (default
+    "pistis" per runbook §4.4 — lightest floor).
+  - AristotleEfficientUi: 3 simple ask methods (no branching, no
+    F-rule mitigation).
+  - State transition: alignment.phase stays at 2; round 3 → 4 (all 4
+    Aristotle causes done).
+  - resume.ts ap===2 sub-discrimination now 4-armed: round===1 → form,
+    round===2 → material, round===3 → efficient, round===4 → "all 4
+    causes done; Plato Y2 maturity tagging pending".
+  - 4 refusal guards: no .agora/, missing telos+form+material,
+    alignment progress check (phase>=2 round>=3), over-efficient guard.
+
+Files shipped:
+  src/philosophers/aristotle.ts (modified, +130 LOC):
+    EfficientClaimSchema + FourCausesSchema.efficient extension.
+    AristotleEfficientInput / AristotleEfficientUi.
+    ARISTOTLE_EFFICIENT_SYSTEM inline prompt + buildEfficientUserPrompt.
+    runAristotleEfficientRound + callForEfficientExtraction.
+  src/cli/commands/efficient.ts (LAYER 3 — new, ~210 LOC):
+    runEfficientCommand + clack adapter; persists FourCauses (all 4
+    causes); state.alignment.round → 4.
+  src/cli/index.ts: efficient command dispatch + dispatchEfficient.
+  src/cli/commands/resume.ts: ap===2 round===3 → live `agora efficient`;
+    round>=4 → all-4-done message + Plato Y2 pending hint.
+  messages/en.json + ko.json: +4 cli.efficient.* + 3 cli.resume.* keys
+    × 2 locales = 14 strings net new.
+
+Tests (1 new file; total 25 files / 172 tests, was 24/166):
+  tests/unit/philosophers/aristotle-efficient.test.ts (6 tests):
+    Happy path × 3 (3 questions + 1 LLM, schema validates, solo project
+    captures all 3).
+    Error paths × 3 (empty Q1, LLM error, malformed schema).
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (13 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 25 files, 172 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+
+Surprises encountered + decisions made:
+
+1. **No F-rule mitigation for efficient** — runbook §4.4 has no
+   F-Aristotle equivalent for efficient (telos has F-1 noun-phrase,
+   form has F-3 feature-list, material doesn't have one either but
+   has the brownfield branching). Efficient is straightforward
+   capture. Single-call extraction sufficient.
+
+2. **agora efficient is the 12th `agora <command>`** (7 shortcuts
+   beyond primary 7 — equal count). Threshold for `agora round`
+   consolidation crossed. Defer to dedicated consolidation slice
+   OR continue with Plato slice and let consolidation happen
+   alongside multi-philosopher orchestration.
+
+3. **All 4 Aristotle causes now in FourCauses schema**: schema is
+   feature-complete for Phase 2 cause capture. Plato slice now has
+   complete input data — telos.statement / form.essential_structure /
+   material.tech_stack / efficient.who+when+how — to apply Divided
+   Line maturity tagging.
+
+4. **5 inline philosopher prompts now** (Husserl + Aristotle telos +
+   form + material + efficient). Generator-refactor ROI keeps growing.
+   Plato slice will likely add a 6th. Refactor slice should consolidate
+   all 6+ at once.
+
+Lessons / observations:
+- **Slice cadence: ~20min for efficient** (lightest cause, no F-rule,
+  simplest UI). Ratio: telos 60min → form 30min → material 25min →
+  efficient 20min. Pattern stabilization holding strong.
+- **resume.ts dispatch is now 4-armed for ap===2**: ripe for
+  table-driven refactor. Defer to `agora round` consolidation slice
+  where all sub-discrimination logic gets centralized.
+- **FourCauses schema reaches "feature complete" for capture**: future
+  Plato slice operates on existing four_causes.json without adding
+  new fields. Y2 termination logic (maturity floors check) operates
+  on the existing schema.
+
+Outstanding (intentional defer):
+  Plato Divided Line maturity tagging — re-tags 4 causes from default
+    pistis/dianoia → noesis or holds. Y2 prerequisite.
+  Socrates case-probing layer between Aristotle and Plato.
+  6-prompt batch refactor to renderPrompt (Husserl + Aristotle ×4 +
+    [Plato when added] = 6+).
+  agora round consolidation (12 commands now; threshold crossed).
+  Integration test for interactive efficient run (PTY mock infra).
+  Y2 termination check (after Plato): all_required_settled +
+    no_unresolved_divergences + no_pending_backtracks composition.
+
+Stage 6 status: 13 slices done. **Phase 2 COMPLETE for cause capture.**
+Working commands:
+  agora --version (6-A.1)  agora intake    (6-A.8)
+  agora doctor   (6-A.2)   agora telos     (6-A.9)
+  agora ping     (6-A.3)   agora form      (6-A.11)
+  agora status   (6-A.4)   agora material  (6-A.12)
+  agora new      (6-A.5)   agora efficient (6-A.13) ← NEW
+  agora bracket  (6-A.6)
+  agora resume   (6-A.7)
+  (6-A.10 was infra, no new command)
+
+**Alignment loop end-to-end Aristotle:**
+  agora new → agora bracket (greenfield) → agora intake →
+  agora telos → agora form → agora material → agora efficient →
+  (Plato Y2 pending) → (handoff pending) → Ralph
+
+Path to v1 daily-use: Plato (Y2) + Socrates (case-probing) + handoff +
+Ralph foundation. Estimated 4-8 more slices.
+
+Next task: Stage 6-A.14 — likely candidates:
+  (a) Plato Divided Line maturity tagger (`agora maturity` or fold
+      into `agora resume`). Operates on existing four_causes.json;
+      re-tags 4 causes' maturity fields. Y2 prerequisite. Clear unblock.
+  (b) `agora round` orchestrator consolidation — 12 commands now;
+      consolidating telos/form/material/efficient into single
+      `agora round` (auto-picks next cause based on four_causes.json
+      contents) reduces surface to 8 commands. Pattern cleanup before
+      adding Socrates/Plato/Aquinas.
+  (c) Socrates case-probing of 4 cause claims — 3rd philosopher.
+      Layer between Aristotle output and Plato tagging.
+  (d) 6-prompt batch refactor to renderPrompt (Husserl + Aristotle ×4
+      = 5 inline prompts now; Plato will be 6th).
   (e) `src/config/` + TOML + Zod.
   (f) Remaining 14 probes.

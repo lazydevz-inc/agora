@@ -92,6 +92,12 @@
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
+    "efficient": {
+      "intro": "Aristotle efficient round — Phase 2, round 4 (final Aristotle cause)",
+      "q_who": "Who is involved? (solo / team of N / specific roles)",
+      "q_when": "When? (timeline + cadence)",
+      "q_how": "How? (process tools + sequence)"
+    },
     "material": {
       "intro": "Aristotle material round — Phase 2, round 3",
       "context_summary": "Loaded {project_type} scan ({stack_count} detected stack entries). Asking material questions: stack + data shape + infrastructure.",
@@ -149,7 +155,10 @@
       "form_done": "Form captured (Phase 2 round 2). Ready for material round (round 3).",
       "next_phase_2_material": "Next: `agora material` — Aristotle material round (Phase 2, round 3).",
       "next_material_desc": "Run Aristotle material round (tech stack + data shape + infrastructure)",
-      "material_done": "Material captured (Phase 2 round 3). Efficient round + Plato Y2 pending.",
+      "material_done": "Material captured (Phase 2 round 3). Ready for efficient round (round 4).",
+      "next_phase_2_efficient": "Next: `agora efficient` — Aristotle efficient round (Phase 2, round 4 — final).",
+      "next_efficient_desc": "Run Aristotle efficient round (who + when + how)",
+      "efficient_done": "All 4 Aristotle causes captured (Phase 2 complete). Plato Y2 maturity tagging pending.",
       "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
       "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",
       "deferred_phase": "Phase `{phase}` recognized — downstream implementation pending. Follow-up: {follow_up}.",

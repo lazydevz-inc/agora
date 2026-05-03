@@ -60,13 +60,23 @@ export const MaterialClaimSchema = z.object({
 });
 export type MaterialClaim = z.infer<typeof MaterialClaimSchema>;
 
-// FourCauses schema. telos + form + material populated as their slices
-// land; efficient remains optional placeholder for future slice.
+export const EfficientClaimSchema = z.object({
+  who: z.string().min(1),
+  when: z.string().min(1),
+  how: z.string().min(1),
+  // Per runbook §4.4: efficient maturity floor is "pistis"; lightest of
+  // the four. Plato re-tags upward where rigor warrants.
+  maturity: MaturitySchema.default("pistis"),
+});
+export type EfficientClaim = z.infer<typeof EfficientClaimSchema>;
+
+// FourCauses schema — all 4 cause slots optional. When all 4 present +
+// Plato tags noesis floors, Y2 termination becomes reachable.
 export const FourCausesSchema = z.object({
   telos: TelosClaimSchema.optional(),
   form: FormClaimSchema.optional(),
   material: MaterialClaimSchema.optional(),
-  // efficient — future slice.
+  efficient: EfficientClaimSchema.optional(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -696,6 +706,184 @@ async function callForMaterialExtraction(
     return err(
       buildAgoraError("llm.invalid-response", {
         context: { detail: parsed.error.issues[0]?.message ?? "material schema parse failed" },
+      }),
+    );
+  }
+  return ok(parsed.data);
+}
+
+// ─── Efficient round (runbook §4.4 aristotle:efficient-question) ───
+//
+// Efficient is the lightest of the four causes — captures who/when/how
+// (people, timeline+cadence, process+sequence). Per runbook §3.2: "Even
+// for solo projects, capture this — it informs Ralph's verbosity, gate
+// strictness, and over-engineering tolerance." Pistis is the floor.
+
+export interface AristotleEfficientInput {
+  readonly telos_statement: string;
+  readonly form_essential_structure?: string;
+  readonly material_tech_stack?: readonly string[];
+  readonly detected_patterns: readonly string[];
+  readonly current_round: number;
+}
+
+export interface AristotleEfficientUi {
+  /** Q1: Who is involved? (solo / team of N / specific roles) */
+  askWho(): Promise<string>;
+  /** Q2: When? (timeline + cadence — e.g. "evenings, 30 min sessions") */
+  askWhen(): Promise<string>;
+  /** Q3: How? (process tools + sequence — e.g. "TDD with vitest, deploy on push") */
+  askHow(): Promise<string>;
+}
+
+interface ExtractedEfficient {
+  who: string;
+  when: string;
+  how: string;
+}
+
+const ARISTOTLE_EFFICIENT_SYSTEM = `You are Aristotle extracting the EFFICIENT cause (who / when / how-process)
+from a user's raw answers. Lightest of the four causes — keep extraction
+faithful + brief.
+
+Hard rules:
+1. NEVER skip even for solo projects. Solo IS an efficient cause that
+   constrains everything downstream.
+2. Capture three sub-fields:
+   - who: people involved (e.g. "solo: Sang", "team of 2", "Sang + 1 reviewer")
+   - when: timeline + cadence (e.g. "evenings, 30 min sessions",
+     "full-time, 2-week sprints")
+   - how: process tools + sequence (e.g. "TDD with vitest, deploy on push",
+     "Linear for tickets, branches per cause")
+3. Each field is a single sentence (≤ 100 chars target). Faithful to user
+   wording; do not editorialize.
+4. If the user mentions detected_patterns (e.g. uses_pnpm), incorporate
+   into 'how' where appropriate.
+
+Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
+{
+  "who": "<one sentence>",
+  "when": "<one sentence>",
+  "how": "<one sentence>"
+}`;
+
+function buildEfficientUserPrompt(
+  input: AristotleEfficientInput,
+  raw: {
+    who: string;
+    when: string;
+    how: string;
+  },
+): string {
+  const formLine =
+    input.form_essential_structure !== undefined && input.form_essential_structure.length > 0
+      ? `Settled form.essential_structure: "${input.form_essential_structure}"\n`
+      : "";
+  const materialLine =
+    input.material_tech_stack !== undefined && input.material_tech_stack.length > 0
+      ? `Settled material.tech_stack: [${input.material_tech_stack.slice(0, 8).join(", ")}]\n`
+      : "";
+  const patternsLine =
+    input.detected_patterns.length > 0
+      ? `Detected efficient patterns (Phase 0): [${input.detected_patterns.slice(0, 10).join(", ")}]\n`
+      : "";
+  return `Round: ${String(input.current_round)}
+
+Settled telos: "${input.telos_statement}"
+${formLine}${materialLine}${patternsLine}
+Efficient questions and raw answers:
+Q1 — "Who is involved?"
+A1: "${raw.who}"
+
+Q2 — "When? (timeline + cadence)"
+A2: "${raw.when}"
+
+Q3 — "How? (process tools + sequence)"
+A3: "${raw.how}"
+
+Extract the EfficientClaim per the JSON shape. Pistis is the floor;
+keep brief and faithful to user wording.`;
+}
+
+export async function runAristotleEfficientRound(
+  input: AristotleEfficientInput,
+  runner: ClaudeRunner,
+  ui: AristotleEfficientUi,
+): Promise<Result<EfficientClaim, AgoraErrorThrown>> {
+  const who = await ui.askWho();
+  const whenAns = await ui.askWhen();
+  const how = await ui.askHow();
+
+  if (who.trim().length === 0 || whenAns.trim().length === 0 || how.trim().length === 0) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: { detail: "Efficient round needs all 3 question answers — empty input." },
+      }),
+    );
+  }
+
+  const extraction = await callForEfficientExtraction(input, runner, {
+    who,
+    when: whenAns,
+    how,
+  });
+  if (!extraction.ok) return extraction;
+  const extracted = extraction.value;
+
+  const claim: EfficientClaim = {
+    who: extracted.who,
+    when: extracted.when,
+    how: extracted.how,
+    maturity: "pistis",
+  };
+  const validated = EfficientClaimSchema.safeParse(claim);
+  if (!validated.success) {
+    return err(
+      buildAgoraError("internal.invariant-violation", {
+        context: { detail: validated.error.issues[0]?.message ?? "efficient schema fail" },
+      }),
+    );
+  }
+  return ok(validated.data);
+}
+
+async function callForEfficientExtraction(
+  input: AristotleEfficientInput,
+  runner: ClaudeRunner,
+  raw: { who: string; when: string; how: string },
+): Promise<Result<ExtractedEfficient, AgoraErrorThrown>> {
+  const response = await runner.call({
+    system: ARISTOTLE_EFFICIENT_SYSTEM,
+    prompt: buildEfficientUserPrompt(input, raw),
+    format: "json",
+    timeout_ms: 60_000,
+  });
+  if (!response.ok) {
+    return err(
+      buildAgoraError("llm.internal-error", {
+        context: { detail: response.error?.detail ?? "no response" },
+      }),
+    );
+  }
+  const content = response.content;
+  if (typeof content !== "object" || content === null) {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: "Aristotle efficient prompt did not return a JSON object" },
+      }),
+    );
+  }
+  const parsed = z
+    .object({
+      who: z.string().min(1),
+      when: z.string().min(1),
+      how: z.string().min(1),
+    })
+    .safeParse(content);
+  if (!parsed.success) {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: parsed.error.issues[0]?.message ?? "efficient schema parse failed" },
       }),
     );
   }
