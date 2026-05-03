@@ -18,6 +18,7 @@ import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
 import { runResumeCommand } from "./commands/resume.js";
 import { runStatusCommand } from "./commands/status.js";
+import { runTelosCommand } from "./commands/telos.js";
 import { runVersionCommand } from "./commands/version.js";
 import { type GlobalFlags, parseArgv } from "./flags.js";
 import { type EmitMode, emit, emitAgoraError } from "./render.js";
@@ -74,6 +75,10 @@ async function main(): Promise<void> {
   }
   if (command === "intake") {
     await dispatchIntake(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "telos") {
+    await dispatchTelos(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -219,6 +224,24 @@ async function dispatchIntake(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchTelos(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runTelosCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -234,6 +257,7 @@ function printHelp(): void {
   console.log("  agora bracket     Run Husserl Phase −1 Epoché (interactive)");
   console.log("  agora resume      Resume work from current state.json phase");
   console.log("  agora intake      Run Phase 1 open intake (interactive)");
+  console.log("  agora telos       Run Aristotle telos round (Phase 2 round 1, interactive)");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

@@ -161,8 +161,18 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
       description: localized("cli.resume.next_intake_desc"),
       command: "agora intake",
     });
+  } else if (ap === 1) {
+    // Phase 1 intake done; telos round (Aristotle, Phase 2 round 1) is next.
+    lines.push(localized("cli.resume.intake_done"));
+    lines.push(localized("cli.resume.next_phase_2_telos"));
+    next.push({
+      id: "telos",
+      description: localized("cli.resume.next_telos_desc"),
+      command: "agora telos",
+    });
   } else {
-    // ap is 1 or 2 — runtime not yet implemented.
+    // ap >= 2 — Phase 2 form/material/efficient + Plato termination
+    // gate not yet implemented.
     lines.push(localized("cli.resume.alignment_runtime_pending", { phase: String(ap) }));
     next.push({
       id: "alignment_runtime_pending",

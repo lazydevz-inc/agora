@@ -27,6 +27,7 @@ agora new       (6-A.5) — Phase 0 auto-scan
 agora bracket   (6-A.6) — Husserl Phase −1 (first philosopher)
 agora resume    (6-A.7) — phase orchestrator (8-phase dispatch)
 agora intake    (6-A.8) — Phase 1 open intake (interactive)
+agora telos     (6-A.9) — Aristotle Phase 2 telos round (interactive, 2nd philosopher)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -1508,3 +1509,278 @@ Next task: Stage 6-A.9 — likely candidates:
   (e) ergonomics slice: render.ts envelope exit_code unification +
       version: "unknown" outside-cwd fix (status/new/resume/bracket/intake
       all share this).
+
+### Stage 6-A.9 — DONE (2026-05-04)
+
+**Ninth vertical slice: `agora telos` — Aristotle Phase 2 telos round.
+Second philosopher implementation; first Phase 2 round; cements the
+multi-philosopher orchestration pattern.** Auto-selected per Sang's "다음
+진행해줘" + new "no manual handoff" feedback (no Mode B Q at slice start
+when no taste call needed). Bridges 6-A.8's intake.json output → telos
+extraction; alignment loop now reaches Phase 2 round 1 end-to-end.
+
+Schema deviation vs runbook §3.2: runbook says multi-turn LLM dialogue
+per question. Slice does **3 questions asked locally + 1 LLM call to
+extract structured TelosClaim + F-Aristotle-1 noun-phrase rebuttal loop
+(≤1 follow-up + 1 re-extract)**. Net: ≤2 LLM calls per round vs
+runbook's per-question dialogue. Cheaper + cache-friendly + matches
+Husserl 6-A.6 simplification pattern.
+
+PROMPT INLINE: Stage 5-A.4 prompt-library generator still not implemented.
+ARISTOTLE_TELOS_SYSTEM constant joins HUSSERL_SYSTEM as the second inline
+philosopher prompt awaiting refactor. Generator slice (likely 6-A.10 or
+6-A.11) refactors both at once.
+
+No Mode B Q at slice start. Per `feedback_no_manual_handoff` memory: pure
+technical decisions (file layout, schema field, error code) get decided
+and shipped without surfacing as Q. The "decide and go" cadence keeps
+the loop tight.
+
+Implementation summary (decisions made inline):
+- Separate `agora telos` shortcut command (matches bracket/intake; 7-cmd
+  primary cap intact, telos joins philosopher / phase shortcuts).
+- 3 questions asked locally via AristotleUi adapter (HusserlUi pattern);
+  1 LLM call extracts structured claim + sets noun_phrase_telos flag.
+- F-Aristotle-1 noun-phrase rebuttal: ≤1 follow-up + ≤1 re-extract
+  (sets noun_phrase_refinement_triggered=true).
+- TelosClaim Zod schema: statement / served_good / failure_signal /
+  optional success_signal / maturity (default "dianoia") /
+  noun_phrase_refinement_triggered.
+- FourCauses Zod schema: telos optional + created_at + updated_at.
+  Other causes (form/material/efficient) future slices extend.
+- State transition: alignment.phase: 1 → 2, round: 0 → 1.
+- Refusal guards: no .agora/, no intake.json, alignment.phase < 1, OR
+  four_causes.json already has telos populated (no over-telos).
+- resume.ts ap===1 branch: now points to live `agora telos` instead of
+  generic runtime_pending message. ap>=2 still runtime_pending (form/
+  material/efficient pending).
+
+Files shipped:
+
+src/philosophers/aristotle.ts (LAYER 1 — new, ~225 LOC):
+  Types: MaturitySchema (pistis|dianoia|noesis), TelosClaimSchema,
+    FourCausesSchema (forward-compat with optional cause slots).
+  AristotleTelosInput { raw_intake, defended_frame_chosen_form?,
+    current_round }.
+  AristotleUi adapter: askWhyExists / askServedGood / askFailureSignal /
+    askNounPhraseRefinement (4 methods).
+  ARISTOTLE_TELOS_SYSTEM inline prompt (~700 chars; describes hard rules
+    1-6 + JSON contract).
+  buildTelosUserPrompt(input, raw): composes prompt with optional
+    chosen_form context + optional refinement append.
+  runAristotleTelosRound(input, runner, ui) → Result<TelosClaim>:
+    1. Local: ask 3 questions in order (runbook §4.1 hard rule 2)
+    2. Reject if any answer empty → user.aborted
+    3. callForExtraction (1 LLM call, format: "json")
+    4. If noun_phrase_telos: askNounPhraseRefinement → empty → aborted;
+       else re-extract with refinement appended (2nd LLM call)
+    5. Build TelosClaim, validate against Zod schema, return.
+
+src/cli/commands/telos.ts (LAYER 3 — new, ~210 LOC):
+  Refusal guards (4 paths):
+    1. no .agora/ → user.aborted (exit 2)
+    2. no intake.json → user.aborted (exit 2)
+    3. alignment.phase < 1 → user.aborted (exit 2)
+    4. four_causes.json has telos populated → user.confirmation-required
+       (exit 2)
+  Loads scan.json (re-runs Phase 0 if missing) + optional
+    defended_frame.json + intake.json + state.json.
+  selectRuntime → ClaudeCliRunner (cached).
+  Wires AristotleUi adapter via @clack/prompts (text() + log.warn for
+    noun-phrase warning).
+  Calls runAristotleTelosRound.
+  Persists FourCauses (telos populated) to .agora/four_causes.json.
+  Advances state: alignment.phase: 1 → 2, round: 0 → 1.
+
+src/cli/index.ts: telos command dispatch + dispatchTelos helper (state →
+  20, user → 2, default 1 mapping). Help text adds telos line.
+
+src/cli/commands/resume.ts: ap===1 branch now targets "agora telos"
+  instead of generic runtime_pending. ap>=2 still runtime_pending.
+  New locale keys: cli.resume.intake_done / next_phase_2_telos /
+  next_telos_desc.
+
+messages/en.json + ko.json:
+  +7 keys × 2 locales = 14 strings under cli.telos.* (intro /
+    context_summary / q_why_exists / q_served_good / q_failure_signal /
+    noun_phrase_warning / q_noun_phrase_refinement)
+  +3 keys × 2 locales = 6 strings under cli.resume.* (intake_done /
+    next_phase_2_telos / next_telos_desc)
+  Total: +20 strings net new.
+
+Tests (1 new file + 1 modified; total 20 files / 136 tests, was 19/126):
+
+tests/unit/philosophers/aristotle.test.ts (10 tests):
+  Happy path × 3:
+    - 3 questions asked + 1 LLM call → TelosClaim
+    - Output validates against TelosClaimSchema
+    - Optional success_signal extracted when LLM provides it
+  F-Aristotle-1 noun-phrase rebuttal × 2:
+    - Detection triggers refinement loop + 2nd LLM call;
+      noun_phrase_refinement_triggered=true
+    - Empty refinement → user.aborted
+  Error paths × 5:
+    - Empty Q1 → user.aborted (all 3 questions required)
+    - LLM error response → llm.internal-error
+    - Non-object content → llm.invalid-response
+    - Malformed JSON shape (wrong fields) → llm.invalid-response
+  Uses QueueRunner (sequential queued ClaudeResponses) + RecordedUi
+    (tracks asked-which order). No real LLM calls.
+
+tests/integration/cli-resume.test.ts (modified, +1 test):
+  - phase 1 → telos hint (ap=1 → next.id="telos", command="agora telos")
+  Existing phase 2 → runtime_pending unchanged (ap>=2 still pending).
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (5 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 20 files, 136 tests
+  pnpm lint:locale ✓
+  pnpm build    ✓
+  Manual:
+    $ # /tmp/empty
+    $ node dist/cli/index.js telos
+      agora: error: Aborted by user. (exit 2 — no .agora/)
+
+    $ # .agora/ + state but no intake.json
+    $ node dist/cli/index.js telos
+      agora: error: Aborted by user. (exit 2 — Phase 1 intake required)
+
+    $ # state.json alignment.phase=1 + intake.json + four_causes.json
+    $ # with telos already populated
+    $ node dist/cli/index.js telos --json | jq '.errors[0].code'
+      "user.confirmation-required" (over-telos guard)
+
+    $ # state.json alignment.phase=1 + intake.json (no four_causes yet)
+    $ node dist/cli/index.js resume --json | jq '.next[].command'
+      "agora telos"   ← live, points at this slice's command
+
+  Manual interactive run deferred to TTY (clack same as bracket / intake).
+  Aristotle logic fully covered by unit tests with QueueRunner stubs.
+
+Surprises encountered + decisions made:
+
+1. **`exactOptionalPropertyTypes` interaction with Zod-inferred type**:
+   ExtractedTelos's `success_signal?: string` triggered TS error because
+   Zod's `.optional()` produces `string | undefined`. Resolution: declare
+   the interface field as `success_signal?: string | undefined` (explicit
+   undefined union) to match Zod's inferred shape. Fifth occurrence of
+   the conditional-spread / explicit-undefined pattern across slices.
+
+2. **ClaudeError code is `internal_error` not `internal`**: writing the
+   test's stub ClaudeError I used `code: "internal"` from memory; actual
+   discriminated union in src/llm/runner.ts uses `internal_error`.
+   Compile error caught it. Pattern: when stubbing typed unions, grep
+   the source type instead of relying on memory.
+
+3. **`agora telos` is the 9th `agora <command>`** (counting --version
+   as a flag). Commands not in cli/spec.md's primary 7: bracket / ping /
+   intake / telos. All four are shortcuts to philosopher or phase entry
+   points. The 7-cmd cap (ADR-0001 + Stage 1) is being interpreted as
+   "7 primary commands" with shortcuts allowed. As Phase 2 expands
+   (form/material/efficient + Socrates/Plato/Aquinas), the shortcut
+   count will grow; eventually consolidating to a single `agora round`
+   may be cleaner. Defer to a "command surface review" slice when
+   shortcut count exceeds, say, 6.
+
+4. **`agora resume` ap===1 branch refactor was clean**: prior slice
+   6-A.8 anticipated this exact insertion point ("alignment_runtime_
+   pending" branch); replacing with a live telos hint was a 6-line
+   change. Confirms the deferred-dispatch envelope pattern from 6-A.7
+   R3-A is the right pattern for staged slice rollout.
+
+5. **No Mode B Q at slice start** worked smoothly. The technical
+   decisions (separate command vs fold into resume; 1 vs 2 LLM calls;
+   schema shape) all had defensible defaults; no Sang taste call needed.
+   Saved one full Q-then-wait round-trip vs prior cadence.
+
+Lessons / observations:
+- **AristotleUi adapter pattern is now load-bearing across 2 philosophers**
+  (Husserl, Aristotle). Future Socrates / Plato / Aquinas modules will
+  follow the same shape: pure logic file with Schema + Input + Ui +
+  orchestrator + inline prompt; CLI command file wires @clack/prompts.
+  This is the canonical "philosopher implementation template" — could
+  formalize in docs/architecture/runbook-template.md or as a generator
+  if it repeats 5 times.
+- **`runbook §3.2 multi-turn dialogue` simplification is consistent
+  across philosophers.** Husserl: 1 LLM call upfront + local dialogue.
+  Aristotle: local 3 questions + 1 LLM call extraction + 1 follow-up.
+  Both reduce LLM round-trip count vs runbook's per-question dialogue
+  while preserving the SPEC's input/output contracts. Pattern: do the
+  fixed questions locally, use LLM for *extraction + classification*
+  rather than *question generation*.
+- **FourCauses optional-cause schema is forward-compatible**: when form/
+  material/efficient slices land, they extend FourCausesSchema with
+  more optional fields and existing four_causes.json files keep parsing.
+  No migration needed.
+- **`feedback_no_manual_handoff` memory is the right pattern.** End of
+  slice = brief result + key surprises + auto-start next. No "do (a)
+  or (b)?" tail Q, no "approved to push?" check. Saved ~30s of
+  back-and-forth vs prior cadence. Pushed automatically once Sang's
+  delegation flowed through hooks.
+
+Outstanding (intentional defer):
+  - Aristotle form / material / efficient rounds (4 sub-prompts in
+    runbook §4.2-4.4): each becomes a future slice or batch slice.
+    `agora telos` → `agora form` → `agora material` → `agora efficient`
+    OR consolidate to `agora round` advancing one cause per invocation.
+  - Plato Divided Line maturity tagging: TelosClaim.maturity is set to
+    "dianoia" as default; Plato slice re-tags after rigor check
+    (statement → dianoia → noesis path).
+  - Socrates case-probing of telos.statement: runbook §3.2 step 7 says
+    "Hand off to Socrates after Aristotle returns". Socrates slice
+    layers between Aristotle and Plato.
+  - Telos instability detection (runbook §3.2 step 3): "if user's last
+    response contradicts current four_causes.telos statement → reset
+    next_cause = telos". Lands when multiple Phase 2 rounds run; needs
+    state to track per-round contradictions.
+  - prompt-library generator (Stage 5-A.4 impl): two inline prompts
+    now (HUSSERL_SYSTEM + ARISTOTLE_TELOS_SYSTEM). Generator slice
+    refactors both. Pays off most when third philosopher about to land.
+  - `agora round` consolidation: when shortcut command count exceeds
+    ~6 (intake/telos/form/material/efficient/case-probe/...), consider
+    single `agora round` orchestrator that picks the right philosopher
+    + cause based on state.alignment.phase + .agora/four_causes.json
+    progress.
+  - Round counter semantic: state.alignment.round advances per Aristotle
+    cause-round (telos=1, form=2, ...). Confirmed convention here;
+    future slices follow.
+  - Integration test for `agora telos` interactive run: deferred per
+    bracket/intake (PTY mock infra needed).
+
+Stage 6 status: 9 slices done. Working commands:
+  agora --version (6-A.1)
+  agora doctor   (6-A.2)
+  agora ping     (6-A.3)
+  agora status   (6-A.4)
+  agora new      (6-A.5)
+  agora bracket  (6-A.6)
+  agora resume   (6-A.7)
+  agora intake   (6-A.8)
+  agora telos    (6-A.9)  ← NEW
+
+**Alignment loop end-to-end for telos:**
+  agora new → agora bracket (greenfield) → agora intake → agora telos
+  (Aristotle Phase 2 round 1 — first cause-statement extracted from raw
+  intake via 3 local questions + 1-2 LLM calls).
+
+Next task: Stage 6-A.10 — likely candidates:
+  (a) prompt-library generator (Stage 5-A.4 impl) — refactors both
+      HUSSERL_SYSTEM and ARISTOTLE_TELOS_SYSTEM out of inline. Three+
+      philosophers ahead (Socrates / Plato / Aquinas) means the
+      generator pays off NOW more than later. Single "investment"
+      slice, then every future philosopher slice is one renderPrompt
+      call lighter.
+  (b) Aristotle form round (runbook §4.2): 2nd cause-statement.
+      Continues Phase 2 expansion. Same pattern as telos: 1-2 questions
+      locally + LLM extraction. Bumps alignment.round to 2.
+  (c) Socrates case-probing of telos.statement: layered between
+      Aristotle output and Plato maturity tagging. New philosopher
+      module (3rd of 5).
+  (d) Plato Divided Line maturity tagging on TelosClaim: re-tags
+      maturity field from "dianoia" → "noesis" (or holds at "dianoia"
+      if rigor not met). Termination gate Y2 prerequisite.
+  (e) `src/config/` + TOML + Zod (Stage 4-A.3 impl).
+  (f) Remaining 14 probes (Stage 4-A.4 cookie-cutter batch).
+  (g) ergonomics: render.ts envelope exit_code unification + version:
+      "unknown" outside-cwd fix.

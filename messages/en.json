@@ -92,6 +92,15 @@
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
+    "telos": {
+      "intro": "Aristotle telos round — Phase 2, round 1",
+      "context_summary": "Loaded Phase 1 intake ({word_count} words). Asking the 3 telos questions in order — verb-phrases about served good only.",
+      "q_why_exists": "Why does this exist?",
+      "q_served_good": "What good does it serve? (Name the goodness, not the activity.)",
+      "q_failure_signal": "How will you know if you built the thing but it failed at its purpose?",
+      "noun_phrase_warning": "Detected noun-phrase telos: \"{detected}\". {reason}",
+      "q_noun_phrase_refinement": "Re-ask: what good does that noun serve? (Verb-phrase, not artifact name.)"
+    },
     "intake": {
       "intro": "Phase 1 — open intake",
       "prompt_brownfield": "What would you like to work on?\n\nⓘ I've already read your project signals ({ingested_doc_list}). Don't re-explain what the project is — tell me what you want to do here today.\n\nPress Enter alone to open $EDITOR for longer thoughts.",
@@ -115,6 +124,9 @@
       "next_bracket_desc": "Run Husserl Phase −1 (Epoché) before intake",
       "next_intake_desc": "Phase 1 open intake — collect raw context",
       "bracket_done": "Husserl Phase −1 already complete (alignment.phase = -1).",
+      "intake_done": "Phase 1 intake captured (alignment.phase = 1). Ready for Phase 2 telos round.",
+      "next_phase_2_telos": "Next: `agora telos` — Aristotle telos round (Phase 2, round 1).",
+      "next_telos_desc": "Run Aristotle telos round (3 questions, ≤2 LLM calls)",
       "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
       "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",
       "deferred_phase": "Phase `{phase}` recognized — downstream implementation pending. Follow-up: {follow_up}.",

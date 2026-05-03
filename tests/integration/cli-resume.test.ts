@@ -104,6 +104,17 @@ describe("agora resume — in_alignment handler", () => {
     expect(parsed.next.map((n) => n.id)).toEqual(["intake_pending"]);
   });
 
+  test("phase 1 → telos hint (intake done, Phase 2 round 1 next)", async () => {
+    await seedState("in_alignment", 1);
+    const { output, status } = run("resume --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      next: { id: string; command: string }[];
+    };
+    expect(parsed.next.map((n) => n.id)).toEqual(["telos"]);
+    expect(parsed.next[0]?.command).toBe("agora telos");
+  });
+
   test("phase 2 → runtime_pending message", async () => {
     await seedState("in_alignment", 2);
     const { output, status } = run("resume");
