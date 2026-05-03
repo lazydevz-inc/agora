@@ -77,6 +77,11 @@
       "alignment_progress": "  Alignment 단계 {phase}, 라운드 {round}",
       "ralph_progress": "  Ralph iteration {iteration}, 마지막 게이트: {last_gate}",
       "timestamps": "생성: {created}\n업데이트: {updated}"
+    },
+    "new": {
+      "created": "Agora 세션 시작: {project}",
+      "next_phase_minus_1": "다음: `agora bracket` — Husserl Phase −1 실행 (greenfield 기본).",
+      "next_phase_1": "      `agora resume` — Phase 1 intake로 바로 진입 (brownfield 기본)."
     }
   }
 }

@@ -638,11 +638,151 @@ Stage 6 status: 4 slices done. agora --version / doctor / ping / status
 all working. State foundation ready; next philosopher slice can persist
 to .agora/state.json.
 
-Next task: Stage 6-A.5 — pick fifth vertical slice. Candidates:
-  (a) `src/config/` + TOML + Zod (Stage 4-A.3) — unblocks [probes].disabled
-      + future Ralph parallelism + --explain-config visible value
-  (b) Remaining 14 probes (cookie-cutter, Stage 4-A.4 completion)
-  (c) Phase 0 auto-scan + `agora new` skeleton (writes state.json with
-      phase=0; bridges state foundation to alignment loop entry)
-  (d) Husserl Phase −1 implementation (needs prompt-library generator
-      first, OR inline prompt for first iteration)
+### Stage 6-A.5 — DONE (2026-05-04)
+
+**Fifth vertical slice: `agora new <name>` + Phase 0 auto-scan + .agora/
+materialization.** Auto-selected per Sang's "ok continue".
+
+Bridges state foundation (6-A.4) to alignment loop entry. Phase 0 is
+the only philosopher-free phase (no LLM call); pure FS inspection.
+Implements Stage 2-A Phase 0 + Stage 3-B.4 `agora new` SPEC subset.
+
+Files shipped:
+
+src/alignment/phase-0-scan.ts (LAYER 2 → reuses LAYER 1 markers):
+  runPhase0Scan(cwd, projectName?) → Phase0Output
+    Parallel marker checks:
+      .git, package.json, src/, tests/, node_modules,
+      pnpm-lock.yaml, package-lock.json, bun.lock(b), tsconfig.json
+    Reads package.json deps via markers (memoized).
+    Reads git remote URL when .git/ present (memoized).
+    is_brownfield = .git OR (package.json + node_modules) OR src/
+    is_greenfield = !is_brownfield
+    detected_stack = top 10 deps alphabetically (stable output)
+    detected_patterns = capability flags:
+      uses_git / has_src_dir / has_tests_dir / has_node_modules /
+      uses_pnpm / uses_npm / uses_bun / uses_typescript /
+      uses_react (react|next deps) / uses_vue / has_test_runner
+      (vitest|jest deps) / uses_anthropic_sdk
+    project_name = positional arg OR basename(cwd)
+    Reuses src/probes/markers.buildMarkerHelpers with stub ProbeContext
+      (shellExec throws — not needed for Phase 0 detection).
+
+src/cli/commands/new.ts:
+  runNewCommand(flags, positional):
+    1. Refuse if .agora/ exists → buildAgoraError("user.confirmation-required")
+       with message suggesting `agora status` or rm .agora/
+       → exit 2
+    2. Run Phase 0 scan with optional project name from positional[0]
+    3. Materialize .agora/ via shared/path.ensureAgoraDir
+    4. Save initial state.json (current_phase: "in_alignment",
+       alignment: { phase: 0, round: 0 }) via state/writer.saveState
+    5. Write .agora/scan.json with full Phase0Output
+    6. TUI: prints session label + project type + git remote (if any) +
+            patterns + top deps + scan time + next-action hint
+            (greenfield → `agora bracket`, brownfield → `agora resume`)
+    7. JSON: envelope with result.data.scan + next[continue_alignment]
+
+src/cli/index.ts:
+  Added "new" command dispatch + help text line.
+  dispatchNew exits 2 on error (user.confirmation-required) per
+    Stage 4-A.6 ERROR_CATALOG.
+
+messages/en.json + ko.json:
+  +3 keys × 2 locales = 6 strings:
+    cli.new.created (with {project} placeholder)
+    cli.new.next_phase_minus_1
+    cli.new.next_phase_1
+
+Tests (2 new files; total 15 files / 91 tests, was 13/80):
+
+tests/unit/alignment/phase-0-scan.test.ts (7 tests):
+  - greenfield: empty directory → is_greenfield true, no patterns
+  - brownfield: .git → uses_git pattern + brownfield true
+  - detects pnpm + tsconfig + src/ patterns
+  - detected_stack collects package.json deps (alphabetical top N)
+  - project_name uses positional arg when given
+  - project_name defaults to basename(cwd)
+  - scan_duration_ms recorded
+  Uses _resetMarkerCacheForTests() between cases (per-process memoization
+    needs reset between independent fixture cwds).
+
+tests/integration/cli-new.test.ts (4 tests):
+  - greenfield: creates .agora/ + state.json (current_phase: in_alignment,
+    alignment.phase: 0) + scan.json
+  - greenfield TUI prints "session started" + "greenfield" + "agora bracket"
+  - brownfield: detects .git + react dep → JSON envelope with
+    is_brownfield: true + uses_git pattern + next: agora resume
+  - existing session: refuses with exit 2 + "Existing Agora session detected"
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (no warnings)
+  pnpm test     ✓ 15 files, 91 tests
+  pnpm lint:locale ✓
+  pnpm build    ✓
+  Manual:
+    $ # in /tmp empty dir:
+    $ node dist/cli/index.js new my-greenfield
+      Agora session started: my-greenfield
+        Project type:      greenfield
+        Scan time:         0ms
+      Next: `agora bracket` to run Husserl Phase −1 (greenfield default).
+            `agora resume` to skip directly to Phase 1 intake (brownfield default).
+      → state.json + scan.json materialized in .agora/
+    $ # in agora repo (brownfield):
+    $ node dist/cli/index.js new --json | jq '.result.data.scan'
+      {
+        "is_brownfield": true,
+        "detected_patterns": ["uses_git", "has_src_dir", "has_tests_dir",
+                              "has_node_modules", "uses_pnpm",
+                              "uses_typescript", "has_test_runner"],
+        "detected_stack": ["@biomejs/biome", "@clack/prompts",
+                           "@types/node", "commander", "picocolors", ...]
+      }
+      next: "agora resume"
+    $ # second invocation refuses:
+    $ node dist/cli/index.js new another
+      agora: error: User confirmation required: Existing Agora session
+        detected (.agora/ already present). Use `agora status` to inspect
+        or remove .agora/ to start fresh.
+      exit 2
+
+Lessons / observations:
+- LAYER 2 → LAYER 1 import (alignment imports probes/markers) works
+  cleanly per Stage 5-A.1 layer rules. The stub ProbeContext (shellExec
+  throws) is a small ergonomic cost but preserves the contract.
+- Phase 0 entirely synchronous-feeling (~0-2ms even with FS reads) thanks
+  to Promise.all parallel checks + markers memoization.
+- agora repo's own Phase 0 output exercises the brownfield path richly:
+  detects all 7 capability patterns + top 5 deps. Sang's daily-use
+  scenario already realistic.
+- `--json` flag suppresses TUI output naturally — the CommandEnvelope
+  built by buildEnvelope is the full-fidelity record.
+- error() helper for early returns (refuse-overwrite path) keeps command
+  body readable; pattern likely repeats in next slices.
+
+Outstanding (intentional defer):
+  - Phase 0 doesn't yet read package.json `name` field for project_name
+    (uses basename only). Easy add when needed.
+  - Phase 0 doesn't capture tsconfig strict flags or biome rules — stays
+    minimal until alignment rounds need richer signal.
+  - .agora/scan.json doesn't have a Zod schema — just JSON dump.
+    Add when alignment loop wants typed access.
+  - `agora resume` / `agora bracket` commands referenced in next-action
+    hints don't exist yet — next slice (Phase −1 Husserl) will add bracket.
+
+Stage 6 status: 5 slices done. agora --version / doctor / ping / status /
+new all working end-to-end. Alignment loop entry path: live. Greenfield
++ brownfield detection: validated on real Sang daily-use repo (this one).
+
+Next task: Stage 6-A.6 — likely candidates:
+  (a) Husserl Phase −1 first philosopher (needs prompt-library OR inline
+      prompt; first real LLM-using philosopher; advances alignment loop)
+  (b) `src/config/` + TOML + Zod (Stage 4-A.3) — config-driven probes
+  (c) Remaining 14 probes (Stage 4-A.4 completion)
+  (d) Phase 1 open intake (collect raw_intake from user; small slice
+      using @clack/prompts; no LLM yet)
+Continuing sequentially the natural alignment-loop path: Phase 1 intake
+(d) is smaller than Husserl (a) and chains directly off Phase 0 output.
+Or Husserl directly — needs prompt-library scaffolding first.

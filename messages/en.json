@@ -77,6 +77,11 @@
       "alignment_progress": "  Alignment phase {phase}, round {round}",
       "ralph_progress": "  Ralph iteration {iteration}, last gate: {last_gate}",
       "timestamps": "Created: {created}\nUpdated: {updated}"
+    },
+    "new": {
+      "created": "Agora session started: {project}",
+      "next_phase_minus_1": "Next: `agora bracket` to run Husserl Phase −1 (greenfield default).",
+      "next_phase_1": "      `agora resume` to skip directly to Phase 1 intake (brownfield default)."
     }
   }
 }
