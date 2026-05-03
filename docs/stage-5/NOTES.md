@@ -253,7 +253,106 @@ Full SPEC committed to `docs/architecture/runbook-template.md` with 6
 Companion `docs/philosophers/runbooks/_template.md` (leading underscore
 = not a runbook itself) committed for Stage 5-A.3 copy-paste.
 
-Next task: Stage 5-A.3 — 5 philosopher runbooks (batch instantiation of
-template). Husserl / Socrates / Aristotle / Plato / Aquinas — each at
-`docs/philosophers/runbooks/<name>.md`. Possibly multi-round given
-domain depth (Mode A territory — Sang's expertise drives content).
+### Stage 5-A.3 — DONE (2026-05-03)
+
+5 philosopher runbooks completed in batch (Sang chose Option A).
+Each follows the 12-section DTD from Stage 5-A.2.
+
+**Husserl** (`docs/philosophers/runbooks/husserl.md`):
+  Phase −1 Epoché. Greenfield default-on, brownfield default-off + skip
+  rules. Single prompt (multi-step: Software/Form/Audience brackets +
+  surprising_findings). DefendedFrame output. Failure mode: solution-
+  frame contamination. F-rules: ritual brackets (50-char follow-up),
+  over-bracketing, generic brackets, never propose solutions, never
+  affirm/deny frame. Examples included (subtle method).
+
+**Socrates** (`docs/philosophers/runbooks/socrates.md`):
+  Phase 2 conductor — every load-bearing claim. Single prompt
+  (case construction + probing). ElenchedClaim output. Failure mode:
+  confidence-without-test (sycophantic paraphrase). F-rules: user-restate
+  patterns, decorative-claim probing, strawman cases, zero-aporia rate
+  trigger, multiple questions per turn, context-free questions after
+  round 1. Quality bar includes brownfield-grounding ≥ 60% + aporia rate
+  ≥ 1-in-5. Examples included (leading-question failure subtle).
+
+**Aristotle** (`docs/philosophers/runbooks/aristotle.md`):
+  Phase 2 structuring. 4 separate prompts (telos with 3 sub-questions /
+  form / material / efficient). FourCauses output. Failure mode: telos
+  collapse (gravitates to material/form). F-rules: noun-phrase as telos,
+  material-leading interview, efficient-skip for solo, telos-Pistis
+  override, user-configurable order, combined sub-questions, skipping
+  failure_signal. Telos instability interrupt. Examples omitted (clear
+  method per R4-A guidance — add in rev 2 if calibration needed).
+
+**Plato** (`docs/philosophers/runbooks/plato.md`):
+  TWO operations in one runbook (Divided Line at Phase 2 + Y2 termination,
+  Dihairesis at handoff). Two prompts (y2-noesis-test + dihairesis-decompose).
+  Two outputs (PlatoDLOutput + PlatoDHOutput). Failure modes: optimistic
+  maturity (DL) + convenient-cuts vs natural-cuts (DH). Concept doc
+  rationale for keeping both in one runbook honored (Plato is one
+  philosopher with two methods — not two philosophers). Examples
+  included for both DL (Noesis on form) and DH (natural cut: trust
+  vs charge execution; anti-example: feature-aligned credit-card vs
+  subscription).
+
+**Aquinas** (`docs/philosophers/runbooks/aquinas.md`):
+  Ralph Gates 3 + 4. 4 prompts (videtur orchestration + sed-contra +
+  respondeo + ad-singula). Critic prompts owned by `critics/`, NOT
+  Aquinas — Aquinas orchestrates. Verdict output (per-objection ruling
+  map, never vote). Failure modes: F-Aquinas-1..5 (clustering oblivion,
+  Sed-contra rationalization, Respondeo summarizing, Ad-singula skipping
+  minor, overhead exceeds change). Skip condition for trivial diffs
+  (< 10 lines). Examples included (Respondeo first-paragraph anti-example
+  shows F-Aquinas-3 detection; Ad-singula silent-skip anti-example shows
+  F-Aquinas-4 detection).
+
+Common patterns across all 5:
+  - Layer rule honored: every runbook section 7 includes "❌ Calling
+    llm/* directly" — orchestrator routes to ClaudeRunner per Stage 5-A.1
+  - All 5 cite Stage 1 concept doc (`docs/philosophy/0X-...md`) in front
+    matter "Inherited from"
+  - All 5 explicitly cross-reference Stage 2 SPECs by name + line
+  - Each prompt includes Hard rules numbered + per-rule mitigation
+  - Each output contract is full TypeScript interface (Zod-ready for
+    Stage 4-A.3 R1-A validation pattern)
+  - Test contract section 8 has 4 mandatory categories per Stage 5-A.2 R3
+  - All forbidden lists extend the global F1-F8 with philosopher-specific
+    F-rules (e.g. F-Husserl-1, F-Socrates-1..4, F-Aristotle-1..4,
+    F-Plato-DL-1..2 + F-Plato-DH-1..3, F-Aquinas-1..5)
+
+Cross-philosopher integration verified in each runbook:
+  Husserl → Aristotle (defended_frame → telos extraction starts on
+                       examined frame)
+  Aristotle → Socrates (cause-statement → case probe)
+  Socrates → Plato (ElenchedClaim → maturity tag)
+  Plato (DL) → Aristotle interrupt (when telos slips below floor mid-round)
+  Plato (DH) → Aquinas (rejected_alternatives → Sed contra criterion;
+                        ac_tree → Aquinas's relevant_ac_node_ids)
+  Aquinas does NOT see Husserl/Socrates outputs directly — alignment
+    is settled before Ralph; Aquinas reads the locked seed only.
+
+Boundaries enforced (collectively ~50 rejections by name across 5).
+
+Failure modes guarded across all 5: comprehensive coverage of the AI-
+coding pipeline failure surfaces — solution-frame contamination,
+confidence-without-test, telos collapse, optimistic maturity, convenient
+cuts, vote-driven consensus, and silent overruling.
+
+Next task: Stage 5-A.4 — Prompt library structure + storage location.
+Indexes runbook section 4 prompts by `<philosopher_name>:<prompt_id>`
+key. Library is auto-derived from runbooks (manual edits forbidden per
+Stage 5-A.2 R2-A). Must define: file format (YAML/JSON/TS), generation
+mechanism, fingerprint check, library file location.
+
+All 5 runbook prompt IDs already declared (count: 11 total prompts):
+  husserl:phase-minus-1-bracket
+  socrates:elenchus-round
+  aristotle:telos-question, aristotle:form-question,
+  aristotle:material-question, aristotle:efficient-question
+  plato:y2-noesis-test, plato:dihairesis-decompose
+  aquinas:videtur (orchestration), aquinas:sed-contra,
+  aquinas:respondeo, aquinas:ad-singula
+
+(Aquinas videtur is orchestration — actual critic prompts live in
+critics/definitions/ per Stage 5-A.1 module layout. Stage 5-A.4 will
+clarify whether critic prompts also flow into prompt-library.md.)
