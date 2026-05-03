@@ -12,6 +12,40 @@
 
 ---
 
+## 🚦 Quick Start (read this first when resuming Stage 6)
+
+> Read `docs/SESSION_HANDOFF.md` first for project-wide conventions.
+> This Quick Start is Stage-6-specific live state.
+
+**Working commands** (each = one shipped slice):
+```
+agora --version  (6-A.1) — foundation
+agora doctor    (6-A.2) — 5 probes + Gate 0 cache
+agora ping      (6-A.3) — first LLM call (ClaudeRunner)
+agora status    (6-A.4) — state foundation
+agora new       (6-A.5) — Phase 0 auto-scan
+agora bracket   (6-A.6) — Husserl Phase −1 (first philosopher)
+```
+
+**To find the next slice's starting context**: scroll to the bottom of
+this file. Last "### Stage 6-A.N — DONE" entry has lessons + outstanding
+items + "Next task:" line.
+
+**Slice cadence**: ~3-6 vertical slices per focused session. Each slice:
+~600-1500 LOC + tests + commit + Progress Log entry.
+
+**Estimated to v1 daily-use**: 15-25 more slices. Roughly:
+- Alignment loop completion: Phase 1 intake / Aristotle / Socrates /
+  Plato (Y2 + Dihairesis) / agora resume orchestrator → 6-8 slices
+- Ralph loop foundation: Gate 1 / Gate 2 / Aquinas Gate 3+4 (+10 critics) /
+  Gate 5 / Z1/Z2 → 6-8 slices
+- Infra: config loader / 14 remaining probes / SDK fallback → 3-5 slices
+- prompt-library generator (refactor inline prompts) → 1 slice
+
+Total ~20 slices = ~5-7 sessions at current pace.
+
+---
+
 ## Stage 6 sub-questions (open-ended)
 
 ```

@@ -5,6 +5,20 @@
 
 ---
 
+## 🚦 새 세션 시작 시 — 반드시 먼저 읽을 것
+
+> **새 AI 세션이 시작되면 `docs/SESSION_HANDOFF.md`를 가장 먼저 읽으세요.**
+>
+> CLAUDE.md (이 파일)는 정적 reference입니다. SESSION_HANDOFF.md는 **현재 세션이
+> 어디부터 어떻게 작업해야 하는지** 가이드입니다 — 읽기 순서 (5,300줄 SPEC을
+> 다 읽지 않게), 코드 컨벤션 (실제 코드에서 검증된 것), 과거 세션이 발견한
+> 함정 (claude --max-tokens 같은 surprise들), Sang과의 대화 스타일 (Mode B
+> 패턴), 현재 stage 진행 상태.
+>
+> 새 세션마다 SESSION_HANDOFF.md를 안 읽으면 같은 실수를 반복합니다.
+
+---
+
 ## 작업 원칙
 
 ### 설계 철학
