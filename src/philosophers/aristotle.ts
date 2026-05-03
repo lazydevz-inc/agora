@@ -41,12 +41,20 @@ export const TelosClaimSchema = z.object({
 });
 export type TelosClaim = z.infer<typeof TelosClaimSchema>;
 
-// FourCauses schema seeded with telos only for this slice; form/material/
-// efficient land as future slices flesh them out. Optional fields keep
-// the file forward-compatible.
+export const FormClaimSchema = z.object({
+  essential_structure: z.string().min(1),
+  irreducible_parts: z.array(z.string().min(1)).min(1),
+  feature_list_warning_triggered: z.boolean().default(false),
+  maturity: MaturitySchema.default("dianoia"),
+});
+export type FormClaim = z.infer<typeof FormClaimSchema>;
+
+// FourCauses schema. telos + form populated as their slices land;
+// material / efficient remain optional placeholders for future slices.
 export const FourCausesSchema = z.object({
   telos: TelosClaimSchema.optional(),
-  // form/material/efficient placeholders — to be filled by future slices.
+  form: FormClaimSchema.optional(),
+  // material/efficient — future slices.
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -270,6 +278,209 @@ async function callForExtraction(
     return err(
       buildAgoraError("llm.invalid-response", {
         context: { detail: parsed.error.issues[0]?.message ?? "telos schema parse failed" },
+      }),
+    );
+  }
+  return ok(parsed.data);
+}
+
+// ─── Form round (runbook §4.2 aristotle:form-question) ───
+//
+// Form follows telos in Phase 2. Inputs: settled telos.statement +
+// (optional) defended_frame.chosen_form. Pattern matches telos round:
+// 2 questions asked locally, 1 LLM call extracts (essential_structure,
+// irreducible_parts) + flags F-Aristotle-3 (feature-list warning).
+
+export interface AristotleFormInput {
+  readonly telos_statement: string;
+  readonly defended_frame_chosen_form?: string;
+  readonly current_round: number;
+}
+
+export interface AristotleFormUi {
+  /** Q1: Given your telos, what shape carries it? → essential_structure */
+  askEssentialStructure(args: { telos_statement: string }): Promise<string>;
+  /** Q2: What components are essential, not decoration? → irreducible_parts (comma-separated user input) */
+  askIrreduciblePartsList(args: { essential_structure: string }): Promise<string>;
+  /** F-Aristotle-3 mitigation: when user lists features instead of structure, ask refinement. */
+  askFeatureListRefinement(args: { detected: string; reason: string }): Promise<string>;
+}
+
+interface ExtractedForm {
+  essential_structure: string;
+  irreducible_parts: string[];
+  feature_list_warning: boolean;
+  feature_list_reason?: string | undefined;
+}
+
+const ARISTOTLE_FORM_SYSTEM = `You are Aristotle extracting the FORM (essential structure / what-shape-
+it-takes) from a user's raw answers, AFTER telos is settled.
+
+Hard rules:
+1. Form is STRUCTURE, not feature list. Reject feature lists like
+   "login, signup, profile, settings, dashboard". Set
+   feature_list_warning=true with feature_list_reason explaining what
+   to ask instead.
+2. essential_structure is a high-level shape (e.g. "single-page CRUD
+   with offline-first sync" / "CLI with subcommand-per-cause").
+3. irreducible_parts are components without which the telos cannot be
+   served. Each part is a noun phrase, not an action.
+4. Reference the settled telos when shaping the response.
+5. NEVER let the user list features. Form is structure, not catalog.
+
+Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
+{
+  "essential_structure": "<high-level shape phrase>",
+  "irreducible_parts": ["<part 1>", "<part 2>", ...],
+  "feature_list_warning": <boolean>,
+  "feature_list_reason": "<reason string when feature_list_warning=true, else omit>"
+}`;
+
+function buildFormUserPrompt(
+  input: AristotleFormInput,
+  raw: {
+    essentialStructure: string;
+    irreduciblePartsRaw: string;
+    refinement?: string;
+  },
+): string {
+  const formLine =
+    input.defended_frame_chosen_form !== undefined && input.defended_frame_chosen_form.length > 0
+      ? `Defended frame chosen_form: "${input.defended_frame_chosen_form}"
+`
+      : "";
+  const refinementLine =
+    raw.refinement !== undefined && raw.refinement.length > 0
+      ? `
+User refinement after feature-list rebuttal:
+"${raw.refinement}"
+`
+      : "";
+  return `Round: ${String(input.current_round)}
+
+Settled telos.statement:
+"${input.telos_statement}"
+
+${formLine}Form questions and raw answers:
+Q1 — "Given your telos, what shape carries it?"
+A1: "${raw.essentialStructure}"
+
+Q2 — "What components are essential to the telos, not decoration?"
+A2: "${raw.irreduciblePartsRaw}"
+${refinementLine}
+Extract the FormClaim per the JSON shape. Apply F-Aristotle-3
+(feature-list detection) on Q2; if A2 looks like a feature catalog
+rather than structural components, set feature_list_warning=true
+and provide feature_list_reason.`;
+}
+
+export async function runAristotleFormRound(
+  input: AristotleFormInput,
+  runner: ClaudeRunner,
+  ui: AristotleFormUi,
+): Promise<Result<FormClaim, AgoraErrorThrown>> {
+  const essentialStructure = await ui.askEssentialStructure({
+    telos_statement: input.telos_statement,
+  });
+  const irreduciblePartsRaw = await ui.askIrreduciblePartsList({
+    essential_structure: essentialStructure,
+  });
+
+  if (essentialStructure.trim().length === 0 || irreduciblePartsRaw.trim().length === 0) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: { detail: "Form round needs both Q1 and Q2 answers — empty input." },
+      }),
+    );
+  }
+
+  const extraction = await callForFormExtraction(input, runner, {
+    essentialStructure,
+    irreduciblePartsRaw,
+  });
+  if (!extraction.ok) return extraction;
+  let extracted = extraction.value;
+  let warningTriggered = false;
+
+  if (extracted.feature_list_warning) {
+    warningTriggered = true;
+    const refinement = await ui.askFeatureListRefinement({
+      detected: irreduciblePartsRaw,
+      reason:
+        extracted.feature_list_reason ??
+        "Q2 read as feature catalog rather than structural components.",
+    });
+    if (refinement.trim().length === 0) {
+      return err(
+        buildAgoraError("user.aborted", {
+          context: { detail: "Feature-list rebuttal needs a refinement — empty." },
+        }),
+      );
+    }
+    const reExtraction = await callForFormExtraction(input, runner, {
+      essentialStructure,
+      irreduciblePartsRaw,
+      refinement,
+    });
+    if (!reExtraction.ok) return reExtraction;
+    extracted = reExtraction.value;
+  }
+
+  const claim: FormClaim = {
+    essential_structure: extracted.essential_structure,
+    irreducible_parts: extracted.irreducible_parts,
+    feature_list_warning_triggered: warningTriggered,
+    maturity: "dianoia",
+  };
+  const validated = FormClaimSchema.safeParse(claim);
+  if (!validated.success) {
+    return err(
+      buildAgoraError("internal.invariant-violation", {
+        context: { detail: validated.error.issues[0]?.message ?? "form schema fail" },
+      }),
+    );
+  }
+  return ok(validated.data);
+}
+
+async function callForFormExtraction(
+  input: AristotleFormInput,
+  runner: ClaudeRunner,
+  raw: { essentialStructure: string; irreduciblePartsRaw: string; refinement?: string },
+): Promise<Result<ExtractedForm, AgoraErrorThrown>> {
+  const response = await runner.call({
+    system: ARISTOTLE_FORM_SYSTEM,
+    prompt: buildFormUserPrompt(input, raw),
+    format: "json",
+    timeout_ms: 60_000,
+  });
+  if (!response.ok) {
+    return err(
+      buildAgoraError("llm.internal-error", {
+        context: { detail: response.error?.detail ?? "no response" },
+      }),
+    );
+  }
+  const content = response.content;
+  if (typeof content !== "object" || content === null) {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: "Aristotle form prompt did not return a JSON object" },
+      }),
+    );
+  }
+  const parsed = z
+    .object({
+      essential_structure: z.string().min(1),
+      irreducible_parts: z.array(z.string().min(1)).min(1),
+      feature_list_warning: z.boolean(),
+      feature_list_reason: z.string().optional(),
+    })
+    .safeParse(content);
+  if (!parsed.success) {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: parsed.error.issues[0]?.message ?? "form schema parse failed" },
       }),
     );
   }

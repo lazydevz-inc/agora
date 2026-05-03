@@ -29,6 +29,7 @@ agora resume    (6-A.7) — phase orchestrator (8-phase dispatch)
 agora intake    (6-A.8) — Phase 1 open intake (interactive)
 agora telos     (6-A.9) — Aristotle Phase 2 telos round (interactive, 2nd philosopher)
 (6-A.10) — prompt-library generator infrastructure (no new command; pnpm gen:prompts)
+agora form      (6-A.11) — Aristotle Phase 2 form round (essential structure + irreducible parts)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -2045,3 +2046,192 @@ Next task: Stage 6-A.11 — likely candidates:
       "unknown" outside-cwd fix.
   (h) Plato runbook §4 parser fix + aquinas:videtur extraction
       (3 missing entries from this slice's library).
+
+### Stage 6-A.11 — DONE (2026-05-04)
+
+**Eleventh vertical slice: `agora form` — Aristotle Phase 2 form round
+(2nd cause-statement, runbook §4.2).** Auto-selected per "다음 진행해줘"
++ no-manual-handoff cadence + critical path to Y2 (form.essential_
+structure is required per alignment-loop.md L1525 LOAD_BEARING_FIELDS).
+
+Cookie-cutter from telos slice (6-A.9). Same pattern: 2 questions asked
+locally + 1 LLM call extracts FormClaim + F-Aristotle-3 feature-list
+rebuttal loop (≤1 follow-up + ≤1 re-extract). Inline prompt
+(ARISTOTLE_FORM_SYSTEM) joins HUSSERL_SYSTEM + ARISTOTLE_TELOS_SYSTEM
+as the third inline philosopher prompt awaiting batch refactor to
+renderPrompt (deferred per 6-A.10 NOTES).
+
+Decisions made inline (no Q):
+  - Add to existing aristotle.ts file (FormClaimSchema + AristotleFormUi
+    + ARISTOTLE_FORM_SYSTEM + buildFormUserPrompt + runAristotleFormRound
+    + callForFormExtraction). Single philosopher = single module file
+    holds all that philosopher's cause rounds.
+  - FourCausesSchema extends with form?: FormClaimSchema. Telos preserved
+    on form save.
+  - State transition: alignment.phase stays at 2; round 1 → 2 (form just
+    completed).
+  - Refusal guards (4): no .agora/, no four_causes.json or telos missing,
+    alignment.phase < 2, four_causes.json already has form populated.
+  - resume.ts ap===2 branch now discriminates by round: round===1 →
+    "agora form" hint; round===2 (form done) → runtime_pending material/
+    efficient/Plato.
+  - Separate `agora form` command (joins bracket / intake / telos /
+    shortcut family). Future consolidation to `agora round` orchestrator
+    when shortcut count exceeds ~6.
+
+Files shipped:
+
+src/philosophers/aristotle.ts (modified, +200 LOC):
+  FormClaimSchema (essential_structure / irreducible_parts non-empty
+    array / feature_list_warning_triggered / maturity defaults dianoia).
+  FourCausesSchema extended with optional form field.
+  AristotleFormInput (telos_statement / optional defended_frame_chosen_
+    form / current_round).
+  AristotleFormUi (askEssentialStructure / askIrreduciblePartsList /
+    askFeatureListRefinement).
+  ARISTOTLE_FORM_SYSTEM inline prompt + buildFormUserPrompt builder.
+  runAristotleFormRound orchestrator + callForFormExtraction helper.
+
+src/cli/commands/form.ts (LAYER 3 — new, ~225 LOC):
+  runFormCommand: 4 refusal guards, scan/state/four_causes/optional-frame
+  loading, selectRuntime, AristotleFormUi via @clack/prompts, persists
+  FourCauses (telos + form), advances state.alignment.
+
+src/cli/index.ts: form command dispatch + dispatchForm helper. Help text
+  adds form line.
+
+src/cli/commands/resume.ts: ap===2 branch refactored — round===1 → live
+  `agora form` hint; round>=2 → runtime_pending. ap>2 unchanged.
+
+messages/en.json + ko.json:
+  +6 keys × 2 locales under cli.form.* (intro / context_summary /
+    q_essential_structure / q_irreducible_parts / feature_list_warning /
+    q_feature_list_refinement)
+  +4 keys × 2 locales under cli.resume.* (telos_done / next_phase_2_form
+    / next_form_desc / form_done)
+  Total: +20 strings net new.
+
+Tests (1 new file; total 23 files / 157 tests, was 22/150):
+
+tests/unit/philosophers/aristotle-form.test.ts (7 tests):
+  Happy path × 2 (questions + 1 LLM, schema validates).
+  F-Aristotle-3 feature-list rebuttal × 2 (triggers refinement + 2nd LLM,
+    empty refinement → user.aborted).
+  Error paths × 3 (empty Q1, LLM error, malformed schema).
+  Uses QueueRunner + RecordedFormUi stubs. No real LLM calls.
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (7 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 23 files, 157 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+  Manual:
+    $ # state.json with alignment.phase=2 round=1, no four_causes.json
+    $ node dist/cli/index.js form --json | jq '.errors[0].code'
+      "user.aborted"   (telos required first)
+    $ # state.json + four_causes.json with telos populated
+    $ node dist/cli/index.js resume --json | jq '.next[].command'
+      "agora form"   (live, no TBD)
+  Manual interactive run deferred to TTY (clack same as bracket / intake
+  / telos).
+
+Surprises encountered + decisions made:
+
+1. **Per-round state.alignment.round semantic now load-bearing**: telos
+   set round=1; form sets round=2. resume.ts ap===2 branch reads round
+   to discriminate "form pending" vs "form done, material/efficient
+   pending". This couples resume's dispatch to round counter convention.
+   Future cause slices (material → 3, efficient → 4) must follow.
+   Documented in commit + NOTES.
+
+2. **Three inline prompts now (Husserl + Aristotle telos + Aristotle
+   form)**. Generator pays off most when refactoring all three at once.
+   Prompt-library generator (6-A.10) is ready; the holdup is the SPEC
+   drift between runbook §4 (multi-turn LLM dialogue) and slice pattern
+   (local question + LLM extraction). Either runbook §4 needs new
+   "extract" sub-sections OR slices need rewrite to multi-turn. Defer
+   to dedicated refactor slice OR runbook Rev 3 update.
+
+3. **Cookie-cutter slice cadence: ~30min**. Form took roughly half the
+   time of telos because (a) FourCauses schema already extensible,
+   (b) refusal guard pattern established, (c) AristotleFormUi pattern
+   from AristotleUi, (d) clack adapter / locale keys / dispatch / help
+   text all template-able from telos. Material + efficient slices will
+   be similar speed.
+
+4. **`current_round` parameter passed for round number stamping**:
+   `(state.alignment?.round ?? 0) + 1` semantics: telos passes 1, form
+   passes 2 (since previous round was 1). Round counter advances POST-
+   round. Consistent with telos slice.
+
+5. **alignment.phase static at 2 across all 4 Aristotle rounds**:
+   Phase 2 is the philosopher-rounds phase. Round counter discriminates
+   which round we're in. This matches alignment-loop.md (Phase 2 is one
+   phase containing multiple rounds).
+
+Lessons / observations:
+- **AristotleFormUi as separate type from AristotleUi (telos)**: each
+  cause has its own UI surface (different question count, different
+  refinement type). Single AristotleUi union would conflate; per-round
+  Ui types keep contracts crisp.
+- **FourCausesSchema's optional cause fields**: form added cleanly
+  without breaking existing four_causes.json files written by 6-A.9
+  (telos-only) — telos field stays optional, form added. Forward-compat
+  validated by manual smoke test (loaded telos-only file then wrote
+  telos+form back).
+- **resume.ts dispatch sub-discrimination via round counter**: this
+  pattern will repeat as material/efficient land. Could refactor to a
+  table-driven dispatch (round → next-action), but not yet — wait for
+  4 causes to see pattern stabilize.
+- **agora form is the 10th `agora <command>`** (5 shortcuts beyond
+  primary 7). Threshold for `agora round` consolidation discussion
+  approaching. Defer for now; address when material + efficient land
+  (12 commands total → consolidation slice).
+
+Outstanding (intentional defer):
+  Aristotle material round (runbook §4.3) — alignment.round 2 → 3.
+  Aristotle efficient round (runbook §4.4) — alignment.round 3 → 4.
+  Plato Divided Line maturity tagging (current dianoia default for telos
+    + form). All 4 causes need noesis tagging for Y2.
+  Socrates case-probing layer between Aristotle output and Plato tagging.
+  Refactor 3 inline philosopher prompts (Husserl + Aristotle telos +
+    Aristotle form) to renderPrompt — needs runbook §4 "extract" variant
+    sub-sections OR slice rewrite to multi-turn LLM dialogue.
+  agora round consolidation (when 12+ commands).
+  Integration test for `agora form` interactive run (PTY mock infra).
+
+Stage 6 status: 11 slices done. Working commands:
+  agora --version (6-A.1)
+  agora doctor   (6-A.2)
+  agora ping     (6-A.3)
+  agora status   (6-A.4)
+  agora new      (6-A.5)
+  agora bracket  (6-A.6)
+  agora resume   (6-A.7)
+  agora intake   (6-A.8)
+  agora telos    (6-A.9)
+  agora form     (6-A.11) ← NEW
+  (6-A.10 was infra, no new command)
+
+**Phase 2 progress: 2 of 4 Aristotle rounds done.** Alignment loop end-
+to-end:
+  agora new → agora bracket (greenfield) → agora intake →
+    agora telos → agora form → (material + efficient pending) →
+    Plato Y2 termination → Ralph
+
+Next task: Stage 6-A.12 — likely candidates:
+  (a) Aristotle material round (runbook §4.3, brownfield auto-detect
+      + tech_stack/data_shape/infrastructure capture).
+  (b) Aristotle efficient round (runbook §4.4, who/when/how).
+  (c) Plato Divided Line maturity tagger (re-tags telos.maturity +
+      form.maturity from "dianoia" → "noesis" or holds). Y2
+      prerequisite.
+  (d) Socrates case-probing of telos.statement / form.essential_structure
+      (3rd philosopher implementation).
+  (e) `agora round` orchestrator consolidation (when shortcut count
+      crosses threshold).
+  (f) `src/config/` + TOML + Zod.
+  (g) Remaining 14 probes.
+  (h) ergonomics (render.ts envelope exit_code + version "unknown").

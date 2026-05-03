@@ -13,6 +13,7 @@ import { AgoraErrorThrown } from "../errors/types.js";
 import { setLocale } from "../i18n/index.js";
 import { runBracketCommand } from "./commands/bracket.js";
 import { runDoctorCommand } from "./commands/doctor.js";
+import { runFormCommand } from "./commands/form.js";
 import { runIntakeCommand } from "./commands/intake.js";
 import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
@@ -79,6 +80,10 @@ async function main(): Promise<void> {
   }
   if (command === "telos") {
     await dispatchTelos(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "form") {
+    await dispatchForm(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -242,6 +247,24 @@ async function dispatchTelos(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchForm(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runFormCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -258,6 +281,7 @@ function printHelp(): void {
   console.log("  agora resume      Resume work from current state.json phase");
   console.log("  agora intake      Run Phase 1 open intake (interactive)");
   console.log("  agora telos       Run Aristotle telos round (Phase 2 round 1, interactive)");
+  console.log("  agora form        Run Aristotle form round (Phase 2 round 2, interactive)");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

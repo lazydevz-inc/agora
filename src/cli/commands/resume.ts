@@ -170,9 +170,33 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
       description: localized("cli.resume.next_telos_desc"),
       command: "agora telos",
     });
+  } else if (ap === 2) {
+    // Phase 2 in progress; round discriminates which Aristotle cause
+    // to advance to next. round===1 = telos done → form. round===2 =
+    // form done → material (pending). round>=3 = material/efficient
+    // pending or seed nearly ready.
+    const round = state.alignment?.round ?? 0;
+    if (round === 1) {
+      lines.push(localized("cli.resume.telos_done"));
+      lines.push(localized("cli.resume.next_phase_2_form"));
+      next.push({
+        id: "form",
+        description: localized("cli.resume.next_form_desc"),
+        command: "agora form",
+      });
+    } else {
+      // round >= 2 — material/efficient + Plato termination gate not yet
+      // implemented.
+      lines.push(localized("cli.resume.form_done"));
+      lines.push(localized("cli.resume.alignment_runtime_pending", { phase: String(ap) }));
+      next.push({
+        id: "alignment_runtime_pending",
+        description: localized("cli.resume.next_alignment_runtime_desc"),
+        command: `agora resume (TBD: Phase ${String(ap)} round ${String(round)} runtime)`,
+      });
+    }
   } else {
-    // ap >= 2 — Phase 2 form/material/efficient + Plato termination
-    // gate not yet implemented.
+    // ap > 2 — Plato termination gate / handoff not yet implemented.
     lines.push(localized("cli.resume.alignment_runtime_pending", { phase: String(ap) }));
     next.push({
       id: "alignment_runtime_pending",

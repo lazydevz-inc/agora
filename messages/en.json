@@ -92,6 +92,14 @@
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
+    "form": {
+      "intro": "Aristotle form round — Phase 2, round 2",
+      "context_summary": "Loaded telos: \"{telos}\". Asking form questions: shape that carries this telos + irreducible parts.",
+      "q_essential_structure": "Given your telos (\"{telos}\"), what shape carries it? (high-level structure, not feature list)",
+      "q_irreducible_parts": "What components are essential to the telos, not decoration? (comma-separated)",
+      "feature_list_warning": "Detected feature list rather than structural components: \"{detected}\". {reason}",
+      "q_feature_list_refinement": "Re-ask: what's the structural shape, not the catalog of features?"
+    },
     "telos": {
       "intro": "Aristotle telos round — Phase 2, round 1",
       "context_summary": "Loaded Phase 1 intake ({word_count} words). Asking the 3 telos questions in order — verb-phrases about served good only.",
@@ -127,6 +135,10 @@
       "intake_done": "Phase 1 intake captured (alignment.phase = 1). Ready for Phase 2 telos round.",
       "next_phase_2_telos": "Next: `agora telos` — Aristotle telos round (Phase 2, round 1).",
       "next_telos_desc": "Run Aristotle telos round (3 questions, ≤2 LLM calls)",
+      "telos_done": "Telos captured (Phase 2 round 1). Ready for form round (round 2).",
+      "next_phase_2_form": "Next: `agora form` — Aristotle form round (Phase 2, round 2).",
+      "next_form_desc": "Run Aristotle form round (essential structure + irreducible parts)",
+      "form_done": "Form captured (Phase 2 round 2). Material / efficient rounds + Plato Y2 pending.",
       "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
       "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",
       "deferred_phase": "Phase `{phase}` recognized — downstream implementation pending. Follow-up: {follow_up}.",

@@ -92,6 +92,14 @@
       "constructing": "Claude로 대안을 구성하는 중 (LLM 호출 1회)...",
       "ask_surprising": "그동안 모르고 있던 가정을 깨달은 순간이 있었나요?"
     },
+    "form": {
+      "intro": "Aristotle form 라운드 — Phase 2, round 2",
+      "context_summary": "Telos 로드됨: \"{telos}\". Form 질문: 이 telos를 담아낼 모양 + 환원 불가능한 구성 요소.",
+      "q_essential_structure": "당신의 telos (\"{telos}\")를 담아낼 shape는 무엇입니까? (high-level 구조, feature 리스트 아님)",
+      "q_irreducible_parts": "이 telos에 본질적인 구성 요소는 (장식이 아닌) 무엇입니까? (쉼표로 구분)",
+      "feature_list_warning": "구조가 아닌 feature 리스트로 감지됨: \"{detected}\". {reason}",
+      "q_feature_list_refinement": "다시 묻습니다: feature 카탈로그가 아닌 구조적 shape는 무엇입니까?"
+    },
     "telos": {
       "intro": "Aristotle telos 라운드 — Phase 2, round 1",
       "context_summary": "Phase 1 intake ({word_count} 단어) 로드됨. 3개의 telos 질문을 순서대로 진행합니다 — 명사구 아닌 served good에 대한 동사구로만 답해주세요.",
@@ -127,6 +135,10 @@
       "intake_done": "Phase 1 intake 캡처 완료 (alignment.phase = 1). Phase 2 telos 라운드 준비됨.",
       "next_phase_2_telos": "다음: `agora telos` — Aristotle telos 라운드 (Phase 2, round 1).",
       "next_telos_desc": "Aristotle telos 라운드 실행 (질문 3개, LLM 호출 ≤2)",
+      "telos_done": "Telos 캡처 완료 (Phase 2 round 1). Form 라운드 (round 2) 준비됨.",
+      "next_phase_2_form": "다음: `agora form` — Aristotle form 라운드 (Phase 2, round 2).",
+      "next_form_desc": "Aristotle form 라운드 실행 (essential structure + 환원 불가 구성 요소)",
+      "form_done": "Form 캡처 완료 (Phase 2 round 2). Material / efficient 라운드 + Plato Y2 대기 중.",
       "alignment_runtime_pending": "Phase {phase} 런타임은 이 빌드에서 아직 구현되지 않았습니다.",
       "next_alignment_runtime_desc": "이 단계의 alignment 런타임은 향후 슬라이스에서 추가 예정",
       "deferred_phase": "Phase `{phase}` 인식됨 — 하위 구현 대기 중. 후속: {follow_up}.",
