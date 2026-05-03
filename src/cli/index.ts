@@ -11,6 +11,7 @@
 
 import { AgoraErrorThrown } from "../errors/types.js";
 import { setLocale } from "../i18n/index.js";
+import { runBracketCommand } from "./commands/bracket.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
@@ -59,6 +60,10 @@ async function main(): Promise<void> {
   }
   if (command === "new") {
     await dispatchNew(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "bracket") {
+    await dispatchBracket(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -149,6 +154,23 @@ async function dispatchNew(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchBracket(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runBracketCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    process.exit(1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -161,6 +183,7 @@ function printHelp(): void {
   console.log("  agora ping [pmt]  Send a small prompt to Claude (LLM smoke test)");
   console.log("  agora status      Show current session phase + progress");
   console.log("  agora new [name]  Start a new alignment session (Phase 0 auto-scan)");
+  console.log("  agora bracket     Run Husserl Phase −1 Epoché (interactive)");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

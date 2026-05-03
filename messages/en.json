@@ -82,6 +82,13 @@
       "created": "Agora session started: {project}",
       "next_phase_minus_1": "Next: `agora bracket` to run Husserl Phase −1 (greenfield default).",
       "next_phase_1": "      `agora resume` to skip directly to Phase 1 intake (brownfield default)."
+    },
+    "bracket": {
+      "intro": "Husserl Phase −1 — bracket your assumptions",
+      "ask_intent": "What do you want to build (or change)?",
+      "ask_experience": "Before what to build — describe the EXPERIENCE that prompted this.",
+      "constructing": "Constructing alternatives via Claude (one LLM call)...",
+      "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     }
   }
 }

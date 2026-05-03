@@ -82,6 +82,13 @@
       "created": "Agora 세션 시작: {project}",
       "next_phase_minus_1": "다음: `agora bracket` — Husserl Phase −1 실행 (greenfield 기본).",
       "next_phase_1": "      `agora resume` — Phase 1 intake로 바로 진입 (brownfield 기본)."
+    },
+    "bracket": {
+      "intro": "Husserl Phase −1 — 가정 괄호치기",
+      "ask_intent": "무엇을 만들거나 변경하려고 하시나요?",
+      "ask_experience": "무엇을 만들지 묻기 전에 — 도구를 찾게 만든 EXPERIENCE를 설명해주세요.",
+      "constructing": "Claude로 대안을 구성하는 중 (LLM 호출 1회)...",
+      "ask_surprising": "그동안 모르고 있던 가정을 깨달은 순간이 있었나요?"
     }
   }
 }

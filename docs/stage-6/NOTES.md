@@ -776,13 +776,163 @@ Stage 6 status: 5 slices done. agora --version / doctor / ping / status /
 new all working end-to-end. Alignment loop entry path: live. Greenfield
 + brownfield detection: validated on real Sang daily-use repo (this one).
 
-Next task: Stage 6-A.6 — likely candidates:
-  (a) Husserl Phase −1 first philosopher (needs prompt-library OR inline
-      prompt; first real LLM-using philosopher; advances alignment loop)
-  (b) `src/config/` + TOML + Zod (Stage 4-A.3) — config-driven probes
-  (c) Remaining 14 probes (Stage 4-A.4 completion)
-  (d) Phase 1 open intake (collect raw_intake from user; small slice
-      using @clack/prompts; no LLM yet)
-Continuing sequentially the natural alignment-loop path: Phase 1 intake
-(d) is smaller than Husserl (a) and chains directly off Phase 0 output.
-Or Husserl directly — needs prompt-library scaffolding first.
+### Stage 6-A.6 — DONE (2026-05-04)
+
+**Sixth vertical slice: Husserl Phase −1 (`agora bracket`) — first
+philosopher implementation, first multi-turn user dialogue, first
+LLM call serving alignment loop substance.**
+
+Auto-selected per Sang's "ok continue". Bridges Phase 0 (auto-scan from
+6-A.5) → Phase 1 (open intake — future). Husserl is greenfield default-on
+per Stage 5-A.3; this slice exposes it as `agora bracket` (explicit
+invocation).
+
+Simplification vs Stage 5-A.3 runbook §3.2 (multi-turn LLM dialogue):
+single LLM call constructs the 3 bracket alternatives upfront; user
+dialogue is orchestrated locally (cheaper + faster + cache-friendly).
+Future iteration may move to runbook's full multi-turn pattern when
+concrete usage shows it adds value.
+
+PROMPT INLINE: Stage 5-A.4 prompt-library generator not yet implemented.
+This slice's HUSSERL_SYSTEM + buildUserPrompt() constants will be
+replaced by `renderPrompt("husserl:phase-minus-1-bracket", ctx)` when
+that lands.
+
+Files shipped:
+
+src/philosophers/husserl.ts (LAYER 1 — first philosopher module):
+  Types (Zod schemas + TS interfaces):
+    BracketDefenseSchema { considered_alternative, defense,
+                           defense_followup_triggered }
+    DefendedFrameSchema { raw_intent, raw_experience?, chosen_form,
+                          brackets_considered: { software/form/audience },
+                          surprising_findings[], invocation, created_at }
+    HusserlInput, BracketAlternatives, HusserlUi (injectable for tests)
+  Inline prompt:
+    HUSSERL_SYSTEM constant (~600 chars; describes Epoché + JSON shape
+      contract) — Husserl is told to construct alternatives, NOT to
+      propose solutions
+    buildUserPrompt(input) helper composing raw_intent + raw_experience +
+      cwd_signal summary
+  Orchestrator:
+    runHusserlPhaseMinusOne(input, runner, ui) → Result<DefendedFrame>
+      1. Single ClaudeRunner.call with format: "json" → 3 alternatives
+      2. captureBracket loop × 3 (Software/Form/Audience):
+           ui.askDefense(label, alternative, question)
+           If defense < 50 chars (SHORT_DEFENSE_THRESHOLD):
+             ui.askFollowupOnShortDefense → merged into final defense
+             defense_followup_triggered: true (F-Husserl-1 mitigation)
+      3. ui.askSurprisingFindings → surprising_findings[]
+      4. Build DefendedFrame; Zod validate; return Result.
+    HusserlUi adapter pattern — production wires @clack/prompts; tests
+      use deterministic mocks.
+
+src/cli/commands/bracket.ts:
+  runBracketCommand(flags, positional):
+    1. Refuse if no .agora/ → user.aborted with "run agora new first"
+    2. Read or re-run Phase 0 scan (.agora/scan.json)
+    3. Load state.json
+    4. @clack/prompts intro banner
+    5. Get raw_intent: positional joined OR await text() prompt
+    6. Get raw_experience: await text() prompt (Husserl-specific)
+    7. selectRuntime → ClaudeRunner (cached subprocess)
+    8. Build HusserlUi adapter wiring text() to clack
+    9. runHusserlPhaseMinusOne → DefendedFrame
+    10. Save .agora/defended_frame.json (atomic via shared/io)
+    11. Update state.json: alignment.phase: -1 (bracket complete)
+    12. clack outro: "✓ Bracketing complete"
+
+src/cli/index.ts:
+  Added "bracket" command dispatch + help text line.
+  Errors → exit 1 (not 2 — user.aborted is exit 2 per catalog but
+    no_runner is 1; conservative exit 1 covers both).
+
+messages/en.json + ko.json:
+  +5 keys × 2 locales = 10 strings:
+    cli.bracket.intro / ask_intent / ask_experience /
+    constructing / ask_surprising
+
+Tests (1 new file; total 16 files / 96 tests, was 15/91):
+
+tests/unit/philosophers/husserl.test.ts (5 tests):
+  - Happy path: 3 long defenses → DefendedFrame, no follow-ups
+  - F-Husserl-1: short defense triggers follow-up + merged into defense
+                  + defense_followup_triggered: true
+  - LLM error → llm.internal-error Result.err
+  - LLM returns malformed JSON shape → llm.invalid-response
+  - All 3 brackets populated with LLM-supplied alternatives
+
+  Tests use StubRunner + makeUi() factory — fully deterministic, no
+  real LLM calls. HusserlUi injection pattern proves out.
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (2 warnings — both cognitive complexity, accepted)
+  pnpm test     ✓ 16 files, 96 tests
+  pnpm lint:locale ✓
+  pnpm build    ✓
+
+Manual verification deferred to Sang's interactive run:
+  Note: agora bracket is INTERACTIVE (uses @clack/prompts). Cannot be
+  exercised via execSync output capture — requires real TTY. Sang can
+  run `agora new <name> && agora bracket "I want to..."` in a real
+  terminal to test end-to-end. Tests cover Husserl logic with mocks.
+
+Lessons / observations:
+- DefendedFrame Zod schema prevents in-process bugs from corrupting
+  saved frames — same pattern as state.json writer.
+- HusserlUi injection makes Husserl testable WITHOUT mocking
+  @clack/prompts — clean separation between domain logic + presentation.
+- The "single LLM call constructs alternatives + local dialogue"
+  simplification feels right: cheaper, deterministic (per-call cache
+  works), and the user-facing dialogue stays under their control.
+  Multi-turn LLM dialogue can be added if users want LLM as facilitator
+  rather than scripter.
+- Inline HUSSERL_SYSTEM is a known SPEC drift from prompt library — but
+  the prompt is short (~600 chars) and the contract is clear. When
+  scripts/gen-prompts.ts lands, this becomes a one-line refactor.
+- Conditional spread `...(rawExperience.trim().length > 0 ? { raw_experience: rawExperience } : {})`
+  pattern repeating again (after errors/types.ts, render.ts envelope,
+  new.ts envelope). Lock-in pattern for exactOptionalPropertyTypes.
+
+Outstanding (intentional defer):
+  - prompt-library generator (Stage 5-A.4 implementation): replaces
+    inline HUSSERL_SYSTEM with renderPrompt() lookup
+  - F-Husserl-2: over-bracketing prevention (only one Phase −1 per
+    session) — needs state.json to track bracket_done flag
+  - F-Husserl-3: domain-specific brackets — currently always
+    Software/Form/Audience; non-software domains get same brackets
+  - Multi-turn LLM facilitator pattern (per runbook) — if simpler
+    pattern's UX feels limited
+  - prior_frame consistency check (re-bracketing detection)
+  - Husserl invocation: "auto" branch (greenfield default-on from
+    `agora new`) — currently only "explicit_bracket" via this command
+  - Surprising findings follow-up question
+  - Locale parity tests for husserl prompt
+  - Integration test for `agora bracket` (needs interactive TTY mock)
+
+Stage 6 status: 6 slices done. Working commands:
+  agora --version (6-A.1)
+  agora doctor   (6-A.2)
+  agora ping     (6-A.3)
+  agora status   (6-A.4)
+  agora new      (6-A.5)
+  agora bracket  (6-A.6)  ← NEW
+
+First philosopher implementation alive. Alignment loop now reaches
+Phase −1 end-to-end (Husserl bracketing user assumptions before any
+specification work begins). 0.9^N alignment thesis — first concrete
+step toward closing the gap before Ralph iterations.
+
+Next task: Stage 6-A.7 — likely candidates:
+  (a) `agora resume` — orchestrator that picks up state and routes to
+      next phase (Phase 1 intake / Phase 2 rounds). Foundational for
+      multi-step alignment loop UX.
+  (b) Phase 1 open intake (`agora intake` OR fold into `resume`):
+      collect raw_intake, save to .agora/intake.json
+  (c) Aristotle Phase 2 telos round (next philosopher; needs Phase 1
+      intake first to feed cause-statements)
+  (d) prompt-library generator (Stage 5-A.4 impl) — refactor
+      Husserl prompt out of inline; sets pattern for next philosophers
+  (e) `src/config/` + TOML+Zod
+  (f) Remaining 14 probes
