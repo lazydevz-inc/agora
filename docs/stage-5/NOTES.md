@@ -165,5 +165,95 @@ CLAUDE.md L256-274 updated:
     `src/<feature>/` mapping
   - ADR-0006 left as-is (immutable historical record)
 
-Next task: Stage 5-A.2 — Per-philosopher runbook template (canonical
-structure for all 5 runbooks before producing them in batch at 5-A.3).
+### Stage 5-A.2 — DONE (2026-05-03)
+
+Per-philosopher runbook template (DTD) specified. Five decisions
+accepted (all recommended).
+
+- **R1-A**: 12-section DTD enforced for all 5 runbooks: When-called →
+  Input → Method (concept/operationalize/failure-mode) → Prompt →
+  Output → Quality bar → Forbidden → Test contract → File map →
+  Boundaries → Examples (optional) → Revision history. Front matter +
+  fixed order. R1-B (6-section short) rejected (drops quality/examples/
+  revision); R1-C (free form) rejected (comparability loss across 5).
+- **R2-A**: Runbook section 4 holds canonical prompt text. Stage 5-A.4's
+  prompt-library.md is **indexed catalog only**, derived from runbooks
+  (manual library edits forbidden — generator script in Stage 6). Key
+  format: `<philosopher_name>:<prompt_id>` (e.g. `aquinas:respondeo`).
+  R2-B (library canonical) rejected (philosopher-centric reading flow lost);
+  R2-C (duplicate) rejected (drift).
+- **R3-A**: Section 8 enumerates 4 mandatory test categories: schema
+  conformance / quality-bar threshold / negative tests (forbidden behaviors
+  fire) / locale parity (en/ko). Plus integration tests participated in.
+  R3-B (delegate to test file) rejected (runbook loses verification intent);
+  R3-C (Given/When/Then BDD) rejected (heavy for schema+threshold checks).
+- **R4-A**: Section 11 (Examples / Anti-examples) **optional but
+  recommended**. INCLUDE when failure mode is subtle (Aquinas, Husserl)
+  or output is multi-element with non-obvious composition (Plato Dihairesis)
+  or addresses an AI pattern that looks fine but isn't (Socrates leading
+  questions). OMIT when method is immediately graspable from operationalization
+  (Aristotle Four Causes telos extraction). R4-B (mandatory) rejected
+  (contrived examples for self-evident); R4-C (forbidden) rejected
+  (subtle methods need them).
+- **R5-A**: `Revision: N` integer in front matter + section 12 changelog
+  table (Rev/Date/Change/By). Bump REQUIRED on prompt meaningful change /
+  output contract / quality bar / forbidden list / when-called trigger
+  change. NOT required for typo/grammar/format/cross-ref/example/file-map
+  changes. Stage 6 implementation files cite `// runbook: <name>@N`;
+  CI lint warns on revision bump. R5-B (git history only) rejected
+  (intent vs typo indistinguishable); R5-C (semver) rejected
+  (5 × 3-tier overload).
+
+Canonical 12 sections (in order):
+  Front matter: Module / Phase / Method one-line / Inherited from /
+                Status / Revision
+  1. When this is called           (trigger + pre-conditions + skip)
+  2. Input contract                 (TypeScript interface)
+  3. Method                         (3.1 Concept / 3.2 Operationalization
+                                     / 3.3 Failure mode addressed)
+  4. Prompt                         (canonical text per prompt_id)
+  5. Output contract                (TS interface + worked example)
+  6. Quality bar                    (quantitative + qualitative)
+  7. Forbidden in this runbook      (philosopher-specific F-rules)
+  8. Test contract                  (4 categories + integration tests)
+  9. File map                       (paths table)
+  10. Boundaries                    (rejection-by-name list)
+  11. Examples / Anti-examples      (optional, recommended for subtle)
+  12. Revision history              (Rev/Date/Change/By table)
+
+Why runbook-canonical, library-indexed (R2-A): runbook reading flow is
+philosopher-centric — prompt belongs to the philosopher, not a flat
+catalog. Library serves implementation lookup + CI fingerprint check.
+Single source of truth — edits in runbook, library auto-regen.
+
+Why optional examples (R4-A): aligns with Stage 1 user feedback
+("examples 필요한 상황이나 유저가 원하는 경우는 있으면 좋겠지만, 대부분
+유저는 어떤 느낌을 원하는지는 있지만..."). Same principle for runbooks:
+examples that don't earn their place become noise. Author judgment per
+runbook.
+
+Why integer revision, not semver (R5-A): the question dependent code
+asks is "did this change enough that I must reverify?" — integer maps
+directly. Semver would force major/minor/patch decisions per runbook
+that don't carry distinct meaning in this domain.
+
+Boundaries enforced (12 rejections by name).
+
+Failure modes guarded:
+  - Reading-experience drift across 5 runbooks → fixed 12-section DTD
+  - Prompt drift runbook ↔ library             → runbook canonical, library auto-derived
+  - Verification gaps in unit tests             → 4 mandatory categories
+  - Subtle method becomes black box             → examples included when warranted
+  - Untracked method changes                    → revision bump rules
+  - Stale impl against revised runbook          → // runbook: <name>@N + CI lint
+
+Full SPEC committed to `docs/architecture/runbook-template.md` with 6
+[SPEC] sections + canonical template.
+
+Companion `docs/philosophers/runbooks/_template.md` (leading underscore
+= not a runbook itself) committed for Stage 5-A.3 copy-paste.
+
+Next task: Stage 5-A.3 — 5 philosopher runbooks (batch instantiation of
+template). Husserl / Socrates / Aristotle / Plato / Aquinas — each at
+`docs/philosophers/runbooks/<name>.md`. Possibly multi-round given
+domain depth (Mode A territory — Sang's expertise drives content).
