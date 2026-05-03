@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["src/**", "tests/**"]
+    "includes": ["src/**", "tests/**", "!src/prompts/_generated.ts"]
   },
   "formatter": {
     "enabled": true,

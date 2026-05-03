@@ -38,9 +38,11 @@
     "lint": "biome check src tests scripts",
     "lint:fix": "biome check --write src tests scripts",
     "lint:locale": "tsx scripts/lint-locale.ts",
+    "lint:prompts": "tsx scripts/gen-prompts.ts --check",
+    "gen:prompts": "tsx scripts/gen-prompts.ts",
     "format": "biome format --write src tests scripts",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm lint && pnpm typecheck && pnpm lint:locale && pnpm test && pnpm build"
+    "verify": "pnpm lint && pnpm typecheck && pnpm lint:locale && pnpm lint:prompts && pnpm test && pnpm build"
   },
   "dependencies": {
     "@clack/prompts": "^0.11.0",

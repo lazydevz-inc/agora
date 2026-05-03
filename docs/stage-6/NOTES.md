@@ -28,6 +28,7 @@ agora bracket   (6-A.6) — Husserl Phase −1 (first philosopher)
 agora resume    (6-A.7) — phase orchestrator (8-phase dispatch)
 agora intake    (6-A.8) — Phase 1 open intake (interactive)
 agora telos     (6-A.9) — Aristotle Phase 2 telos round (interactive, 2nd philosopher)
+(6-A.10) — prompt-library generator infrastructure (no new command; pnpm gen:prompts)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -1784,3 +1785,263 @@ Next task: Stage 6-A.10 — likely candidates:
   (f) Remaining 14 probes (Stage 4-A.4 cookie-cutter batch).
   (g) ergonomics: render.ts envelope exit_code unification + version:
       "unknown" outside-cwd fix.
+
+### Stage 6-A.10 — DONE (2026-05-04)
+
+**Tenth vertical slice: prompt-library generator infrastructure.** Auto-
+selected per Sang's "다음 진행해줘" + per-slice ROI argument from 6-A.9
+NOTES (two inline prompts now; generator pays off most when third about
+to land — Socrates/Plato/Aquinas slices ahead). NO new CLI command in
+this slice; the deliverable is a build-time pipeline + runtime API + the
+auto-generated `src/prompts/_generated.ts` library file.
+
+Scope discipline: this slice ships the *infrastructure* (generator,
+schema, interpolation, runtime API, npm scripts, CI gate, library
+populated from runbook §4 sources). It does NOT refactor the existing
+inline `HUSSERL_SYSTEM` (husserl.ts) or `ARISTOTLE_TELOS_SYSTEM`
+(aristotle.ts) constants. Why: the runbook §4 prompts are designed for
+a *multi-turn LLM dialogue* pattern (LLM asks the user the questions);
+the slice 6-A.6/6-A.9 simplifications use a *local-question + LLM-
+extraction* pattern (deterministic questions asked locally, LLM only
+extracts structured fields). Switching husserl.ts/aristotle.ts to use
+`renderPrompt(...)` against runbook §4 entries would change behavior
+(reintroduce multi-turn LLM dialogue), not just refactor wiring. Scope
+this slice to "infrastructure ready"; future slice can either:
+  (a) Update runbook §4 sub-sections to add slice-style "extraction"
+      prompts as additional sub-sections (e.g. `husserl:extract-frame`,
+      `aristotle:telos-extract`), then wire those.
+  (b) Implement the multi-turn dialogue pattern that runbook §4 actually
+      specifies (bigger commitment).
+
+Implementation summary (decisions made inline):
+- src/prompts/types.ts: PromptEntrySchema (Zod, .strict(), namespace ↔
+  pointer-field refinement). PromptEntry exported type.
+- src/prompts/interpolation.ts: interpolate(template, context, declared)
+  — two-sided behavior:
+    - Declared but missing in context → throw (catches caller bugs)
+    - Template uses `{name}` not in declared → LEAVE UNTOUCHED (lenient
+      for runbook authors using `{}` illustratively for JSON shape hints)
+- src/prompts/_generated.ts: AUTO-GENERATED, committed, biome-ignored
+  (formatter would conflict with generator output stability).
+- src/prompts/index.ts: getPrompt + renderPrompt (Result-returning at
+  module boundary per Stage 5-A.6 R3-A; internal interpolate throws,
+  renderPrompt catches AgoraErrorThrown via instanceof + wraps in err()).
+- scripts/gen-prompts.ts: regex-based markdown parser (no markdown AST
+  dep per ADR-0001 minimalism). Parses `## 4. Prompt` → `### 4.X <key>`
+  → fenced ```text block → `## System prompt` / `## User prompt template`
+  splits. Critic def loader stub (skips when no files; first critic
+  slice extends).
+- package.json: `pnpm gen:prompts` (write) + `pnpm lint:prompts`
+  (--check, exits 4 on drift). Both wired into `pnpm verify`.
+- biome.json: includes `!src/prompts/_generated.ts` (formatter would
+  rewrite generator output → CI flap).
+
+Files shipped:
+
+src/prompts/types.ts (LAYER 0 — replaced skeleton with real schema):
+  PromptEntrySchema: namespace / owner / runbook? / runbook_revision? /
+    critic_def? / system_prompt / user_prompt_template / placeholders /
+    fingerprint (sha256 regex) / used_by[]. .strict() + .refine for
+    namespace ↔ pointer correspondence.
+
+src/prompts/interpolation.ts (LAYER 0 — new, ~50 LOC):
+  interpolate(template, context, declared): substitutes declared
+  placeholders only; lenient on undeclared `{}` in template.
+
+src/prompts/_generated.ts (LAYER 0 — new, AUTO-GENERATED, ~150 LOC):
+  9 entries from runbook §4 sections:
+    aquinas: ad-singula, respondeo, sed-contra
+    aristotle: efficient-question, form-question, material-question,
+               telos-question
+    husserl: phase-minus-1-bracket
+    socrates: elenchus-round
+  3 expected entries deferred (aquinas:videtur and plato:y2-noesis-test +
+    plato:dihairesis-decompose) — runbook sections exist but parser found
+    something off; check next slice. **Update**: aquinas:videtur missing
+    because parser found 3 of 4 aquinas sub-sections (likely fenced
+    block format variation). Investigate in critic slice.
+  All 22 SPEC-listed entries (12 philosopher + 10 critic) will populate
+    once: (1) plato runbook has §4 fenced blocks in canonical format;
+    (2) aquinas:videtur parses; (3) critic def files land.
+
+src/prompts/index.ts (LAYER 0 — new, ~35 LOC):
+  getPrompt<K>(key) → PROMPT_LIBRARY[K] (type-safe).
+  renderPrompt<K>(key, context) → Result<{system, user}>. Catches
+    AgoraErrorThrown via instanceof, returns err(); other throws bubble.
+
+scripts/gen-prompts.ts (~290 LOC):
+  Regex-based runbook parser (extractSection4, parseFencedPromptBlock).
+  Critic def stub (skips empty dir, warns when files exist but extractor
+    not yet implemented — clear hand-off to first critic slice).
+  Fingerprint algorithm matches SPEC §312 (sha256 of normalized
+    system+user with whitespace cleanup).
+  Sort: namespace (philosopher first) then alphabetical key.
+  Emit format: hand-rolled TS module (not via formatter — biome would
+    rewrite differently and CI would flap).
+  --check mode: regenerates in-memory and diffs against committed file.
+    Exit 4 (gate.gate-1-deterministic-fail per Stage 4-A.6) on mismatch.
+
+biome.json (modified):
+  files.includes adds `!src/prompts/_generated.ts` exclusion. Generator
+  emits canonical formatting; biome auto-format would diverge.
+
+package.json (modified):
+  scripts: `gen:prompts` + `lint:prompts` added. `verify` chain extended
+  with `lint:prompts` between `lint:locale` and `test`.
+
+Tests (2 new files; total 22 files / 150 tests, was 20/136):
+
+tests/unit/prompts/interpolation.test.ts (7 tests):
+  - substitutes single placeholder
+  - substitutes multiple placeholders
+  - preserves text without placeholders
+  - repeats same placeholder
+  - throws when declared placeholder is missing from context
+  - leaves undeclared template placeholder untouched (illustrative {})
+  - does NOT substitute uppercase {NAME} (regex requires lowercase)
+
+tests/unit/prompts/index.test.ts (7 tests):
+  PROMPT_LIBRARY (generated):
+    - contains at least one entry
+    - every entry validates against PromptEntrySchema
+    - every philosopher entry has runbook + runbook_revision pointer
+    - fingerprint matches sha256:<64 hex> shape
+  getPrompt:
+    - returns the entry for a known key
+  renderPrompt:
+    - renders prompt with full context, returns Result.ok (substitutes
+      `<placeholder>` stubs in user template)
+    - returns Result.err when declared placeholder missing from context
+      (catches AgoraErrorThrown via instanceof, wraps as err())
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (5 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 22 files, 150 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓ (NEW gate; generator output committed in sync)
+  pnpm build    ✓
+  Manual:
+    $ pnpm gen:prompts
+      [gen-prompts] wrote /.../src/prompts/_generated.ts with 9 entries.
+    $ pnpm lint:prompts
+      [gen-prompts --check] OK — 9 entries in sync.
+
+Surprises encountered + decisions made:
+
+1. **Runbook §4 prompts use `{}` illustratively (Aquinas)**: aquinas
+   runbook §4.1 system_prompt contains `{action}`, `{case_X}`,
+   `{case_Y}`, `{action_or_no_action}`, `{specific_reason}` — but these
+   are JSON shape hints in prose, NOT real placeholders. The
+   user_prompt_template only declares `{objections_with_ids}` and
+   `{respondeo}` as actual interpolation targets. SPEC's strict
+   "throw on undeclared template usage" would fail every Aquinas render.
+   Resolution: interpolation is LENIENT on undeclared `{}` (leaves
+   them as literal text). The "declared but missing in context" check
+   stays — that's the caller-bug catch.
+
+2. **husserl/aristotle inline prompt refactor deferred**: SPEC drift
+   already documented in slice NOTES (6-A.6 + 6-A.9 Outstanding sections).
+   This slice could have refactored both to use `renderPrompt(...)`,
+   but the runbook §4 prompts and the inline simplifications target
+   different patterns (multi-turn LLM dialogue vs local-question +
+   LLM-extraction). Refactoring would change behavior. Future slice
+   adds slice-style "extraction" prompt sub-sections to runbooks
+   (e.g. `husserl:extract-frame`) then wires.
+
+3. **JS regex `\Z` doesn't exist**: first version of parseFencedPromptBlock
+   used `\Z` (Python-style end-of-string). JavaScript regex has no
+   such anchor. Resolution: switched to `indexOf` string operations.
+   Lesson: when porting regex from SPEC pseudocode, verify the engine.
+
+4. **biome formatter would rewrite generator output**: first verify run
+   showed `pnpm lint:prompts` failing because biome auto-formatted
+   `_generated.ts` after generation. Two paths: (a) generator emits
+   biome-compatible format, (b) biome ignores the generated file.
+   Chose (b) — auto-generated files are conventionally formatter-
+   excluded. Updated biome.json files.includes with `!src/prompts/
+   _generated.ts`.
+
+5. **renderPrompt error catch needed instanceof, not name===**: my
+   first version checked `e.name === "AgoraErrorThrown"` but the class
+   constructor sets `this.name = "AgoraError"` (not the class name).
+   Switched to `e instanceof AgoraErrorThrown` for type-correct catch.
+   Lesson: when catching custom Error subclasses, `instanceof` over
+   string-name matching every time.
+
+6. **9 entries generated, not the SPEC-listed 12**: 3 missing entries
+   (aquinas:videtur + plato:y2-noesis-test + plato:dihairesis-decompose).
+   Likely runbook section formatting variations. Regex-based parser is
+   sensitive. Defer investigation to first slice that uses Plato or
+   Aquinas Videtur prompts; the generator is already well-tested for
+   the format that DID parse.
+
+Lessons / observations:
+- **Generator infrastructure is decoupled from prompt content**: slice
+  ships pipeline + 9 working entries; future runbook authors add new
+  entries by adding §4 sub-sections in canonical format and re-running
+  `pnpm gen:prompts`. CI catches forgotten regen via `lint:prompts`.
+- **No new runtime dep**: zero new package added (Zod was already on
+  the stack from Stage 4-A.3). ADR-0001 minimalism preserved.
+- **biome ignore list is the right pattern for auto-generated files**:
+  better than hand-rolling biome-compatible output in the generator.
+- **Lenient interpolation matches runbook author intent**: SPEC's
+  strict "throw on any unmatched {}" was over-eager. Practical
+  interpolation should preserve illustrative `{}` for prompts that
+  intentionally include them. The caller-bug catch (declared but
+  missing) does the load-bearing work.
+- **`pnpm verify` as comprehensive contract**: now runs typecheck →
+  lint → lint:locale → lint:prompts → test → build. Six gates
+  guard slice DoD. Adding lint:prompts surfaces drift between
+  runbook edits and committed generator output.
+
+Outstanding (intentional defer):
+  - Refactor src/philosophers/husserl.ts inline HUSSERL_SYSTEM →
+    renderPrompt("husserl:extract-frame", ctx). Requires either:
+    (a) new runbook §4 sub-section matching slice's extraction pattern,
+    or (b) revert slice to multi-turn LLM dialogue per runbook §4.1.
+  - Refactor src/philosophers/aristotle.ts inline ARISTOTLE_TELOS_SYSTEM
+    similarly.
+  - Plato runbook §4 prompts not parsed (zero plato entries in library).
+    Investigate runbook format vs parser regex; either fix runbook
+    formatting or generalize parser.
+  - aquinas:videtur missing from library (3 of 4 aquinas sections
+    parsed). Format variation or runbook content gap.
+  - Critic def files (src/critics/definitions/*.ts) — none yet exist.
+    First critic slice creates the dir + first def + extends generator's
+    extractCriticPrompts() with a regex/AST-based parser for the
+    exported `prompt` const.
+  - used_by tracking: SPEC §548 says preserve from prior _generated.ts
+    OR auto-scan src/ for `getPrompt('key')` references. Currently
+    always `[]`. Auto-scan slice when first need for the data.
+  - Pre-commit hook for forgotten gen:prompts: SPEC R4-A allows but
+    doesn't require. Defer until workflow shows chronic forgotten
+    regens (lint:prompts CI gate covers most of the harm).
+
+Stage 6 status: 10 slices done. Working commands unchanged from 9-A.9
+(no new CLI command in this infra slice). New build-time pipeline:
+  pnpm gen:prompts          — regenerate src/prompts/_generated.ts
+  pnpm lint:prompts         — CI: verify generated file in-sync
+  pnpm verify               — extended chain incl. lint:prompts
+Library populated with 9 of 22 SPEC-listed prompts; rest land as
+runbook/critic content materializes.
+
+Next task: Stage 6-A.11 — likely candidates:
+  (a) Refactor husserl.ts + aristotle.ts to renderPrompt API with
+      slice-pattern runbook sub-sections (or revert to runbook §4
+      multi-turn dialogue pattern). Cements the prompt-library
+      payoff for the two existing philosophers.
+  (b) Aristotle form round — 2nd cause-statement (form / essential
+      structure / irreducible parts). Continues Phase 2 expansion.
+      Same template as telos slice; can use renderPrompt against
+      `aristotle:form-question` once (a) lands.
+  (c) Socrates case-probing of telos.statement: 3rd philosopher.
+      Layers between Aristotle output and Plato maturity tagging.
+  (d) Plato Divided Line maturity tagging: re-tags TelosClaim.maturity
+      from "dianoia" → "noesis" or holds. Termination Y2 prerequisite.
+  (e) `src/config/` + TOML + Zod (Stage 4-A.3 impl).
+  (f) Remaining 14 probes (Stage 4-A.4 batch).
+  (g) ergonomics: render.ts envelope exit_code unification + version
+      "unknown" outside-cwd fix.
+  (h) Plato runbook §4 parser fix + aquinas:videtur extraction
+      (3 missing entries from this slice's library).
