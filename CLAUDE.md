@@ -230,49 +230,57 @@ ADR-0001, ADR-0005 참조.
 
 ## 프로젝트 구조
 
+> **Canonical file-tree spec**: `docs/architecture/module-graph.md`
+> (Stage 5-A.1, Accepted 2026-05-03). Stage 6+ implementation은 그 SPEC을 따른다.
+> `src/agora/*` namespace prefix는 Stage 5-A.1에서 폐기됨 — `src/<feature>/` 직접 사용.
+
 ```
 agora/
 ├── README.md                    # 비전 + 빠른 시작
 ├── CLAUDE.md                    # 👈 이 파일
-├── LICENSE                      # MIT (Q00 저작권 보존)
-├── CREDITS.md                   # Ouroboros + 5명 철학자 어트리뷰션
-├── MANIFESTO.md                 # 제품 철학 선언 (Stage 1)
-├── package.json
-├── tsconfig.json / tsconfig.build.json
-├── biome.json
-├── vitest.config.ts
+├── LICENSE / CREDITS.md / MANIFESTO.md
+├── package.json / tsconfig.json / tsconfig.build.json / biome.json / vitest.config.ts
 ├── docs/
-│   ├── north-star.md            # 3-horizon 방향 문서 (Stage 1)
+│   ├── north-star.md            # 3-horizon (Stage 1)
 │   ├── architecture/
-│   │   └── decisions/           # ADR 디렉토리 (architectural changes 영구 기록)
-│   │       ├── 0000-template.md
-│   │       ├── 0001-language-and-runtime.md
-│   │       ├── 0002-project-location.md
-│   │       ├── 0003-meta-dogfooding.md
-│   │       ├── 0004-development-stages.md
-│   │       ├── 0005-claude-integration-via-subprocess.md
-│   │       └── 0006-pre-ralph-infrastructure-gate.md
-│   ├── stage-1/
-│   │   └── notes.md             # 라이브 인터뷰 정수 (Stage 1 1차 자료)
-│   ├── philosophy/              # 5명 철학자 사상의 SW적 적용
-│   │   ├── 00-why-philosophy.md
-│   │   ├── 01-husserl-epoche.md
-│   │   ├── 02-socrates-elenchus.md
-│   │   ├── 03-aristotle-four-causes.md
-│   │   ├── 04-plato-divided-line-and-dihairesis.md
-│   │   └── 05-aquinas-disputatio.md
-│   ├── loops/                   # 두 루프 상세 (Stage 2 산출물 — 진행 중)
-│   │   ├── alignment-loop.md    # Alignment Loop (구 interview-loop.md, Stage 2-A에서 rename)
-│   │   └── ralph-loop.md        # Ralph Loop (placeholder + Gate 0 spec)
-│   └── cli/                     # CLI 표면 상세 설계 (Stage 3 — 미작성)
-├── src/
-│   └── cli/
-│       └── index.ts             # CLI 진입점 (현재 placeholder)
+│   │   ├── module-graph.md      # 👈 canonical src/ tree + dependency rules (Stage 5-A.1)
+│   │   ├── prompt-library.md    # (Stage 5-A.4 예정)
+│   │   └── decisions/           # ADR 디렉토리 (immutable historical record)
+│   │       └── 0000-template.md ~ 0008-...md
+│   ├── stage-{1..N}/CLOSED.md   # 각 stage 게이트 종료 기록 (immutable)
+│   ├── stage-{N}/NOTES.md       # active stage 진입 plan + progress log
+│   ├── philosophy/              # 5명 철학자 사상의 SW적 적용 (Stage 1)
+│   ├── philosophers/runbooks/   # 5 runbooks (Stage 5-A.3 예정)
+│   ├── loops/                   # alignment-loop + ralph-loop + handoff (Stage 2)
+│   ├── cli/                     # CLI 표면 (Stage 3)
+│   └── infra/                   # install + llm-integration + config + probes + errors-and-telemetry (Stage 4)
+├── messages/                    # 로케일 카탈로그 (Stage 6 채움)
+│   ├── en.json
+│   └── ko.json
+├── src/                         # 👇 module-graph.md SPEC 따름 (Stage 5-A.1)
+│   ├── cli/        # entry + render + flags + commands/ × 7
+│   ├── alignment/  # Alignment Loop (Stage 2-A)
+│   ├── ralph/      # Ralph Loop (Stage 2-B + ADR-0008)
+│   ├── handoff/    # Alignment → Ralph (Stage 2-C)
+│   ├── philosophers/   # husserl/socrates/aristotle/plato/aquinas (5 modules)
+│   ├── critics/    # Aquinas critic personas × 10 (Stage 2-B.3)
+│   ├── probes/     # Stage 4-A.4 (types/runner/registry/cache/markers + definitions/× 19)
+│   ├── llm/        # Stage 4-A.2 (runner/cli-runner/sdk-runner/cached-runner/cache/selection)
+│   ├── config/     # Stage 4-A.3 (schema/loader/env/explain)
+│   ├── mcp/        # Stage 4-A.5 (server/tools/host-action)
+│   ├── errors/     # Stage 4-A.6 (types/codes/build/crash/handlers)
+│   ├── i18n/       # Stage 3-A.1 + 4-A.6 (index/catalog)
+│   ├── state/      # .agora/state.json (reader/writer/bypass)
+│   ├── result/     # Result<T,E> (Stage 5-A.6)
+│   └── shared/     # cross-cutting utils (path/io/fingerprint)
 └── tests/
-    └── smoke.test.ts            # Stage 0 smoke
+    ├── unit/        # mirrors src/ structure 1:1
+    ├── integration/ # cross-module flows
+    └── fixtures/    # synthetic projects + canonical seeds + llm-responses
 ```
 
-`src/agora/`는 Stage 6+ 구현 시 채워짐. 현재는 빈 골격 없음 (TS는 디렉토리 강제 X).
+상세 dependency rules (LAYER 0~3, forbidden imports, same-layer cross-feature 규약)는
+`docs/architecture/module-graph.md` 참조. 그 SPEC이 file paths의 single source of truth.
 
 ---
 
