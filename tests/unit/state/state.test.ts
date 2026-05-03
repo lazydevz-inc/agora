@@ -36,7 +36,7 @@ describe("state reader", () => {
     if (result.ok) {
       expect(result.value).not.toBeNull();
       expect(result.value?.version).toBe(1);
-      expect(result.value?.current_phase).toBe("no_session");
+      expect(result.value?.current_phase).toBe("in_alignment");
     }
   });
 
@@ -76,7 +76,7 @@ describe("state writer", () => {
     const text = await readFile(join(cwd, ".agora", "state.json"), "utf8");
     const parsed = JSON.parse(text) as { version: number; current_phase: string };
     expect(parsed.version).toBe(1);
-    expect(parsed.current_phase).toBe("no_session");
+    expect(parsed.current_phase).toBe("in_alignment");
   });
 
   test("roundtrip: write → read returns same state", async () => {

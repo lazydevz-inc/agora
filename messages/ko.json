@@ -89,6 +89,23 @@
       "ask_experience": "무엇을 만들지 묻기 전에 — 도구를 찾게 만든 EXPERIENCE를 설명해주세요.",
       "constructing": "Claude로 대안을 구성하는 중 (LLM 호출 1회)...",
       "ask_surprising": "그동안 모르고 있던 가정을 깨달은 순간이 있었나요?"
+    },
+    "resume": {
+      "no_session": "이어서 진행할 작업이 없습니다.",
+      "suggest_new": "현재 디렉토리에 프로젝트 상태가 없습니다. `agora new <name>`으로 시작하거나, `agora doctor`로 환경을 점검하세요.",
+      "next_start_new_desc": "새 프로젝트 워크플로 시작",
+      "next_doctor_desc": "환경 준비 상태 확인",
+      "resuming_alignment": "Alignment 세션 이어가기 [단계: {phase}]",
+      "alignment_progress": "  마지막 활동: alignment 단계 {phase}, 라운드 {round}",
+      "next_phase_minus_1": "다음: `agora bracket` — Husserl Phase −1 실행 (greenfield 기본).",
+      "next_phase_1_pending": "      `agora intake` — Phase 1 open intake (다음 슬라이스 예정).",
+      "next_bracket_desc": "Intake 전에 Husserl Phase −1 (Epoché) 실행",
+      "next_intake_desc": "Phase 1 open intake — 아직 미구현",
+      "bracket_done": "Husserl Phase −1은 이미 완료되었습니다 (alignment.phase = -1).",
+      "alignment_runtime_pending": "Phase {phase} 런타임은 이 빌드에서 아직 구현되지 않았습니다.",
+      "next_alignment_runtime_desc": "이 단계의 alignment 런타임은 향후 슬라이스에서 추가 예정",
+      "deferred_phase": "Phase `{phase}` 인식됨 — 하위 구현 대기 중. 후속: {follow_up}.",
+      "deferred_follow_up_desc": "`{phase}` 단계의 하위 명령은 아직 구현되지 않음"
     }
   }
 }

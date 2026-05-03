@@ -7,11 +7,19 @@
 
 import { z } from "zod";
 
+// 8-phase enum per docs/cli/spec.md L2582-2584 (Stage 3-B.5 R3-A
+// corrupt-state error message).  current_phase is the single dispatch key
+// for `agora resume`.  paused/complete/ready_for_ralph variants are real
+// phases (not derived sub-fields) so corrupt detection can name them
+// verbatim in the error envelope.
 export const PhaseSchema = z.enum([
-  "no_session",
   "in_alignment",
+  "in_alignment_paused",
+  "alignment_complete",
   "in_handoff",
+  "ready_for_ralph",
   "in_ralph",
+  "in_ralph_paused",
   "ralph_complete",
 ]);
 export type Phase = z.infer<typeof PhaseSchema>;
@@ -48,7 +56,7 @@ export function newState(now: Date = new Date()): State {
   const ts = now.toISOString();
   return {
     version: 1,
-    current_phase: "no_session",
+    current_phase: "in_alignment",
     created_at: ts,
     updated_at: ts,
   };

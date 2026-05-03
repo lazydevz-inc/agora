@@ -15,6 +15,7 @@ import { runBracketCommand } from "./commands/bracket.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
+import { runResumeCommand } from "./commands/resume.js";
 import { runStatusCommand } from "./commands/status.js";
 import { runVersionCommand } from "./commands/version.js";
 import { type GlobalFlags, parseArgv } from "./flags.js";
@@ -64,6 +65,10 @@ async function main(): Promise<void> {
   }
   if (command === "bracket") {
     await dispatchBracket(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "resume") {
+    await dispatchResume(flags, mode, useColor);
     return;
   }
 
@@ -171,6 +176,24 @@ async function dispatchBracket(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchResume(
+  flags: GlobalFlags,
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runResumeCommand(flags);
+  if (!result.ok) {
+    // state.corrupt → exit 20 per Stage 3-B.5 R3-A; other categories
+    // fall through emitAgoraError's category mapping.
+    emitAgoraError(result.error, mode, useColor);
+    process.exit(result.error.category === "state" ? 20 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -184,6 +207,7 @@ function printHelp(): void {
   console.log("  agora status      Show current session phase + progress");
   console.log("  agora new [name]  Start a new alignment session (Phase 0 auto-scan)");
   console.log("  agora bracket     Run Husserl Phase −1 Epoché (interactive)");
+  console.log("  agora resume      Resume work from current state.json phase");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

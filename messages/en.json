@@ -89,6 +89,23 @@
       "ask_experience": "Before what to build — describe the EXPERIENCE that prompted this.",
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
+    },
+    "resume": {
+      "no_session": "Nothing to resume.",
+      "suggest_new": "No project state found in this folder. Run `agora new <name>` to start, or `agora doctor` to verify the environment.",
+      "next_start_new_desc": "Start a new project workflow",
+      "next_doctor_desc": "Verify environment is ready",
+      "resuming_alignment": "Resuming alignment session [phase: {phase}]",
+      "alignment_progress": "  Last activity: alignment phase {phase}, round {round}",
+      "next_phase_minus_1": "Next: `agora bracket` — run Husserl Phase −1 (greenfield default).",
+      "next_phase_1_pending": "      `agora intake` — Phase 1 open intake (TBD next slice).",
+      "next_bracket_desc": "Run Husserl Phase −1 (Epoché) before intake",
+      "next_intake_desc": "Phase 1 open intake — not yet implemented",
+      "bracket_done": "Husserl Phase −1 already complete (alignment.phase = -1).",
+      "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
+      "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",
+      "deferred_phase": "Phase `{phase}` recognized — downstream implementation pending. Follow-up: {follow_up}.",
+      "deferred_follow_up_desc": "Downstream command for `{phase}` not yet implemented"
     }
   }
 }

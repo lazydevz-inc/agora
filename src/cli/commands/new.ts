@@ -36,7 +36,6 @@ export async function runNewCommand(
   // Materialize .agora/ + state.json + scan.json.
   await ensureAgoraDir(cwd);
   const initialState = newState();
-  initialState.current_phase = "in_alignment";
   initialState.alignment = { phase: 0, round: 0 };
   const stateResult = await saveState(cwd, initialState);
   if (!stateResult.ok) return stateResult;

@@ -25,6 +25,7 @@ agora ping      (6-A.3) — first LLM call (ClaudeRunner)
 agora status    (6-A.4) — state foundation
 agora new       (6-A.5) — Phase 0 auto-scan
 agora bracket   (6-A.6) — Husserl Phase −1 (first philosopher)
+agora resume    (6-A.7) — phase orchestrator (8-phase dispatch)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -970,3 +971,260 @@ Next task: Stage 6-A.7 — likely candidates:
       Husserl prompt out of inline; sets pattern for next philosophers
   (e) `src/config/` + TOML+Zod
   (f) Remaining 14 probes
+
+### Stage 6-A.7 — DONE (2026-05-04)
+
+**Seventh vertical slice: `agora resume` — phase orchestrator + 8-phase
+enum extension.** Auto-selected per Sang's "좋아. 진행해줘" — option (a)
+from prior NOTES, the strategic priority per SESSION_HANDOFF §8 (resume →
+intake → Aristotle path). Bridges per-command slices (6-A.1..6-A.6) to
+multi-step alignment loop UX: resume is the single-entry dispatcher every
+follow-up phase will route through.
+
+Schema deviation vs prior slices: the 5-phase PhaseSchema (no_session +
+4 core phases) became the SPEC's 8-phase enum (in_alignment /
+in_alignment_paused / alignment_complete / in_handoff / ready_for_ralph /
+in_ralph / in_ralph_paused / ralph_complete). The vestigial `no_session`
+default (used only as newState() placeholder, immediately overwritten by
+agora new) was dropped — newState() now defaults to "in_alignment".
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: 8-phase enum 한 번에 확장 (SPEC L2582-2584). corrupt detection이
+  SPEC와 정렬됨; future slices는 enum 마이그레이션 없이 핸들러만 채움
+  (additive). no_session vestigial default 제거.
+- R2-A: in_alignment 핸들러는 state.alignment.phase (-1/0/1/2) 별로 분기.
+  phase 0 → bracket + intake suggestions. phase -1 → bracket_done line +
+  intake only. phase 1/2 → "runtime not yet implemented" guidance.
+  reachable subset만 풍부, 나머지는 informative defer.
+- R3-A: 미구현 phase (alignment_complete / in_handoff / ready_for_ralph /
+  in_ralph / in_ralph_paused / ralph_complete)은 명시적 "deferred phase"
+  envelope. exit 0, result.ok=true, data.deferred_reason 포함. F-Aquinas-4
+  silent override 안 위반.
+- R4-A: corrupt state는 기존 state.corrupt 코드 재사용. Zod ZodError
+  detail이 expected_one_of 8-enum 자동 포함. 새 ERROR_CATALOG entry 안 만듦.
+- R5-A: --auto-progress / --ralph-complete-action 두 플래그 모두 defer.
+  적용될 phase가 모두 R3에서 deferred dispatch이므로 dead surface area.
+  handoff/ralph slice에서 함께 추가 예정.
+
+Files shipped:
+
+src/state/types.ts (LAYER 1 — modified):
+  PhaseSchema z.enum 5 → 8 values. 추가: in_alignment_paused,
+  alignment_complete, ready_for_ralph, in_ralph_paused. 제거: no_session.
+  newState() default current_phase: "no_session" → "in_alignment".
+
+src/cli/commands/new.ts (modified):
+  initialState.current_phase = "in_alignment" override 라인 제거 (newState
+  default와 중복).
+
+src/cli/commands/resume.ts (LAYER 3 — new, ~220 LOC):
+  runResumeCommand(flags) → Result<CommandEnvelope>:
+    1. !hasAgoraDir → no_session outcome (exit 1)
+    2. loadState() → null이면 no_session, err면 state.corrupt bubble (exit 20)
+    3. state.current_phase switch (8-arm exhaustive):
+         in_alignment | in_alignment_paused → buildAlignmentOutcome
+         alignment_complete | in_handoff → deferred (handoff_not_implemented)
+         ready_for_ralph | in_ralph | in_ralph_paused →
+           deferred (ralph_not_implemented)
+         ralph_complete → deferred (ralph_complete_dialog_not_implemented)
+  buildAlignmentOutcome reads state.alignment?.phase ?? 0:
+    ap === 0 → bracket + intake_pending suggestions
+    ap === -1 → bracket_done line + intake_pending only
+    ap >= 1 → alignment_runtime_pending message + alignment_runtime_pending suggestion
+  buildDeferredOutcome(phase, reason, follow_up): single envelope with
+    deferred_reason in data + deferred_follow_up suggestion in next.
+  TUI emit + JSON envelope; no LLM calls (pure dispatch).
+
+src/cli/index.ts (modified):
+  resume command dispatch + dispatchResume helper. exit 20 routing on
+  state.* errors (`result.error.category === "state" ? 20 : 1`).
+  printHelp() updated with "agora resume" line.
+
+messages/en.json + ko.json:
+  +14 keys × 2 locales = 28 strings under cli.resume.*:
+    no_session / suggest_new
+    next_start_new_desc / next_doctor_desc
+    resuming_alignment / alignment_progress
+    next_phase_minus_1 / next_phase_1_pending
+    next_bracket_desc / next_intake_desc
+    bracket_done / alignment_runtime_pending / next_alignment_runtime_desc
+    deferred_phase / deferred_follow_up_desc
+
+tests/unit/state/state.test.ts (modified):
+  Two no_session assertions → in_alignment (newState default change).
+
+Tests (1 new file; total 17 files / 107 tests, was 16/96):
+
+tests/integration/cli-resume.test.ts (11 tests):
+  no session:
+    - TUI prints 'Nothing to resume' + suggests agora new (exit 1)
+    - JSON envelope: handler=no_session + 2 next suggestions, exit_code=1
+  in_alignment handler:
+    - phase 0 → bracket + intake_pending suggestions (exit 0)
+    - phase -1 → bracket_done line + intake_pending only
+    - phase 2 → "Phase 2 runtime not yet implemented"
+    - in_alignment_paused dispatches to same handler
+  deferred phases (R3-A):
+    - alignment_complete → deferred_reason: handoff_not_implemented
+    - ralph_complete → deferred_reason: ralph_complete_dialog_not_implemented
+    - ready_for_ralph → deferred_reason: ralph_not_implemented
+  corrupt state:
+    - invalid phase enum → state.corrupt error envelope, exit 20
+  locale:
+    - ko locale uses Korean no-session message
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (2 warnings — pre-existing cognitive complexity)
+  pnpm test     ✓ 17 files, 107 tests
+  pnpm lint:locale ✓ (3 checks: parity / ERROR_CATALOG xref / placeholder)
+  pnpm build    ✓
+  Manual:
+    $ # /tmp/empty
+    $ node dist/cli/index.js resume
+      Nothing to resume.
+      No project state found in this folder. Run `agora new <name>`...
+      exit=1
+    $ # state.json with in_alignment + alignment.phase=0
+    $ node dist/cli/index.js resume
+      Resuming alignment session [phase: in_alignment]
+        Last activity: alignment phase 0, round 0
+      Next: `agora bracket` — run Husserl Phase −1 (greenfield default).
+            `agora intake` — Phase 1 open intake (TBD next slice).
+      exit=0
+    $ # state.json with in_alignment + alignment.phase=-1
+    $ node dist/cli/index.js resume
+      Resuming alignment session [phase: in_alignment]
+        Last activity: alignment phase -1, round 0
+      Husserl Phase −1 already complete (alignment.phase = -1).
+            `agora intake` — Phase 1 open intake (TBD next slice).
+      exit=0
+    $ # state.json with alignment_complete
+    $ node dist/cli/index.js resume --json | jq '.result.data'
+      { "handler": "deferred", "previous_phase": "alignment_complete",
+        "new_phase": "alignment_complete",
+        "deferred_reason": "handoff_not_implemented" }
+      exit=0
+    $ # state.json with current_phase: "bogus"
+    $ node dist/cli/index.js resume --json | jq '.errors[0].code, .exit_code'
+      "state.corrupt"
+      20
+      exit=20
+    $ AGORA_LOCALE=ko node dist/cli/index.js resume
+      이어서 진행할 작업이 없습니다.
+      현재 디렉토리에 프로젝트 상태가 없습니다. ...
+      exit=1
+
+Surprises encountered + decisions made:
+
+1. **PhaseSchema vestigial `no_session`**: existing 5-phase enum included
+   `no_session` as newState() default, immediately overwritten by `agora
+   new`. Production code never actually held this value — it was a dead
+   placeholder. SPEC's 8-phase enum doesn't include it. Resolution: drop
+   `no_session`, default newState() to "in_alignment". Updated
+   `src/cli/commands/new.ts` (removed redundant override line) +
+   `tests/unit/state/state.test.ts` (two assertions). Net negative LOC
+   for the schema change despite enum widening.
+
+2. **two-brief Phase B disagreement**: Explore agents returned conflicting
+   phase models — CLI brief said 8 phases (correct per SPEC L2582-2584);
+   alignment-loop brief said 5 monolithic phases. Resolution: cross-checked
+   the actual SPEC inline. cli/spec.md L2421-2443 dispatch table is
+   authoritative; alignment-loop.md describes the philosophical lifecycle
+   (5 core states) but the dispatch enum is broader (paused / complete /
+   ready_for_ralph intermediate states). Lesson: when two Phase B briefs
+   conflict, read the SPEC line range directly before committing schema.
+
+3. **`version: "unknown"` in JSON envelope when running outside repo cwd**:
+   pre-existing pattern in status.ts / new.ts uses `require("node:fs") +
+   new URL(..., import.meta.url)` which resolves to "unknown" in built
+   dist + foreign cwd. resume.ts copied the same pattern for consistency.
+   Not a regression — same behavior in status/new. version.ts uses the
+   correct pattern (fileURLToPath + readFileSync + try-fallback). Future
+   ergonomics slice should unify all three on version.ts's pattern.
+
+4. **`emitTui` deferred-phase line printed without bold**: only the
+   no_session first-line is bolded (matches SPEC's "Nothing to resume"
+   prominence). Deferred phase lines are informative-not-actionable, so
+   they render as plain text. Matches Stage 3-A.1 icon/color guidance:
+   bold for headers, plain for body.
+
+5. **`--auto-progress` / `--ralph-complete-action` deferred (R5-A)**:
+   the SPEC L2640-2654 specifies these flags for non-interactive mode
+   on the 4 actionable phases (alignment_complete / in_handoff /
+   ready_for_ralph / ralph_complete). Since all 4 are themselves deferred
+   in this slice (R3-A), adding the flags would be dead surface area.
+   They land naturally in the handoff slice (when alignment_complete →
+   in_handoff transition becomes real) and the ralph slice (when
+   ready_for_ralph → in_ralph + ralph_complete dialog become real).
+
+Lessons / observations:
+- **8-arm exhaustive switch + buildDeferredOutcome helper** keeps the
+  dispatcher one-screen-tall despite covering all 8 phases. TS exhaustive
+  check catches future enum additions (would force a new case arm).
+- **deferred envelope is the F-Aquinas-4 mitigation**: silent override
+  is "I had no answer so I picked one"; informative defer is "I have
+  an answer (do X next) and I'm telling you what's not yet wired".
+  exit_code stays 0 because the dispatch succeeded.
+- **Same DispatchOutcome type for all 3 handlers** (no_session /
+  in_alignment / deferred) means buildEnvelope is one function. Spreading
+  optional fields with `...(opt !== undefined ? { opt } : {})` continues
+  to be the canonical exactOptionalPropertyTypes pattern (5th occurrence
+  now: errors/types, render envelope, new.ts, husserl.ts, resume.ts).
+- **`ap === 0`** branch contains both bracket + intake_pending — the
+  most common "just ran agora new" case. greenfield/brownfield divergence
+  isn't read at this slice (agora new already encoded the right next-action
+  in scan.json's downstream impact); resume just dispatches.
+
+Outstanding (intentional defer):
+  - `--auto-progress=yes/no` flag (Stage 3-B.5 R1-A non-TTY): lands when
+    actionable phases (alignment_complete / in_handoff / ready_for_ralph)
+    have real handlers (handoff slice + ralph slice).
+  - `--ralph-complete-action=re_align/accept_deferred/view_log` flag:
+    lands with ralph_complete dialog implementation (Stage 2-C.2 R4-A).
+  - `agora intake` command (Phase 1 open intake): the next obvious slice
+    — currently resume points users to "agora intake (TBD)" string.
+  - state.last_answered_field tracking (Stage 3-B.5 mockup): waits on
+    alignment loop runtime that actually answers fields (Phase 2 rounds).
+  - Plato Dihairesis decomposition + ralph_state.json (Stage 2-C):
+    deferred_reason "handoff_not_implemented" lifts when this lands.
+  - SPEC mockup convergence: SPEC L2476-2506 shows full "Round 5 / ~6"
+    UI for in_alignment resume. Current implementation shows minimal
+    "Last activity: alignment phase X, round Y". Convergence happens
+    when Phase 2 runtime exists to populate the mockup fields.
+  - `version: "unknown"` in resume/status/new JSON envelopes when running
+    outside repo cwd: unify on version.ts's `fileURLToPath +
+    readFileSync + try-fallback` pattern in a future ergonomics slice.
+
+Stage 6 status: 7 slices done. Working commands:
+  agora --version (6-A.1)
+  agora doctor   (6-A.2)
+  agora ping     (6-A.3)
+  agora status   (6-A.4)
+  agora new      (6-A.5)
+  agora bracket  (6-A.6)
+  agora resume   (6-A.7)  ← NEW
+
+`agora resume` is the single-entry dispatcher every multi-step alignment/
+handoff/ralph flow will route through. PhaseSchema now matches SPEC's
+8-value enum — corrupt detection lists the canonical phase set. Six
+deferred-phase envelopes give downstream slices a stable insertion point:
+when Stage 2-C handoff lands, swapping out `buildDeferredOutcome("...",
+"handoff_not_implemented", ...)` for a real handler is a 2-line change
+per phase.
+
+Next task: Stage 6-A.8 — likely candidates:
+  (a) `agora intake` — Phase 1 open intake. Next concrete step on the
+      alignment loop path: resume's "intake_pending" suggestion becomes
+      live. Brownfield/greenfield branching (Stage 2-A.3 R1-A vs R2-A
+      prompts), 8KB cap, mechanical echo, .agora/intake.json output.
+  (b) Aristotle Phase 2 telos round — needs Phase 1 intake to feed
+      cause-statement input. Sequential dependency on (a).
+  (c) prompt-library generator (Stage 5-A.4 impl) — refactor inline
+      Husserl prompt + sets pattern for Aristotle/Socrates/Plato/Aquinas.
+      One-time investment, paid back across 4+ philosophers.
+  (d) `src/config/` + TOML + Zod (Stage 4-A.3 impl) — unblocks
+      `[probes].disabled`, custom telemetry off, locale override at
+      project level.
+  (e) Remaining 14 probes (Stage 4-A.4 cookie-cutter batch) —
+      lazydevz stack coverage (vercel/supabase/anthropic/...).
