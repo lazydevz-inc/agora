@@ -1,0 +1,66 @@
+{
+  "errors": {
+    "config": {
+      "missing_version": "Config file at {file} has no `version` field. v1 requires `version = 1`.",
+      "missing_version.fix": "Add `version = 1` at the top of {file}.",
+      "version_mismatch": "Config schema version mismatch in {file}: found {found}, expected {expected}.",
+      "version_mismatch.fix": "Run `agora doctor --explain-config` to see migration steps, or read https://github.com/lazydevz-inc/agora/blob/main/docs/infra/config.md#migrations",
+      "unknown_key": "Unknown config key `{path}` in {file} (line {line}).",
+      "threshold_inversion": "Section {section} thresholds must satisfy ok < warn < fail. Saw {values}.",
+      "disabled_forced_overlap": "[probes].disabled and [probes].forced must be disjoint. Overlap: {overlap_ids}.",
+      "invalid_toml": "Failed to parse TOML in {file} (line {line}, column {column}): {parser_message}",
+      "path_not_found": "Config path {file} does not exist."
+    },
+    "llm": {
+      "auth_failed": "Claude authentication failed: {detail}",
+      "auth_failed.fix": "Run `claude login` to authenticate, or set ANTHROPIC_API_KEY for SDK fallback.",
+      "rate_limited": "Rate limited by Claude API: {detail}",
+      "timeout": "Claude call exceeded {timeout_ms}ms timeout.",
+      "invalid_response": "Claude returned invalid response: {detail}",
+      "no_runner_available": "Neither claude CLI nor ANTHROPIC_API_KEY is available.",
+      "no_runner_available.fix": "Install Claude Code (https://claude.com/claude-code) OR set ANTHROPIC_API_KEY.",
+      "internal_error": "Internal error in LLM runner: {detail}"
+    },
+    "probe": {
+      "timeout": "Probe `{probe_id}` exceeded 5000ms timeout.",
+      "internal_error": "Probe `{probe_id}` failed unexpectedly: {detail}",
+      "unknown_id": "Unknown probe id `{probe_id}` referenced in [probes].disabled or [probes].forced."
+    },
+    "gate": {
+      "gate_1_fail": "Gate 1 (Deterministic) failed: {detail}",
+      "gate_2_fail": "Gate 2 (Functional QA) failed: {detail}",
+      "gate_3_fail": "Gate 3 (UI/UX Quality) failed: {detail}",
+      "gate_4_fail": "Gate 4 (Technical Quality) failed: {detail}",
+      "gate_5_fail": "Gate 5 (Alignment Check) failed: drift score {drift_score} exceeds threshold {threshold}."
+    },
+    "user": {
+      "forbidden_flag_combo": "Forbidden flag combination: {detail}",
+      "confirmation_required": "User confirmation required: {detail}",
+      "aborted": "Aborted by user."
+    },
+    "state": {
+      "corrupt": "State file at {file} is corrupt: {detail}",
+      "unreadable": "Cannot read state file at {file}: {detail}"
+    },
+    "io": {
+      "permission_denied": "Permission denied accessing {path}.",
+      "disk_full": "Disk full when writing to {path}."
+    },
+    "internal": {
+      "uncaught": "Internal error: {detail}. This is a bug in Agora.",
+      "uncaught.fix": "Crash report written to {crash_file}. Please file at github.com/lazydevz-inc/agora/issues with the file attached.",
+      "invariant_violation": "Internal invariant violation: {detail}. This is a bug in Agora."
+    }
+  },
+  "cli": {
+    "global": {
+      "version_format": "agora {version}",
+      "locale_resolved": "Locale: {locale}",
+      "help_intro": "Agora — agent harness where ancient philosophers gather to refine intent into reality.",
+      "help_usage": "Usage: agora [command] [options]"
+    },
+    "version": {
+      "json_warning_no_runtime_check": "Runtime probes (claude_cli_present, pnpm_version) skipped — full env scan available via `agora doctor`."
+    }
+  }
+}

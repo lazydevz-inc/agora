@@ -539,25 +539,36 @@ inventory:
 ### Usage convention
 
 ```typescript
-// ✅ correct — alias path
-import { ConfigSchema } from "@/config/schema";
-import { buildAgoraError } from "@/errors/build";
-import type { Probe } from "@/probes/types";
+// ✅ Source files (src/) — relative imports with .js extension
+//    Required because tsc + Node ESM (NodeNext) does NOT rewrite path
+//    aliases at build time. Stage 6-A.1 implementation discovered this
+//    during first slice. Adding tsc-alias would be a new dev-dep
+//    (ADR-0001 minimalism); relative imports work natively.
+import { localized } from "../i18n/index.js";              // cross-feature
+import { Probe } from "./types.js";                         // same-feature
 
-// ✅ also correct — same-feature relative
-import { Probe } from "./types";          // within src/probes/
+// ✅ Test files (tests/) — `@/*` alias works (vitest config provides it)
+import { runVersionCommand } from "@/cli/commands/version.js";
+import type { Probe } from "@/probes/types.js";
 
-// ❌ forbidden — deep relative across features
-import { ConfigSchema } from "../../config/schema";
-
-// ❌ forbidden — non-aliased absolute
+// ❌ forbidden — non-aliased absolute path
 import { ConfigSchema } from "/Users/sang/Developer/agora/src/config/schema";
 ```
 
-Within-feature (sibling files): `./` relative is OK and idiomatic.
-Cross-feature: must use `@/`. CLAUDE.md L335-336 ("절대 import 금지 (path
-alias `@/` 활용)") refers to **deep relative paths across features** —
-within a folder, sibling relative is the local norm.
+**Source vs test asymmetry rationale**:
+- Source files compile to `dist/` and run on Node. Node's ESM resolver
+  cannot follow path aliases without a build step (tsc-alias) — added
+  dev-dep cost. Stage 6-A.1 picked relative imports for source.
+- Test files run via vitest, which has its own resolver. `vitest.config.ts`
+  provides `resolve.alias = { "@": "./src" }`, so tests use `@/*`
+  comfortably.
+- typecheck (`tsc --noEmit`) honors `tsconfig.json` paths for both, so
+  authoring is identical from a type perspective. Only the import-path
+  string at runtime differs.
+
+`.js` extensions in source imports are mandatory under NodeNext —
+TypeScript resolves `.js` to `.ts` source at compile time, then emits
+`.js` for Node to load.
 
 ### No per-area aliases
 

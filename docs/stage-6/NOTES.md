@@ -131,4 +131,108 @@ complete per north-star.md 3-month horizon checks.
 
 ## Progress Log
 
-(empty — Stage 6 just opened)
+### Stage 6-A.1 — DONE (2026-05-04)
+
+**First vertical slice: `agora --version` end-to-end** + LAYER 0 foundations.
+
+Five decisions accepted (all R1~R5 recommended):
+- R1-A: `agora --version` full-stack slice scope
+- R2-A: `--version`-needed LAYER 0 + ERROR_CATALOG full (~30 entries)
+- R3-A: `errors.*` + `cli.global.*` full population (~40 keys × 2 locales)
+- R4-A: TOML/markdown/MCP parser bindings deferred (not used in this slice)
+- R5-A: SPEC traceability `// SPEC:` comments + DoD per slice + `pnpm lint:locale` in CI
+
+Files shipped (real code, no longer placeholder):
+  src/result/index.ts            (Stage 5-A.6 canonical: 8 fns + Result type)
+  src/errors/types.ts            (AgoraError + AgoraErrorThrown class)
+  src/errors/codes.ts            (ERROR_CATALOG full — 30 entries)
+  src/errors/build.ts            (buildAgoraError constructor)
+  src/i18n/catalog.ts            (JSON imports + lookupKey hybrid algorithm)
+  src/i18n/index.ts              (localized + setLocale + getLocale + interpolate
+                                  + makeMissingKeyError English self-throw)
+  src/cli/index.ts               (real entry; replaces Stage 0 placeholder)
+  src/cli/render.ts              (TUI + JSON emit; Stage 3-A.1 envelope)
+  src/cli/flags.ts               (manual argv parser + locale resolution +
+                                  forbidden combo validation)
+  src/cli/commands/version.ts    (runVersionCommand → CommandEnvelope)
+  src/shared/{io,path}.ts        (skeletons reserving import paths)
+  src/prompts/types.ts           (skeleton reserving @/prompts path)
+  messages/en.json               (~50 leaf keys: errors.* + cli.* )
+  messages/ko.json               (parallel ko translation, identical key set)
+  scripts/lint-locale.ts         (3-check parity verifier; exits 4 on fail)
+  tests/unit/result/index.test.ts        (12-test contract)
+  tests/unit/errors/build.test.ts        (catalog + buildAgoraError)
+  tests/unit/i18n/index.test.ts          (localized + interpolate + missing-key)
+  tests/unit/cli/version.test.ts         (runVersionCommand + parseArgv)
+  tests/integration/cli-version.test.ts  (end-to-end via tsx)
+  package.json                   (added "messages" to files; lint:locale script;
+                                  build chmod +x; lint+format expanded to scripts/)
+  vitest.config.ts               (resolve.alias for @/* → src/)
+
+Removed: tests/smoke.test.ts (replaced by integration/cli-version.test.ts).
+
+Verification (DoD):
+  pnpm typecheck ✓
+  pnpm lint     ✓ (1 warning: parseArgv complexity 23 — accepted; explicit
+                  refactor in next slice if it grows)
+  pnpm test     ✓ (5 files, 42 tests passing)
+  pnpm lint:locale ✓ (3 checks pass: keyset parity, ERROR_CATALOG xref,
+                     placeholder consistency)
+  pnpm build    ✓ → dist/cli/index.js (chmod +x applied)
+
+Manual verification (TTY screen captures recommended for PR):
+  $ node dist/cli/index.js --version
+    → "agora 0.0.1-alpha.0"
+  $ node dist/cli/index.js --version --json
+    → Stage 3-A.1 envelope with agora_version, node_version, platform,
+      arch, locale_resolved, anthropic_api_key_present + warnings[1]
+      (probe deferral)
+  $ AGORA_LOCALE=ko node dist/cli/index.js --version --json
+    → locale_resolved: "ko"; warning message in Korean
+  $ node dist/cli/index.js --json --verbose ; echo $?
+    → JSON envelope with errors[0].code = "user.forbidden-flag-combo"
+      exit 5
+
+Surprises encountered + decisions made:
+1. **NodeNext + path alias incompatibility**: tsc does not rewrite path
+   aliases (`@/foo`) to relative paths at emit. Node ESM resolver then
+   fails on `@/foo/bar.js` (treats as scoped package).
+   Resolution chosen: source files use relative imports; test files keep
+   `@/*` via vitest config alias; typecheck honors paths in tsconfig.
+   Module-graph SPEC updated with the rationale + pattern.
+2. **`exactOptionalPropertyTypes` + class with optional fields**: had to
+   move from direct assignment in constructor to conditional assignment
+   (`if (fields.fix !== undefined) this.fix = fields.fix`). AgoraError
+   interface uses `field?: T | undefined` (vs bare `field?: T`) so callers
+   can pass undefined explicitly without violating the strict optional rule.
+3. **`as const satisfies`** preserves narrow types — accessing `.fix_key`
+   on an entry that doesn't declare it fails. Resolution: cast at lookup
+   site (`ERROR_CATALOG[code] as ErrorCatalogEntry`) to widen.
+4. **vitest needs explicit resolve.alias** for `@/*` despite tsconfig
+   paths. Added in vitest.config.ts.
+
+Lessons for next slice (Stage 6-A.2):
+- Pattern is established; subsequent slices follow this structure
+  (foundation pieces if needed + command + tests + manual verify).
+- The "// SPEC: docs/<area>/<file>.md" header convention works well for
+  traceability.
+- `pnpm lint:locale` running in verify chain catches new ERROR_CATALOG
+  entries without locale strings — saved a regression cycle.
+
+Stage 5-A.1 module-graph.md updated:
+  - R5-A Path Alias section: documented source-vs-test asymmetry and
+    NodeNext rationale for relative imports in source
+
+Outstanding (intentional defer):
+  - parseArgv cognitive complexity 23 — refactor in next slice when it
+    grows beyond version flag set
+  - claude_cli_present + pnpm_version probes — handled by full probe
+    runner in next slice (likely `agora doctor`)
+  - TOML parser, markdown parser, MCP SDK bindings — picked when first
+    slice needs each
+
+Next task: Stage 6-A.2 — pick second vertical slice. Likely candidates:
+  (a) `agora doctor` + 19-probe runner (Stage 4-A.4 implementation)
+  (b) `src/config/` + TOML loader (Stage 4-A.3 implementation)
+  (c) ClaudeRunner + cli-runner (Stage 4-A.2 implementation)
+Q2 framing follows the same Mode B pattern.
