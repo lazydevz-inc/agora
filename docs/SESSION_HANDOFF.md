@@ -7,19 +7,104 @@
 
 ---
 
-## 1. Read in this exact order at session start (~10-15 min)
+## 1. Context loading at session start (~30-40 min, deliberate)
 
-1. **`CLAUDE.md`** — project overview, layer rules, tech stack, ADR index (~5 min)
-2. **`docs/stage-6/NOTES.md`** — **start at the bottom**: read the most recent `### Stage 6-A.N — DONE` entry + the "Next task:" line at the very end (~5 min)
-3. **`git log --oneline -15`** — last 15 commits show momentum + slice cadence
-4. **The SPEC for the next slice only** (not all SPECs) — see §6 below for which doc per task type
+> **Sang's explicit feedback**: "13,000줄 SPEC을 다 상세하게 읽어야
+> 제대로된 맥락을 가져오게 되는거 아니야? 항상 보면 맥락을 다 로드
+> 안해서 정신 못차릴 떄가 많던데."
+>
+> Under-contextualization is the dominant failure mode for new sessions.
+> The fix is NOT "read less" — it's "read efficiently using Explore agent
+> for the big SPECs so the main session keeps focus."
 
-**DO NOT** read in full at session start:
-- `docs/loops/alignment-loop.md` (2,389 lines) — only the section for the current phase
-- `docs/loops/ralph-loop.md` (1,765 lines) — only when implementing Ralph
-- `docs/cli/spec.md` (3,383 lines) — only the Stage 3-B section for the current command
-- All 5 philosophy concept docs — only the one for the philosopher you're implementing
-- Stage 1-5 closed NOTES — only when researching "why was this decided?"
+### Phase A — Read directly in main session (~15 min)
+
+1. **`docs/SESSION_HANDOFF.md`** (this file) — start here, end of story
+2. **`CLAUDE.md`** — project overview, layer rules, tech stack, ADR index, 작업 원칙
+3. **All `docs/stage-{1,2,3,4,5}/CLOSED.md`** — these are DENSE summaries of every closed stage's decisions + rationale. Mandatory full read; ~120-275 lines each (~700 lines total). Far smaller than the SPECs themselves but captures every load-bearing decision.
+4. **`docs/MANIFESTO.md`** + **`docs/north-star.md`** — Stage 1 thesis + 3-horizon direction (~300 lines combined). The "why" behind every later decision.
+5. **`docs/stage-6/NOTES.md`** in full — current open stage; lessons + Outstanding sections per slice are critical for not repeating mistakes
+6. **`git log --oneline -20`** — last 20 commits show momentum + slice cadence
+
+That's ~1,500 lines of curated reading — fits comfortably in main context AND captures the project's load-bearing decisions.
+
+### Phase B — Delegate big SPECs to Explore agent (per relevant area, ~15 min each)
+
+The big SPECs are too large for main context BUT too important to skip.
+**Use the Explore agent** (or general-purpose) to read them and return
+focused briefs. Do this BEFORE starting any slice work in the relevant area.
+
+For **alignment loop work** (Husserl/Socrates/Aristotle/Plato/Aquinas/
+Phase 0-2/Y2 termination):
+```
+Spawn Explore agent with prompt:
+  "Read docs/loops/alignment-loop.md (2,389 lines) and produce a
+   structured brief covering: (1) phase ordering + termination gate;
+   (2) every R-decision number → answer summary; (3) data shapes
+   (DefendedFrame, FourCauses, ElenchedClaim, AC tree); (4) F1-F8
+   forbidden patterns verbatim; (5) the 'observed Ouroboros failure
+   modes' section. Aim for ~600 words. Cite section anchors so I can
+   re-read targeted bits."
+```
+
+For **Ralph loop work** (gates 0-5, critics, Z1/Z2):
+```
+Spawn Explore agent with prompt:
+  "Read docs/loops/ralph-loop.md (1,765 lines) and produce a structured
+   brief covering: (1) Gate 0-5 contracts; (2) the 19-probe registry +
+   tier model; (3) Aquinas Disputatio per-objection ruling format
+   (Stage 2-B.3); (4) drift_score Stage 2-B.4 formula; (5) Z1/Z2
+   escalation; (6) iteration cap + parallel architecture per ADR-0008.
+   Cite section anchors. ~700 words."
+```
+
+For **CLI work** (any new command, flag, output format):
+```
+Spawn Explore agent with prompt:
+  "Read docs/cli/spec.md (3,383 lines) and produce a structured brief
+   covering: (1) Stage 3-A output framework + universal envelope shape;
+   (2) Stage 3-A.3 global flags + precedence + forbidden combinations;
+   (3) Stage 3-B per-command sections — for command <name> give me the
+   full sub-section. Cite section anchors. ~700 words plus the relevant
+   3-B sub-section verbatim."
+```
+
+For **philosopher work**:
+```
+Spawn Explore agent with prompt:
+  "Read docs/philosophers/runbooks/<name>.md AND docs/philosophy/0X-<name>-...md
+   end-to-end and produce: (1) the 12-section runbook contract verbatim
+   for input/output/quality bar/forbidden/test contract; (2) the concept
+   doc's failure modes (F-<name>-N) verbatim; (3) the canonical prompt
+   text from runbook §4 verbatim. ~800 words. I'll be implementing this
+   philosopher in TypeScript."
+```
+
+### Why this works
+
+- Main session keeps a clean ~30k-token context window for actual work
+- Big SPECs ARE absorbed in full — just by Explore agent's separate context
+- Briefs come back ~600-800 words, fit easily in main context
+- Section anchors let main session re-fetch specific snippets when needed
+- Pattern matches what Sang did mid-Stage-5-A.3 review (worked perfectly)
+
+### What's already INCLUDED in Phase A (don't delegate these)
+
+- All ADRs (~700 lines total) — small enough to read directly when cited
+- All philosopher runbooks individually (~365-547 lines each) — read when
+  implementing that philosopher
+- Infra SPECs individually (install/config/probes/llm-integration/errors-and-telemetry,
+  ~340-770 lines each) — read the relevant one fully when working there
+- Architecture SPECs (module-graph/runbook-template/prompt-library/locale-catalog/result-type,
+  ~470-750 lines each) — read the relevant one fully
+
+### Anti-patterns
+
+- ❌ Read only NOTES.md and skip CLOSED.md → miss the cross-cutting decisions
+- ❌ Read only the section relevant to current slice → miss the F-rules
+  that constrain ALL slices
+- ❌ Read big SPECs in main session → blow context before any work
+- ❌ Skip Explore-agent brief and "wing it" → repeat Stage 5-A.3 type drift
 
 ---
 
@@ -106,31 +191,148 @@ note in commit "manual verification deferred to TTY run."
 
 ## 4. Conversational style with Sang
 
-- **Korean primary** (Sang speaks Korean; technical terms in English when
-  natural)
+- **Korean primary** for chat; **English** for code comments / commit
+  messages / SPEC documents (Sang reads both fluently — Korean conveys
+  warmth + speed for ack turns; English locks technical precision in
+  the artifact)
 - **Terse, direct** — no marketing language, no "I'll now..." narration,
-  no over-explanation
-- **Mode B Q&A** for decision rounds:
-  ```
-  ## Q<N> (Stage X-A.N) — <topic>
+  no over-explanation. Sang prefers 1-2 sentences over a paragraph.
+- **Acknowledge briefly, then act**: "좋아." / "확인." / "맞는 지적." +
+  one-line summary of what's about to happen.
+- **End-of-turn = call to action OR brief result + next question**.
+  No trailing summaries that just restate the diff.
 
-  **왜 이 질문?** <2-3 sentences why this matters now>
+### Sang's response shorthands
 
-  **Inherited inputs**: <bulleted prior decisions that constrain this>
+| Sang says | Means |
+|-----------|-------|
+| "좋아. 추천 방향으로 진행" / "추천 방향으로 모두 진행" | Accept ALL R1-R5 as recommended |
+| "R3는 B로 가자" / "R5는 C로 가면 좋겠어" | Deviate that one R; accept others as recommended |
+| "ok" / "ok continue" / "다음" / "진행" | Continue with whatever was just proposed |
+| "맞는 지적" / "정확함" | The pushback is valid; course-correct accordingly |
+| "그래서 [...]" | Asking for clarification or summary; explain concisely |
+| "전혀 맥락을 못짚고 있는거같아" | Stop. Read the actual history. Re-ground. |
+| "수고했어" | Slice/round done. Wait for next instruction. |
 
-  **추천 spec**: <code/algorithm sketch>
+Always exact-match for these — they have specific meanings that took the
+prior session real iteration to learn.
 
-  ## 5개 결정 — R1~R5
-  R1 — <topic>: A (제 추천) / B / C with rationale per option
-  ...
-  각 답해주세요. R1~R5.
-  ```
-- **Sang's "좋아 추천 방향으로 진행"** = accept all R1-R5 as recommended
-- **Sang's deviation pattern**: "R3는 B로 가자" — deviate one rule, accept rest
-- **Always commit after green verify; push immediately**
-- **Update Stage NOTES Progress Log per slice** — surprises + lessons in detail
-- **End-of-slice summary in chat**: brief table (files/tests/verify) + working
-  commands status + 1-line "next?" question
+### Mode B Q template — copy-paste this exactly
+
+When proposing a sub-question for Mode B (technical decisions Sang
+delegates), use this LITERAL template:
+
+```markdown
+## Q<N> (Stage X-A.N) — <topic in Korean>
+
+**왜 이 질문?**
+<2-4 sentences in Korean: why now, what's at stake, what's left undecided>
+
+**Inherited inputs** (이번 round가 reopen 못 하는 것들):
+- <bullet>: <source SPEC + R-rule citation>
+- <bullet>: <...>
+- ADR-XXXX / Stage X-A.N R-Z citations explicit
+
+대부분 기술 결정 → Mode B.
+
+---
+
+**추천 spec — <one-line summary in Korean>**
+
+<TypeScript interface OR pseudocode OR file-tree sketch>
+
+<2-3 paragraphs in Korean explaining: how it works, what it unblocks,
+what it doesn't do (defer)>
+
+---
+
+## 5개 결정 — R1~R5
+
+**R1 — <decision name in Korean>**
+
+| 옵션 | 동작 |
+|------|------|
+| **R1-A (제 추천)** | **<recommendation>**. <2-3 line rationale in Korean> |
+| R1-B | <alternative>. <why rejected — 1-2 lines> |
+| R1-C | <alternative>. <why rejected — 1-2 lines> |
+
+**R2 — <decision name>**
+
+(same table format)
+
+... (R3, R4, R5)
+
+---
+
+각 답해주세요. R1~R5.
+```
+
+**Conventions inside Mode B template**:
+- Always **5 decisions** (R1-R5) — fewer feels under-thought; more is
+  cognitive overload. If 5 doesn't fit, split into two slices.
+- **Each R** has 3-4 options labeled `R1-A` / `R1-B` / `R1-C` / `R1-D`
+- **Recommended option always FIRST + bolded**: `**R1-A (제 추천)**`
+  + bolded recommendation text inside the cell
+- **Why rejected** — 1-2 sentence rationale per non-recommended option
+  in the right column
+- "Mode B" = technical decisions Sang delegates. "Mode A" = decisions
+  needing Sang's domain expertise (philosophical content, taste calls).
+  Mode A uses recommended options + free input invited; Mode B uses
+  single recommendation + alternatives.
+
+### Mode A Q template — for philosophical / taste content
+
+Use when Sang has the domain expertise (e.g. philosopher runbook content,
+manifesto wording, philosophical method choices):
+
+```markdown
+## Q<N> (Stage X-A.N) — <topic>
+
+**왜 이 질문?** <why ask Sang specifically>
+
+**내가 본 옵션들** (각 trade-off):
+A. <option> — <consequence>
+B. <option> — <consequence>
+C. <option> — <consequence>
+
+자유 입력도 환영. 지금 이 결정의 핵심은 [...] 인 것 같음.
+```
+
+### Forbidden patterns in Q presentation (F-rules from Stage 1)
+
+When asking Sang anything, NEVER:
+- F1: Output non-English without locale verification (한글 깨짐)
+- F2: Ask without "**왜 이 질문?**" purpose label
+- F3: Abstract questions about abstract concepts (always concrete examples)
+- F4: Ignore prior context (must build on what Sang already said)
+- F5: Force ranking on compound input ("rank these 3 needs")
+- F6: Drill into single-attribute when multi-dim is possible
+- F7: Single proposal without comparison alternatives ("is X good?")
+- F8: Free input as a labeled option ("R_free: 자유" — confusing)
+
+These came from Stage 1 live interview. Verify your Q against this list
+before sending.
+
+### Per-slice protocol
+
+1. **At slice start**: Mode B Q with template above (unless Sang explicitly
+   said "skip the question, just do X")
+2. **Sang accepts** with shorthand → start implementing immediately
+3. **During implementation**:
+   - Every src/ file gets `// SPEC: docs/<area>/<file>.md` header
+   - Pause to update messages/{en,ko}.json when adding any user-facing
+     string (don't defer locale)
+   - Run `pnpm typecheck` mid-implementation if doing big refactor
+4. **After implementation**:
+   - Run `pnpm verify` (typecheck + lint + lint:locale + test + build)
+   - If lint:fix changes formatting, re-read changed files (system
+     reminder will note this)
+   - Manual verify TUI + JSON + ko outputs (capture for commit message)
+5. **Commit** with template (see §10 below)
+6. **Push immediately** — never accumulate uncommitted slices
+7. **End-of-slice chat summary** with template (see §10)
+8. **Update Stage NOTES Progress Log entry** before committing — this
+   is the artifact next session reads
 
 ---
 
@@ -255,6 +457,204 @@ Before stopping a session:
    thought about what's next
 3. If you discovered a new pitfall, add it to §5 here
 4. If you established a new convention (recurring pattern), add it to §2 here
+5. Update §8 Stage 6 snapshot (current commands, slice count)
+
+---
+
+## 10. Concrete templates (copy-paste these exactly)
+
+### 10.1 End-of-slice chat summary (after commit + push)
+
+```markdown
+Commit `<hash>` 푸시됨. **Stage 6-A.<N> 완료**.
+
+| 카테고리 | 결과 |
+|---------|------|
+| 신규/수정 파일 | <count>개 (<short list>) |
+| 코드 라인 | ~<count> 신규 |
+| Tests | **<pass>/<total>** (<file count> 파일; <delta from prior>) |
+| Verify | typecheck ✓ / lint ✓ / lint:locale ✓ / test ✓ / build ✓ |
+
+**진짜 동작 확인** (<context — TUI, JSON, ko>):
+\```
+$ <command>
+<actual output captured>
+\```
+
+**Surprises** (NOTES.md에 기록):
+1. <surprise + 1-line resolution>
+2. <surprise + 1-line resolution>
+
+**Stage 6 status: <slice count> slices done.** 동작하는 명령:
+`agora --version` / `doctor` / `ping` / `status` / `new` / `bracket` / <new>.
+
+다음 slice 후보 (continuation):
+- (a) <option> — <leverage rationale>
+- (b) <option>
+- (c) <option>
+
+자동 진행할까 (continue)?
+```
+
+### 10.2 Slice commit message template
+
+```
+<type>(stage-6-a.<N>): <topic> — <one-line summary>
+
+<paragraph: what this slice ships + auto-selected rationale + bridges>
+
+<Decision summary if Mode B was used:>
+Five decisions accepted (R1-R5 recommended):
+  R1-A: <decision>
+  R2-A: <decision>
+  ...
+
+Files shipped:
+  src/<area>/<file>.ts (LAYER N — <role>):
+    <2-3 line description of what it does>
+  src/<area>/<file>.ts:
+    <description>
+  ...
+
+  src/cli/index.ts:
+    <description of dispatch additions>
+
+  messages/en.json + ko.json:
+    +<N> keys × 2 locales = <2N> strings:
+      <namespace>.<key>
+      ...
+
+Tests (<N> new files; total <X> files / <Y> tests, was <pX>/<pY>):
+  tests/unit/<area>/<file>.test.ts (<N> tests):
+    - <test description>
+    - <test description>
+  tests/integration/<file>.test.ts (<N> tests):
+    - <test description>
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (<warnings if any>)
+  pnpm test     ✓ <X> files, <Y> tests
+  pnpm lint:locale ✓
+  pnpm build    ✓
+  Manual:
+    $ <command>
+    <captured output>
+    ...
+
+Surprises encountered (full detail in Stage 6 NOTES Progress Log):
+
+1. <surprise title>:
+   <2-3 sentences: what happened + how resolved>
+
+2. <surprise title>:
+   <description>
+
+Lessons / observations:
+- <lesson 1>
+- <lesson 2>
+
+Outstanding (intentional defer):
+  - <item>: <when it'll be addressed>
+  - <item>: <when it'll be addressed>
+
+Stage 6 status: <count> slices done. <one-line milestone>.
+
+Verification:
+  pnpm verify ✓
+```
+
+### 10.3 Stage NOTES.md Progress Log entry template
+
+```markdown
+### Stage 6-A.<N> — DONE (yyyy-mm-dd)
+
+**<one-line topic + slice character>** Auto-selected per Sang's "<continue
+phrase>". Bridges <prior slice> → <next slice direction>.
+
+<Optional: simplification vs SPEC paragraph if any deviation>
+
+<Optional: SPEC drift note if inline patterns awaiting refactor>
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: <decision summary in Korean>
+- R2-A: <decision summary>
+- R3-A: <decision summary>
+- R4-A: <decision summary>
+- R5-A: <decision summary>
+
+Files shipped:
+
+src/<area>/<file>.ts (LAYER N):
+  <Detailed description of types, functions, key constants. ~5-10 lines.
+   Include relevant SPEC R-rule citations.>
+
+src/<area>/<file>.ts:
+  <Detailed description.>
+
+src/cli/index.ts:
+  <Dispatch additions.>
+
+messages/en.json + ko.json:
+  +<N> keys × 2 locales = <2N> strings:
+    <namespace>.<key1>
+    <namespace>.<key2>
+    ...
+
+Tests (<N> new files; total <X> files / <Y> tests, was <pX>/<pY>):
+
+tests/unit/<area>/<file>.test.ts (<N> tests):
+  - <test description>
+  - <test description>
+  ...
+
+tests/integration/<file>.test.ts (<N> tests):
+  - <test description>
+  ...
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (<warnings if any>)
+  pnpm test     ✓ <X> files, <Y> tests
+  pnpm lint:locale ✓
+  pnpm build    ✓
+  Manual:
+    $ <command + actual output>
+    ...
+
+  <Manual verification deferred to ... if interactive>
+
+Surprises encountered + decisions made:
+
+1. **<surprise title>**:
+   <Multi-sentence detail. What happened, why it surprised, how resolved,
+    what defer/Rev needed.>
+
+2. **<surprise title>**:
+   <Detail.>
+
+Lessons / observations:
+- <lesson with rationale>
+- <lesson with rationale>
+
+Outstanding (intentional defer):
+  - <item>: <when/why it'll be addressed>
+  - <item>: <when/why it'll be addressed>
+  - <item>: <when/why it'll be addressed>
+
+Stage 6 status: <count> slices done. <Working commands list updated.>
+
+Next task: Stage 6-A.<N+1> — likely candidates:
+  (a) <option> — <leverage rationale>
+  (b) <option>
+  (c) <option>
+```
+
+### 10.4 Mode B Q presentation in chat — see §4 above
+
+The literal template lives in §4. Don't deviate from it without reason —
+the structure (왜 이 질문 → Inherited → 추천 spec → R1-R5 → 답해주세요)
+is what Sang's eye is trained to scan.
 
 ---
 
