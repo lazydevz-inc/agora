@@ -231,8 +231,154 @@ Outstanding (intentional defer):
   - TOML parser, markdown parser, MCP SDK bindings — picked when first
     slice needs each
 
-Next task: Stage 6-A.2 — pick second vertical slice. Likely candidates:
-  (a) `agora doctor` + 19-probe runner (Stage 4-A.4 implementation)
-  (b) `src/config/` + TOML loader (Stage 4-A.3 implementation)
-  (c) ClaudeRunner + cli-runner (Stage 4-A.2 implementation)
-Q2 framing follows the same Mode B pattern.
+### Stage 6-A.2 — DONE (2026-05-04)
+
+**Second vertical slice: `agora doctor` + 5 probes + Stage 4-A.4 infra.**
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: `agora doctor` + 5 universal probes (claude/node/pnpm + git/gh)
+- R2-A: 5 probes only (Tier 1+2+3 batch in 6-A.3 fast-follow)
+- R3-A: Full ProbeContext with shellExec (timeout, SIGTERM/SIGKILL escalation)
+- R4-A: Full Stage 4-A.4 R5-A cache schema (5min TTL, transient-skip,
+  `.agora/cache/gate0_results.json` atomic write)
+- R5-A: parseArgv refactored (cognitive complexity 23 → ~10 via 4 small
+  helpers: scanArgv / classifyArg / matchBooleanFlag / resolveLocale /
+  validateForbiddenCombinations)
+
+Files shipped:
+  src/probes/types.ts            — Probe interface + ProbeContext + ShellResult
+                                   + ProbeTimeoutError per Stage 4-A.4 R1-A
+  src/probes/markers.ts          — fileExists / packageJsonDeps / gitRemoteUrl
+                                   / envVarPresent / envVarMatches; per-process
+                                   per-cwd memoization; _resetMarkerCacheForTests
+  src/probes/cache.ts            — loadProbeCache + ProbeCache interface;
+                                   transient-skip enforced via isTransient
+                                   helper; flush() atomic write
+  src/probes/runner.ts           — executeProbes with bounded concurrency=5,
+                                   Promise.race timeout 5s, crash containment
+                                   try/catch; spawnExec with SIGTERM → 5s →
+                                   SIGKILL escalation; createLimit (~30 LOC
+                                   inline, no new dep)
+  src/probes/registry.ts         — ALL_PROBES static array + findProbe lookup
+  src/probes/definitions/{claude,node,pnpm,git,gh}.ts — 5 probe definitions
+                                   (3 universal Tier 1 always, 2 marker Tier 1)
+
+  src/shared/path.ts             — findProjectRoot (v1: returns cwd) +
+                                   ensureAgoraDir + hasAgoraDir
+  src/shared/io.ts               — readJsonOrNull + writeJsonAtomic (mkdir +
+                                   write-temp + rename pattern)
+
+  src/cli/commands/doctor.ts     — runDoctorCommand: TUI sectioned output
+                                   (Universal / Project-specific) + JSON
+                                   envelope with full probe details + summary
+  src/cli/index.ts               — added doctor dispatch + help text update
+  src/cli/flags.ts               — REFACTORED:
+                                   parseArgv now ~6 lines orchestrating
+                                   scanArgv / classifyArg / resolveLocale /
+                                   validateForbiddenCombinations helpers.
+                                   Cognitive complexity 23 → well under 15.
+                                   New flags: --refresh, --include-disabled
+
+  messages/en.json + ko.json     — added cli.doctor.{section_universal,
+                                   section_project, section_disabled,
+                                   section_detected_not_bundled,
+                                   summary_format, no_failures} (6 new keys
+                                   × 2 locales = 12 strings)
+
+  tests/unit/probes/runner.test.ts  — 5 tests:
+                                      - healthy probe → ok
+                                      - failing probe → fail with fix
+                                      - crash containment (one probe throws,
+                                        siblings still complete)
+                                      - hung probe times out at ~5s
+                                      - createLimit bounds concurrency
+  tests/unit/probes/cache.test.ts   — 6 tests:
+                                      - set/get within TTL
+                                      - timeout/internal_error NOT cached
+                                        (transient-skip)
+                                      - deterministic failure IS cached
+                                      - flush writes file with TTL+entries;
+                                        reload sees them
+                                      - flush no-op when untouched
+  tests/integration/cli-doctor.test.ts — 4 tests:
+                                      - JSON envelope shape with summary +
+                                        probes array
+                                      - --refresh forces from_cache: false
+                                      - TUI output has section headers
+                                      - ko locale uses Korean section headers
+
+Verification (DoD):
+  pnpm typecheck ✓
+  pnpm lint     ✓ (no warnings about parseArgv anymore)
+  pnpm test     ✓ 8 files, 57 tests (was 5/42 in 6-A.1)
+  pnpm lint:locale ✓
+  pnpm build    ✓
+  Manual TUI:   $ node dist/cli/index.js doctor
+                → 5 probes categorized; summary line
+  Manual JSON:  $ node dist/cli/index.js doctor --json | jq
+                → envelope with summary + probes[] including from_cache flag
+  Manual cache: 2nd run shows from_cache: true for all 5 probes
+  Manual refresh: $ doctor --refresh → from_cache: false, fresh run
+  Manual ko:    $ AGORA_LOCALE=ko ... doctor → Korean section headers
+  Manual fail:  When claude probe fails (e.g. in CI without claude),
+                exit 4 (gate.gate-1-deterministic-fail per Stage 4-A.6)
+  Cache file:   .agora/cache/gate0_results.json written with 5 entries
+
+Surprises encountered + decisions made:
+1. **claude --print "ping" exceeds timeout**: original probe used the SPEC
+   liveness check, but it's a real LLM call and consistently exceeded the
+   5s hard timeout. Resolution: claude probe now uses cheap `claude --version`
+   for installation check; full LLM liveness moves to ClaudeRunner runtime
+   selection (next slice). Stage 4-A.4 SPEC unchanged at the contract level
+   (5s hard); the per-probe choice of which subprocess command to run is
+   the lever.
+2. **Cached failure surfaced after fix**: changing the probe but not
+   clearing cache means the OLD failure result was served. Cache works as
+   spec'd; lesson is `agora doctor --refresh` is the recovery path. When
+   a probe definition changes, dev workflow should `rm -rf .agora/cache`.
+3. **claude probe's exit 143 = SIGTERM**: the SIGTERM-killed exit shows
+   up as `exit_code: 143` in shellExec. Probe interpreted as deterministic
+   failure ("claude CLI not available") and cached it. This is correct per
+   spec but the wording could be clearer; defer to next slice.
+4. **`fix` field omission requires conditional spread**: with
+   `exactOptionalPropertyTypes`, returning `{ ok, detail, fix }` where
+   `fix === undefined` violates the optional rule. Probes consistently
+   omit the field with `...(condition ? { fix } : {})`.
+5. **TypeScript `as unknown as` cast for marker detection context**: when
+   building the lightweight context for `detect_shape.detect`, the full
+   ProbeContext requires shellExec which markers don't need. Used cast to
+   throwing-stub context. Cleaner future refactor: split DetectContext
+   from ProbeContext.
+
+Lessons for next slice:
+- `pnpm gen:prompts` script (Stage 5-A.4) not yet implemented; slice that
+  adds first philosopher will need it
+- `src/shared/io.ts.writeJsonAtomic` is now usable for state.json writes
+  (Stage 2-C.3 implementation in handoff slice)
+- 5-probe pattern is cookie-cutter; 6-A.3 batching 14 more is fast follow
+
+Outstanding (intentional defer):
+  - 14 remaining probes (vercel/supabase/anthropic_api_key/stripe/clerk/
+    openai_api_key/docker/railway/posthog/gcloud/aws/bun/upstash/cloudflare):
+    Stage 6-A.3 batch
+  - Cross-probe dependency for anthropic_api_key (reads claude state):
+    cheap-proxy resolution per Stage 4-A.4 spec, lands in 6-A.3
+  - claude probe's full LLM liveness check: ClaudeRunner runtime selection
+    slice (Stage 4-A.2 implementation)
+  - `--include-disabled` flag is parsed but no behavior yet (no disabled
+    probes since no config loader yet)
+  - `[probes].disabled` config integration: needs config loader (Stage 4-A.3)
+
+Stage 6 status: 2 slices done. Foundation + agora --version + agora doctor
+all working end-to-end with cache + locale + JSON envelope.
+
+Next task: Stage 6-A.3 — pick third vertical slice. Likely candidates:
+  (a) Remaining 14 probes (Tier 1+2 + Tier 3-partial) — fast follow on
+      6-A.2 pattern
+  (b) `src/config/` + TOML loader (Stage 4-A.3 implementation) — unblocks
+      [probes].disabled wiring + many other features
+  (c) `ClaudeRunner` + cli-runner subprocess (Stage 4-A.2) — unblocks
+      first philosopher (Husserl) + drift_score
+  (d) `src/state/` + `state.json` reader/writer (Stage 2-C.3) — needed
+      before alignment loop touches phase pointer
+Q3 framing follows the same Mode B pattern.

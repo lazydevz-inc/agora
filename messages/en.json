@@ -61,6 +61,14 @@
     },
     "version": {
       "json_warning_no_runtime_check": "Runtime probes (claude_cli_present, pnpm_version) skipped — full env scan available via `agora doctor`."
+    },
+    "doctor": {
+      "section_universal": "Universal probes",
+      "section_project": "Project-specific probes (active)",
+      "section_disabled": "Disabled probes",
+      "section_detected_not_bundled": "Probes detected but not bundled (community PR welcome)",
+      "summary_format": "{available}/{available} probes available · {failures} failure(s) · {disabled} disabled",
+      "no_failures": "All probes pass."
     }
   }
 }

@@ -61,6 +61,14 @@
     },
     "version": {
       "json_warning_no_runtime_check": "런타임 probe (claude_cli_present, pnpm_version)는 건너뜀 — 전체 환경 스캔은 `agora doctor` 사용."
+    },
+    "doctor": {
+      "section_universal": "전역 probe",
+      "section_project": "프로젝트 probe (활성)",
+      "section_disabled": "비활성화된 probe",
+      "section_detected_not_bundled": "감지되었지만 번들에 없는 probe (커뮤니티 PR 환영)",
+      "summary_format": "{available}/{available} probe 사용 가능 · 실패 {failures}건 · 비활성 {disabled}건",
+      "no_failures": "모든 probe 통과."
     }
   }
 }

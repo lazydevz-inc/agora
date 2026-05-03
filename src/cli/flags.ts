@@ -1,17 +1,9 @@
 // SPEC: docs/cli/spec.md (Stage 3-A.3 — Global Flags + Precedence)
 //
-// Global flag parsing + forbidden combination validation. First slice
-// implements the subset needed for `agora --version`:
-//   --version / -v       (this slice)
-//   --json               (this slice)
-//   --locale=<code>      (this slice)
-//   --help / -h          (this slice — minimal)
-//   --quiet / -q         (parsed; no behavior yet)
-//   --verbose            (parsed; no behavior yet)
-//   --no-color           (parsed; no behavior yet)
-//   --config=<path>      (parsed; no behavior — first config-using slice)
+// Global flag parsing + forbidden combination validation.
 //
-// Returns parsed flags + remaining argv (for command dispatch).
+// Refactor (Stage 6-A.2 R5-A): split into small helpers per category to keep
+// the entry parser's cognitive complexity within Biome's 15 threshold.
 
 import { buildAgoraError } from "../errors/build.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
@@ -26,6 +18,8 @@ export interface GlobalFlags {
   readonly quiet: boolean;
   readonly verbose: boolean;
   readonly noColor: boolean;
+  readonly refresh: boolean; // doctor + future commands
+  readonly includeDisabled: boolean; // doctor
   readonly configPath?: string;
 }
 
@@ -34,112 +28,150 @@ export interface ParsedArgv {
   readonly positional: readonly string[];
 }
 
+interface RawFlags {
+  help: boolean;
+  version: boolean;
+  json: boolean;
+  quiet: boolean;
+  verbose: boolean;
+  noColor: boolean;
+  refresh: boolean;
+  includeDisabled: boolean;
+  localeFlag: string | undefined;
+  configPath: string | undefined;
+  positional: string[];
+}
+
 export function parseArgv(argv: readonly string[]): Result<ParsedArgv, AgoraErrorThrown> {
-  const positional: string[] = [];
-  let help = false;
-  let version = false;
-  let json = false;
-  let quiet = false;
-  let verbose = false;
-  let noColor = false;
-  let localeFlag: string | undefined;
-  let configPath: string | undefined;
+  const raw = scanArgv(argv);
+  const localeResult = resolveLocale(raw.localeFlag);
+  if (!localeResult.ok) return localeResult;
+  const comboResult = validateForbiddenCombinations(raw);
+  if (!comboResult.ok) return comboResult;
+  const flags: GlobalFlags = {
+    help: raw.help,
+    version: raw.version,
+    json: raw.json,
+    locale: localeResult.value,
+    quiet: raw.quiet,
+    verbose: raw.verbose,
+    noColor: raw.noColor,
+    refresh: raw.refresh,
+    includeDisabled: raw.includeDisabled,
+    ...(raw.configPath !== undefined ? { configPath: raw.configPath } : {}),
+  };
+  return ok({ flags, positional: raw.positional });
+}
 
+function scanArgv(argv: readonly string[]): RawFlags {
+  const raw: RawFlags = {
+    help: false,
+    version: false,
+    json: false,
+    quiet: false,
+    verbose: false,
+    noColor: false,
+    refresh: false,
+    includeDisabled: false,
+    localeFlag: undefined,
+    configPath: undefined,
+    positional: [],
+  };
   for (const arg of argv) {
-    switch (arg) {
-      case "--help":
-      case "-h":
-        help = true;
-        break;
-      case "--version":
-      case "-v":
-        version = true;
-        break;
-      case "--json":
-        json = true;
-        break;
-      case "--quiet":
-      case "-q":
-        quiet = true;
-        break;
-      case "--verbose":
-        verbose = true;
-        break;
-      case "--no-color":
-        noColor = true;
-        break;
-      default:
-        if (arg.startsWith("--locale=")) {
-          localeFlag = arg.slice("--locale=".length);
-        } else if (arg.startsWith("--config=")) {
-          configPath = arg.slice("--config=".length);
-        } else if (arg.startsWith("-")) {
-          // Unknown flag — let downstream commands decide; ignored at global level for now.
-          // First slice has no command flags beyond the global set above.
-          positional.push(arg);
-        } else {
-          positional.push(arg);
-        }
-        break;
-    }
+    classifyArg(arg, raw);
   }
+  return raw;
+}
 
-  // Resolve locale: --locale > AGORA_LOCALE > LANG > default "en"
+function classifyArg(arg: string, raw: RawFlags): void {
+  if (matchBooleanFlag(arg, raw)) return;
+  if (arg.startsWith("--locale=")) {
+    raw.localeFlag = arg.slice("--locale=".length);
+    return;
+  }
+  if (arg.startsWith("--config=")) {
+    raw.configPath = arg.slice("--config=".length);
+    return;
+  }
+  raw.positional.push(arg);
+}
+
+function matchBooleanFlag(arg: string, raw: RawFlags): boolean {
+  switch (arg) {
+    case "--help":
+    case "-h":
+      raw.help = true;
+      return true;
+    case "--version":
+    case "-v":
+      raw.version = true;
+      return true;
+    case "--json":
+      raw.json = true;
+      return true;
+    case "--quiet":
+    case "-q":
+      raw.quiet = true;
+      return true;
+    case "--verbose":
+      raw.verbose = true;
+      return true;
+    case "--no-color":
+      raw.noColor = true;
+      return true;
+    case "--refresh":
+      raw.refresh = true;
+      return true;
+    case "--include-disabled":
+      raw.includeDisabled = true;
+      return true;
+    default:
+      return false;
+  }
+}
+
+function resolveLocale(localeFlag: string | undefined): Result<Locale, AgoraErrorThrown> {
   const envLocale = process.env["AGORA_LOCALE"] ?? process.env["LANG"];
-  const localeRaw = localeFlag ?? envLocale ?? "en";
-  const localeNormalized = normalizeLocale(localeRaw);
-  if (!SUPPORTED_LOCALES.includes(localeNormalized as Locale)) {
+  const raw = localeFlag ?? envLocale ?? "en";
+  const normalized = normalizeLocale(raw);
+  if (!SUPPORTED_LOCALES.includes(normalized as Locale)) {
     return err(
       buildAgoraError("user.forbidden-flag-combo", {
         context: {
-          detail: `Locale '${localeRaw}' not bundled. v1 supports: ${SUPPORTED_LOCALES.join(", ")}.`,
+          detail: `Locale '${raw}' not bundled. v1 supports: ${SUPPORTED_LOCALES.join(", ")}.`,
           flag: "--locale",
         },
       }),
     );
   }
-  const locale = localeNormalized as Locale;
-
-  // Forbidden combinations (subset enforced this slice).
-  if (json && verbose) {
-    return err(
-      buildAgoraError("user.forbidden-flag-combo", {
-        context: { detail: "--verbose has no effect with --json (output is always batched)." },
-      }),
-    );
-  }
-  if (json && noColor) {
-    return err(
-      buildAgoraError("user.forbidden-flag-combo", {
-        context: { detail: "--no-color has no effect with --json (color already absent)." },
-      }),
-    );
-  }
-  if (quiet && verbose) {
-    return err(
-      buildAgoraError("user.forbidden-flag-combo", {
-        context: { detail: "Cannot combine --quiet and --verbose." },
-      }),
-    );
-  }
-
-  const flags: GlobalFlags = {
-    help,
-    version,
-    json,
-    locale,
-    quiet,
-    verbose,
-    noColor,
-    ...(configPath !== undefined ? { configPath } : {}),
-  };
-  return ok({ flags, positional });
+  return ok(normalized as Locale);
 }
 
 function normalizeLocale(raw: string): string {
-  // LANG can be "ko_KR.UTF-8" or "en_US.UTF-8" — extract leading 2-letter code.
   const lower = raw.toLowerCase();
   if (lower.startsWith("ko")) return "ko";
   if (lower.startsWith("en")) return "en";
   return lower;
+}
+
+function validateForbiddenCombinations(raw: RawFlags): Result<void, AgoraErrorThrown> {
+  const checks: { when: boolean; detail: string }[] = [
+    {
+      when: raw.json && raw.verbose,
+      detail: "--verbose has no effect with --json (output is always batched).",
+    },
+    {
+      when: raw.json && raw.noColor,
+      detail: "--no-color has no effect with --json (color already absent).",
+    },
+    { when: raw.quiet && raw.verbose, detail: "Cannot combine --quiet and --verbose." },
+  ];
+  for (const check of checks) {
+    if (check.when) {
+      return err(
+        buildAgoraError("user.forbidden-flag-combo", { context: { detail: check.detail } }),
+      );
+    }
+  }
+  return ok(undefined);
 }
