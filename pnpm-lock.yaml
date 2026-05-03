@@ -17,6 +17,9 @@ importers:
       picocolors:
         specifier: ^1.1.1
         version: 1.1.1
+      zod:
+        specifier: ^4.4.2
+        version: 4.4.2
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.2.0
@@ -660,6 +663,9 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  zod@4.4.2:
+    resolution: {integrity: sha512-IynmDyxsEsb9RKzO3J9+4SxXnl2FTFSzNBaKKaMV6tsSk0rw9gYw9gs+JFCq/qk2LCZ78KDwyj+Z289TijSkUw==}
+
 snapshots:
 
   '@biomejs/biome@2.4.13':
@@ -1166,3 +1172,5 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  zod@4.4.2: {}

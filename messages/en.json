@@ -69,6 +69,14 @@
       "section_detected_not_bundled": "Probes detected but not bundled (community PR welcome)",
       "summary_format": "{available}/{available} probes available · {failures} failure(s) · {disabled} disabled",
       "no_failures": "All probes pass."
+    },
+    "status": {
+      "no_session": "No active Agora session in this directory.",
+      "suggest_new": "Run `agora new <name>` to start a session.",
+      "phase_label": "Phase: {phase}",
+      "alignment_progress": "  Alignment phase {phase}, round {round}",
+      "ralph_progress": "  Ralph iteration {iteration}, last gate: {last_gate}",
+      "timestamps": "Created: {created}\nUpdated: {updated}"
     }
   }
 }

@@ -13,6 +13,7 @@ import { AgoraErrorThrown } from "../errors/types.js";
 import { setLocale } from "../i18n/index.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runPingCommand } from "./commands/ping.js";
+import { runStatusCommand } from "./commands/status.js";
 import { runVersionCommand } from "./commands/version.js";
 import { type GlobalFlags, parseArgv } from "./flags.js";
 import { type EmitMode, emit, emitAgoraError } from "./render.js";
@@ -49,6 +50,10 @@ async function main(): Promise<void> {
   }
   if (command === "ping") {
     await dispatchPing(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "status") {
+    await dispatchStatus(flags, mode, useColor);
     return;
   }
 
@@ -106,6 +111,22 @@ async function dispatchPing(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchStatus(
+  flags: GlobalFlags,
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runStatusCommand(flags);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    process.exit(1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -116,6 +137,7 @@ function printHelp(): void {
   console.log("  agora             (default) print version + suggested next");
   console.log("  agora doctor      Diagnose environment + run Gate 0 probes");
   console.log("  agora ping [pmt]  Send a small prompt to Claude (LLM smoke test)");
+  console.log("  agora status      Show current session phase + progress");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

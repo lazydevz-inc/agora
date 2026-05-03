@@ -531,12 +531,118 @@ working end-to-end. **First real LLM call from Agora succeeded.** Next
 slices unlock first philosopher implementations (need state.json + maybe
 prompt-library generator) OR fill out probe inventory OR add config loader.
 
-Next task: Stage 6-A.4 — pick fourth vertical slice. Likely candidates:
-  (a) `src/state/` + `agora resume` skeleton (Stage 2-C.3 implementation)
-      — foundation for any philosopher persistence
-  (b) `src/config/` + TOML + Zod (Stage 4-A.3) — unblocks [probes].disabled
-      + future Ralph parallelism etc.
-  (c) Remaining 14 probes (cookie-cutter)
-  (d) Husserl Phase −1 first philosopher implementation (needs state +
-      prompt-library generator + first run of `agora new`)
-Q4 framing follows the same Mode B pattern.
+### Stage 6-A.4 — DONE (2026-05-04)
+
+**Fourth vertical slice: `src/state/` + `agora status` command + Zod adoption.**
+
+Auto-selected sequentially per Sang's instruction. Foundation slice
+needed before alignment loop philosophers can persist DefendedFrame /
+phase progress.
+
+Key decisions:
+- Add `zod` dep (Stage 4-A.3 R1-A standing approval — first usage)
+- Minimal v1 state schema: phase pointer + alignment progress + ralph progress
+- `agora status` command shows current phase + next-action hint
+- Bypass records (Stage 2-B.7) deferred to Ralph slice
+- Z1/Z2 escalation state (Stage 2-A.10) deferred to Gate 5 slice
+
+Files shipped:
+
+  src/state/types.ts             — Zod schemas: PhaseSchema (5 phases),
+                                   AlignmentProgressSchema (phase/round),
+                                   RalphProgressSchema (iteration/last_gate),
+                                   StateSchema (.strict). newState() factory.
+  src/state/reader.ts            — loadState(cwd) → Result<State|null>
+                                   null = no session yet (greenfield)
+                                   state = parsed + Zod-validated
+                                   err = state.corrupt with detail/path
+  src/state/writer.ts            — saveState(cwd, state) → Result<State>
+                                   auto-bumps updated_at, validates before
+                                   write, atomic via shared/io.writeJsonAtomic.
+                                   Writer-side validation catches enum drift.
+
+  src/cli/commands/status.ts     — runStatusCommand:
+                                     no session → "No active Agora session"
+                                       + "Run `agora new <name>` to start"
+                                       + next: [start_new]
+                                     in_alignment → "Phase: in_alignment"
+                                       + "Alignment phase X, round Y"
+                                     ralph_complete → "Phase: ralph_complete"
+                                     all → timestamps line
+  src/cli/index.ts               — added status dispatch + help line
+
+  messages/en.json + ko.json     — added cli.status.* (6 keys × 2 locales):
+                                     no_session / suggest_new / phase_label
+                                     alignment_progress / ralph_progress
+                                     timestamps
+
+  package.json                   — added zod ^4.4.2 (first runtime use of
+                                   Stage 4-A.3 R1-A approval)
+
+Tests (2 new files; total 13 files / 80 tests, was 11/68):
+
+tests/unit/state/state.test.ts (6 tests):
+  Reader:
+    - returns null when state.json missing (greenfield)
+    - loads valid state.json
+    - returns state.corrupt on invalid schema (Zod refuses)
+    - returns null on JSON parse failure (readJsonOrNull degrades — known)
+  Writer:
+    - writes atomic file with updated_at bumped
+    - roundtrip: write → read returns same state
+    - rejects state with invalid phase enum (writer-side validation)
+
+tests/integration/cli-status.test.ts (5 tests):
+  - TUI prints "no session" suggestion
+  - JSON envelope: session_present: false + next[start_new]
+  - TUI with seeded state: "Phase: in_alignment" + "phase 2, round 3"
+  - JSON with seeded state: result.data.state.current_phase populated
+  - ko locale uses Korean labels
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓
+  pnpm test     ✓ 13 files, 80 tests
+  pnpm lint:locale ✓
+  pnpm build    ✓
+  Manual:
+    $ node dist/cli/index.js status (no .agora/)
+      → "No active Agora session in this directory.\nRun `agora new <name>`..."
+    $ node dist/cli/index.js status --json
+      → {session_present: false, next: [{id:"start_new", command:"agora new <name>"}]}
+    $ # seed state.json with in_alignment phase 2 round 3
+    $ node dist/cli/index.js status
+      → "Phase: in_alignment\n  Alignment phase 2, round 3\nCreated: ...\nUpdated: ..."
+    $ node dist/cli/index.js status --locale=ko
+      → "현재 디렉토리에 활성 Agora 세션이 없습니다.\n`agora new <name>` 으로 세션을 시작하세요."
+
+Lessons / observations:
+- Zod adoption frictionless — Stage 4-A.3 R1-A standing approval +
+  TS strict + .strict() on schema rejected unknown keys cleanly.
+- readJsonOrNull degrades parse failures to null (treats as missing file);
+  for state.json this is a known sharp edge — deliberately corrupt JSON
+  reads as "no session" instead of state.corrupt error. Acceptable for
+  v1; revisit when state corruption becomes a real failure mode.
+- Reader/writer separation enables clean Result-based composition
+  (per Stage 5-A.6 R3-A): commands compose state ops with flatMap.
+- saveState's writer-side validation catches enum drift early — bug
+  protection without runtime overhead.
+
+Outstanding (intentional defer):
+  - bypass.ts + bypass record schema (waits for Ralph + --skip-gate-N)
+  - Z1/Z2 escalation state (waits for Gate 5 implementation)
+  - state.json migration (when v2 ships)
+  - readJsonOrNull strict-corrupt mode (when state corruption surfaces)
+
+Stage 6 status: 4 slices done. agora --version / doctor / ping / status
+all working. State foundation ready; next philosopher slice can persist
+to .agora/state.json.
+
+Next task: Stage 6-A.5 — pick fifth vertical slice. Candidates:
+  (a) `src/config/` + TOML + Zod (Stage 4-A.3) — unblocks [probes].disabled
+      + future Ralph parallelism + --explain-config visible value
+  (b) Remaining 14 probes (cookie-cutter, Stage 4-A.4 completion)
+  (c) Phase 0 auto-scan + `agora new` skeleton (writes state.json with
+      phase=0; bridges state foundation to alignment loop entry)
+  (d) Husserl Phase −1 implementation (needs prompt-library generator
+      first, OR inline prompt for first iteration)
