@@ -30,6 +30,7 @@ agora intake    (6-A.8) — Phase 1 open intake (interactive)
 agora telos     (6-A.9) — Aristotle Phase 2 telos round (interactive, 2nd philosopher)
 (6-A.10) — prompt-library generator infrastructure (no new command; pnpm gen:prompts)
 agora form      (6-A.11) — Aristotle Phase 2 form round (essential structure + irreducible parts)
+agora material  (6-A.12) — Aristotle Phase 2 material round (tech stack + data shape + infrastructure)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -2235,3 +2236,151 @@ Next task: Stage 6-A.12 — likely candidates:
   (f) `src/config/` + TOML + Zod.
   (g) Remaining 14 probes.
   (h) ergonomics (render.ts envelope exit_code + version "unknown").
+
+### Stage 6-A.12 — DONE (2026-05-04)
+
+**Twelfth vertical slice: `agora material` — Aristotle Phase 2 round 3
+(material / tech stack + data shape + infrastructure).** Auto-selected
+per session cadence + critical path to Y2 (material is required for
+LOAD_BEARING_FIELDS via runbook §4.3). 3 of 4 Aristotle rounds done.
+
+Cookie-cutter from telos+form. Brownfield wrinkle per runbook §4.3 R3-A:
+when scan.detected_stack non-empty, the Q1 surface switches from "ask
+tech stack from scratch" to "confirm/extend the detected stack". The
+brownfield_auto_filled flag tracks whether the user accepted the
+detection without removing entries (additions OK).
+
+Decisions made inline:
+  - MaterialClaim Zod schema: tech_stack[1..20] / data_shape /
+    infrastructure / brownfield_auto_filled (computed) / maturity
+    (default "pistis" per runbook §4.3 — lighter floor than telos/form).
+  - AristotleMaterialUi has TWO ask methods for stack: askConfirmDetectedStack
+    (brownfield) and askTechStackFromScratch (greenfield). Orchestrator
+    picks based on input.is_brownfield.
+  - brownfield_auto_filled = is_brownfield && every detected entry kept
+    (case-insensitive). Additions OK; removals flip the flag false.
+  - State transition: alignment.phase stays at 2; round 2 → 3.
+  - resume.ts ap===2 branch sub-discrimination extends to 3 cases:
+    round===1 → form, round===2 → material, round>=3 → runtime_pending.
+
+Files shipped:
+  src/philosophers/aristotle.ts (modified, +175 LOC):
+    MaterialClaimSchema + FourCausesSchema.material extension.
+    AristotleMaterialInput / AristotleMaterialUi.
+    ARISTOTLE_MATERIAL_SYSTEM inline prompt + buildMaterialUserPrompt.
+    runAristotleMaterialRound + callForMaterialExtraction +
+    brownfield_auto_filled computation logic.
+  src/cli/commands/material.ts (LAYER 3 — new, ~215 LOC):
+    runMaterialCommand: 4 refusal guards (no .agora/, missing telos/
+    form, alignment progress check, over-material guard); scan + state
+    + four_causes loading; clack adapter; persists FourCauses (telos +
+    form + material).
+  src/cli/index.ts: material command dispatch + dispatchMaterial helper.
+  src/cli/commands/resume.ts: ap===2 round===2 → live `agora material`.
+  messages/en.json + ko.json: +6 cli.material.* + 3 cli.resume.* keys
+    × 2 locales = 18 strings net new.
+
+Tests (1 new file; total 24 files / 166 tests, was 23/157):
+  tests/unit/philosophers/aristotle-material.test.ts (9 tests):
+    Happy path × 3 (greenfield Q-flow, brownfield Q-flow, schema
+    validates).
+    brownfield_auto_filled flag × 3 (all-kept → true, removed → false,
+    greenfield → always false).
+    Error paths × 3 (empty data, LLM error, malformed schema).
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (10 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 24 files, 166 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+  Manual interactive run deferred to TTY (clack same as siblings).
+  Refusal-guard surface verified via cookie-cutter pattern of telos/form.
+
+Surprises encountered + decisions made:
+
+1. **brownfield_auto_filled needs case-insensitive comparison**:
+   detected_stack from Phase 0 is alphabetically lowercased deps;
+   user/LLM might capitalize ("TypeScript" vs "typescript"). Used
+   .toLowerCase() on both sides for set comparison. Additions stay
+   case-preserved in output; flag computation is case-insensitive only.
+
+2. **Material maturity floor is "pistis", not "dianoia"**: per runbook
+   §4.3, material is the lightest of the four causes. telos/form
+   default "dianoia" (one rung higher). Tracked in MaterialClaimSchema
+   default. Plato (future slice) re-tags upward when warranted.
+
+3. **stack_count locale interpolation**: scan.detected_stack.length
+   passed as string to context_summary template. Required `String(...)`
+   cast (i18n placeholders are typed as strings).
+
+4. **agora material is the 11th `agora <command>`** (6 shortcuts beyond
+   primary 7). Crossing the threshold for `agora round` consolidation
+   discussion. Defer to dedicated consolidation slice OR continue with
+   efficient slice (12th) and reassess.
+
+5. **Cookie-cutter cadence holding**: ~25min for material (form was
+   ~30min, telos was ~60min). Pattern stabilizes per cause-round.
+   Efficient slice will likely be ~15min (lightest cause + no special
+   logic like brownfield auto-fill).
+
+Lessons / observations:
+- **AristotleMaterialUi pattern with branching ask method (Confirm vs
+  FromScratch)** keeps the orchestrator clean — branching logic stays
+  in the orchestrator (`is_brownfield` discriminator), UI methods are
+  primitives.
+- **brownfield_auto_filled flag is informative metadata** for future
+  Plato Y2 check: brownfield projects with auto-filled material can
+  reach maturity floors faster (less interview burden); greenfield
+  projects need more rigor. Plato slice can reference this flag.
+- **All 4 cause schemas now have a "lite" provenance flag**:
+  TelosClaim.noun_phrase_refinement_triggered, FormClaim.feature_list_
+  warning_triggered, MaterialClaim.brownfield_auto_filled (all Aristotle
+  F-rule mitigations). Future Plato slice will reference these flags
+  to tag maturity (e.g., heavy noun-phrase refinement → likely lower
+  rigor → maturity stays at dianoia).
+- **resume.ts dispatch sub-discrimination is now 3-armed for ap===2**:
+  could refactor to table-driven (round → next-action map). Hold off
+  until efficient round lands (4-armed); pattern stabilization gives
+  better refactor target.
+
+Outstanding (intentional defer):
+  Aristotle efficient round (runbook §4.4, alignment.round 3 → 4).
+  Plato Divided Line maturity tagging (3 dianoia/pistis claims pending
+    noesis tagging).
+  Socrates case-probing layer.
+  3-prompt batch refactor to renderPrompt (now 4 inline philosopher
+    prompts: Husserl + Aristotle telos + form + material).
+  agora round consolidation (11+ commands now; threshold approaching).
+  Integration test for interactive material run (PTY mock infra).
+
+Stage 6 status: 12 slices done. Phase 2 progress: 3 of 4 Aristotle
+rounds done. Working commands:
+  agora --version (6-A.1)
+  agora doctor   (6-A.2)
+  agora ping     (6-A.3)
+  agora status   (6-A.4)
+  agora new      (6-A.5)
+  agora bracket  (6-A.6)
+  agora resume   (6-A.7)
+  agora intake   (6-A.8)
+  agora telos    (6-A.9)
+  agora form     (6-A.11)
+  agora material (6-A.12) ← NEW
+  (6-A.10 was infra, no new command)
+
+**Phase 2 progress: 3 of 4 Aristotle rounds done.** Path to Y2:
+efficient (round 4) + Plato maturity tagging.
+
+Next task: Stage 6-A.13 — likely candidates:
+  (a) Aristotle efficient round (runbook §4.4, alignment.round 3 → 4).
+      Lightest of the four. Completes Aristotle's contribution to Phase
+      2; Y2 prerequisite advances from "3/4 causes" to "4/4 causes
+      pending Plato tagging".
+  (b) Plato Divided Line maturity tagger — operates on 3+ existing
+      causes; bumps maturity from default → noesis when rigor met.
+  (c) `agora round` orchestrator consolidation (11+ commands now).
+  (d) Socrates case-probing of telos/form/material claims.
+  (e) `src/config/` + TOML + Zod.
+  (f) Remaining 14 probes.

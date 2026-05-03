@@ -49,12 +49,24 @@ export const FormClaimSchema = z.object({
 });
 export type FormClaim = z.infer<typeof FormClaimSchema>;
 
-// FourCauses schema. telos + form populated as their slices land;
-// material / efficient remain optional placeholders for future slices.
+export const MaterialClaimSchema = z.object({
+  tech_stack: z.array(z.string().min(1)).min(1).max(20),
+  data_shape: z.string().min(1),
+  infrastructure: z.string().min(1),
+  brownfield_auto_filled: z.boolean().default(false),
+  // Per runbook §4.3: material's maturity floor is "pistis" (lighter than
+  // telos/form). Plato (future slice) re-tags after Divided Line check.
+  maturity: MaturitySchema.default("pistis"),
+});
+export type MaterialClaim = z.infer<typeof MaterialClaimSchema>;
+
+// FourCauses schema. telos + form + material populated as their slices
+// land; efficient remains optional placeholder for future slice.
 export const FourCausesSchema = z.object({
   telos: TelosClaimSchema.optional(),
   form: FormClaimSchema.optional(),
-  // material/efficient — future slices.
+  material: MaterialClaimSchema.optional(),
+  // efficient — future slice.
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -481,6 +493,209 @@ async function callForFormExtraction(
     return err(
       buildAgoraError("llm.invalid-response", {
         context: { detail: parsed.error.issues[0]?.message ?? "form schema parse failed" },
+      }),
+    );
+  }
+  return ok(parsed.data);
+}
+
+// ─── Material round (runbook §4.3 aristotle:material-question) ───
+//
+// Material follows form. For brownfield projects, much of this is auto-
+// detected from cwd_signal (Phase 0 scan); slice respects R3-A by
+// pre-filling tech_stack from detected_stack and asking for confirmation/
+// extension rather than re-interview. Greenfield asks from scratch.
+//
+// F-Aristotle-2 mitigation: if the user offers material before telos was
+// settled, refuse with a rebuttal. In this slice the upstream guard
+// (telos must exist in four_causes.json before runMaterialCommand
+// dispatches) handles the case operationally; the runbook-level rebuttal
+// is informational here.
+
+export interface AristotleMaterialInput {
+  readonly telos_statement: string;
+  readonly form_essential_structure?: string;
+  readonly detected_stack: readonly string[];
+  readonly is_brownfield: boolean;
+  readonly current_round: number;
+}
+
+export interface AristotleMaterialUi {
+  /** For brownfield: confirm/extend the auto-detected stack. */
+  askConfirmDetectedStack(args: { detected: readonly string[] }): Promise<string>;
+  /** For greenfield: ask tech stack from scratch. */
+  askTechStackFromScratch(): Promise<string>;
+  /** Q for both: data shape (one paragraph). */
+  askDataShape(): Promise<string>;
+  /** Q for both: infrastructure (one paragraph). */
+  askInfrastructure(): Promise<string>;
+}
+
+interface ExtractedMaterial {
+  tech_stack: string[];
+  data_shape: string;
+  infrastructure: string;
+}
+
+const ARISTOTLE_MATERIAL_SYSTEM = `You are Aristotle extracting the MATERIAL cause (what-it's-made-of)
+from a user's raw answers, AFTER telos and form are settled.
+
+Hard rules:
+1. tech_stack is the language + framework + key libs (≤ 10-20 entries).
+   Each entry is a noun phrase (library name, language). For brownfield
+   projects, the detected stack is the starting point — the user's
+   confirmation or addition merges with the detected list.
+2. data_shape is one paragraph describing the shape of the primary
+   data this software handles.
+3. infrastructure is one paragraph describing where it runs (deploy
+   target, runtime, hosting).
+4. For brownfield, set brownfield_auto_filled=true ONLY if the user
+   accepted the detected stack without removing entries (additions OK).
+   For greenfield, brownfield_auto_filled is always false.
+5. NEVER let material lead the interview — telos+form are settled
+   before material runs. If the user veers back to telos/form in their
+   answers, capture material faithfully but flag in raw output.
+
+Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
+{
+  "tech_stack": ["<entry 1>", "<entry 2>", ...],
+  "data_shape": "<one-paragraph description>",
+  "infrastructure": "<one-paragraph description>"
+}`;
+
+function buildMaterialUserPrompt(
+  input: AristotleMaterialInput,
+  raw: {
+    stackConfirmation: string;
+    dataShape: string;
+    infrastructure: string;
+  },
+): string {
+  const formLine =
+    input.form_essential_structure !== undefined && input.form_essential_structure.length > 0
+      ? `Settled form.essential_structure: "${input.form_essential_structure}"\n`
+      : "";
+  const detectedLine =
+    input.detected_stack.length > 0
+      ? `Detected stack (Phase 0 scan): [${input.detected_stack.slice(0, 15).join(", ")}]\n`
+      : "Detected stack: (empty — greenfield or no markers)\n";
+  return `Round: ${String(input.current_round)}
+
+Settled telos: "${input.telos_statement}"
+${formLine}${detectedLine}Project type: ${input.is_brownfield ? "brownfield" : "greenfield"}
+
+Material questions and raw answers:
+Q1 — ${
+    input.is_brownfield
+      ? '"Confirm or extend the detected stack (additions/removals)"'
+      : '"What\'s the tech stack? (language + framework + key libs)"'
+  }
+A1: "${raw.stackConfirmation}"
+
+Q2 — "What's the shape of the primary data?"
+A2: "${raw.dataShape}"
+
+Q3 — "Where does it run? (deploy / runtime / hosting)"
+A3: "${raw.infrastructure}"
+
+Extract the MaterialClaim per the JSON shape. Merge detected_stack with
+A1 confirmations/additions for tech_stack output.`;
+}
+
+export async function runAristotleMaterialRound(
+  input: AristotleMaterialInput,
+  runner: ClaudeRunner,
+  ui: AristotleMaterialUi,
+): Promise<Result<MaterialClaim, AgoraErrorThrown>> {
+  const stackConfirmation = input.is_brownfield
+    ? await ui.askConfirmDetectedStack({ detected: input.detected_stack })
+    : await ui.askTechStackFromScratch();
+  const dataShape = await ui.askDataShape();
+  const infrastructure = await ui.askInfrastructure();
+
+  if (
+    stackConfirmation.trim().length === 0 ||
+    dataShape.trim().length === 0 ||
+    infrastructure.trim().length === 0
+  ) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: { detail: "Material round needs all 3 question answers — empty input." },
+      }),
+    );
+  }
+
+  const extraction = await callForMaterialExtraction(input, runner, {
+    stackConfirmation,
+    dataShape,
+    infrastructure,
+  });
+  if (!extraction.ok) return extraction;
+  const extracted = extraction.value;
+
+  // Determine brownfield_auto_filled: brownfield + user did not remove
+  // any detected entries (additions OK).
+  const detectedSet = new Set(input.detected_stack.map((s) => s.toLowerCase()));
+  const extractedSet = new Set(extracted.tech_stack.map((s) => s.toLowerCase()));
+  const allDetectedKept =
+    input.is_brownfield &&
+    input.detected_stack.length > 0 &&
+    [...detectedSet].every((d) => extractedSet.has(d));
+  const claim: MaterialClaim = {
+    tech_stack: extracted.tech_stack,
+    data_shape: extracted.data_shape,
+    infrastructure: extracted.infrastructure,
+    brownfield_auto_filled: allDetectedKept,
+    maturity: "pistis",
+  };
+  const validated = MaterialClaimSchema.safeParse(claim);
+  if (!validated.success) {
+    return err(
+      buildAgoraError("internal.invariant-violation", {
+        context: { detail: validated.error.issues[0]?.message ?? "material schema fail" },
+      }),
+    );
+  }
+  return ok(validated.data);
+}
+
+async function callForMaterialExtraction(
+  input: AristotleMaterialInput,
+  runner: ClaudeRunner,
+  raw: { stackConfirmation: string; dataShape: string; infrastructure: string },
+): Promise<Result<ExtractedMaterial, AgoraErrorThrown>> {
+  const response = await runner.call({
+    system: ARISTOTLE_MATERIAL_SYSTEM,
+    prompt: buildMaterialUserPrompt(input, raw),
+    format: "json",
+    timeout_ms: 60_000,
+  });
+  if (!response.ok) {
+    return err(
+      buildAgoraError("llm.internal-error", {
+        context: { detail: response.error?.detail ?? "no response" },
+      }),
+    );
+  }
+  const content = response.content;
+  if (typeof content !== "object" || content === null) {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: "Aristotle material prompt did not return a JSON object" },
+      }),
+    );
+  }
+  const parsed = z
+    .object({
+      tech_stack: z.array(z.string().min(1)).min(1).max(20),
+      data_shape: z.string().min(1),
+      infrastructure: z.string().min(1),
+    })
+    .safeParse(content);
+  if (!parsed.success) {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: parsed.error.issues[0]?.message ?? "material schema parse failed" },
       }),
     );
   }

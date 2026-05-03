@@ -184,10 +184,17 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
         description: localized("cli.resume.next_form_desc"),
         command: "agora form",
       });
-    } else {
-      // round >= 2 — material/efficient + Plato termination gate not yet
-      // implemented.
+    } else if (round === 2) {
       lines.push(localized("cli.resume.form_done"));
+      lines.push(localized("cli.resume.next_phase_2_material"));
+      next.push({
+        id: "material",
+        description: localized("cli.resume.next_material_desc"),
+        command: "agora material",
+      });
+    } else {
+      // round >= 3 — efficient + Plato termination gate not yet implemented.
+      lines.push(localized("cli.resume.material_done"));
       lines.push(localized("cli.resume.alignment_runtime_pending", { phase: String(ap) }));
       next.push({
         id: "alignment_runtime_pending",

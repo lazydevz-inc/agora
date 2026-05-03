@@ -92,6 +92,14 @@
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
+    "material": {
+      "intro": "Aristotle material round — Phase 2, round 3",
+      "context_summary": "Loaded {project_type} scan ({stack_count} detected stack entries). Asking material questions: stack + data shape + infrastructure.",
+      "q_confirm_stack": "Detected stack: {detected}\n\nAccept as-is, or list additions/removals? (use 'ok' to accept verbatim)",
+      "q_tech_stack_fresh": "What's the tech stack? (language + framework + key libs, comma-separated)",
+      "q_data_shape": "What's the shape of the primary data? (one paragraph)",
+      "q_infrastructure": "Where does it run? (deploy / runtime / hosting, one paragraph)"
+    },
     "form": {
       "intro": "Aristotle form round — Phase 2, round 2",
       "context_summary": "Loaded telos: \"{telos}\". Asking form questions: shape that carries this telos + irreducible parts.",
@@ -138,7 +146,10 @@
       "telos_done": "Telos captured (Phase 2 round 1). Ready for form round (round 2).",
       "next_phase_2_form": "Next: `agora form` — Aristotle form round (Phase 2, round 2).",
       "next_form_desc": "Run Aristotle form round (essential structure + irreducible parts)",
-      "form_done": "Form captured (Phase 2 round 2). Material / efficient rounds + Plato Y2 pending.",
+      "form_done": "Form captured (Phase 2 round 2). Ready for material round (round 3).",
+      "next_phase_2_material": "Next: `agora material` — Aristotle material round (Phase 2, round 3).",
+      "next_material_desc": "Run Aristotle material round (tech stack + data shape + infrastructure)",
+      "material_done": "Material captured (Phase 2 round 3). Efficient round + Plato Y2 pending.",
       "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
       "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",
       "deferred_phase": "Phase `{phase}` recognized — downstream implementation pending. Follow-up: {follow_up}.",
