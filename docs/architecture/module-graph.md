@@ -166,6 +166,12 @@ src/
 ├── result/                     # Result<T, E> helper (CLAUDE.md L327; decided 5-A.6)
 │   └── index.ts
 │
+├── prompts/                    # Stage 5-A.4 (generated PROMPT_LIBRARY + lookup)
+│   ├── _generated.ts           # auto-generated, CI-verified in-sync
+│   ├── types.ts                # PromptEntry Zod schema + PromptKey type
+│   ├── index.ts                # public API: getPrompt, renderPrompt
+│   └── interpolation.ts        # internal: {placeholder} → value substitution
+│
 └── shared/                     # cross-cutting utils only (small, no inward dep)
     ├── path.ts                 # cwd resolution, .agora/ root finding
     ├── io.ts                   # atomic file ops, JSON read/write helpers
