@@ -651,6 +651,127 @@ Full SPEC committed to `docs/architecture/locale-catalog.md` with 7
 [SPEC] sections + lookup API + initial scaffold + boundaries +
 failure modes + output consumers.
 
-Next task: Stage 5-A.6 — Result<T,E> adoption decision (CLAUDE.md L327
-carry-over). Final Stage 5 sub-question. Also small scope: shape decision
-+ when-to-use vs when-to-throw policy.
+### Stage 5-A.6 — DONE (2026-05-03)
+
+Result<T, E> adoption specified. Five decisions accepted (all
+recommended). Final Stage 5 sub-question.
+
+- **R1-A**: **Adopt Result<T, E> as canonical at module boundaries**.
+  CLAUDE.md L327 deferred decision closes as YES. Marginal cost is zero
+  (empty codebase — only placeholder src/cli/index.ts). Marginal benefit
+  is high (Stage 6 vertical slices compose deeply across alignment +
+  ralph + LLM + Aquinas). 0.9^10 thesis applies to error drift too —
+  implicit handling is the same compounding problem as alignment drift.
+  R1-B (no adoption, throw-only) rejected: explicit error flow is cheap
+  discipline; "small codebase" argument flips at Stage 6.
+  R1-C (partial adoption — Result for validation only) rejected: boundary
+  ambiguity outweighs flexibility.
+
+- **R2-A**: **Custom inline ~50 LOC** at `src/result/index.ts`. No
+  external lib. ADR-0001 minimalism. Surface controlled (only what we
+  use). Interop with AgoraErrorThrown native. neverthrow ~10KB +
+  larger API surface.
+  R2-B (neverthrow) rejected: dep + surplus surface.
+  R2-C (ts-results / effect) rejected: same reasoning.
+
+- **R3-A**: **Module boundary is Result; internal helpers may throw**.
+  Pure validation (Zod) throws natively, lifted with `tryFrom()` at
+  module boundary. CLI top-level uses `unwrap()` for final emit (uncaught
+  → top-level handler from Stage 4-A.6). Hybrid pragmatic — composable at
+  the right layer, no internal Result fatigue.
+  R3-B (Result everywhere) rejected: boilerplate explosion at trivial paths.
+  R3-C (Throw everywhere) rejected: equivalent to R1-B.
+
+- **R4-A**: **Stage 6 implementation Result-first from first commit**.
+  No migration phase needed (codebase essentially empty; only placeholder
+  CLI + smoke test). Stage 4-5 SPEC sketches with throw signatures get
+  reinterpreted at Stage 6 as `Promise<Result<T, AgoraErrorThrown>>`
+  for module exports — interface as written = success-branch type, Result
+  wraps it.
+  R4-B (big-bang migration) rejected: nothing to migrate.
+  R4-C (lazy migration) rejected: equivalent to R1-B; defeats consistency.
+
+- **R5-A**: **Special-case throw retention** for 6 categories:
+    1. `localized(key, ctx?)` STAYS throw (inline call ergonomic — wrapping
+       every site with `unwrap()` defeats it; missing-key is internal bug
+       caught by `pnpm lint:locale`)
+    2. `buildAgoraError(code, opts)` is a constructor, not a fallible
+       function — Result has nothing to wrap
+    3. `unwrap(result)` BY DEFINITION converts Result to throw
+    4. Zod `parse()` and other external lib calls — wrapped at module
+       boundary, not per-call
+    5. `interpolate()` (i18n + prompts) — same reasoning as `localized`
+    6. Internal helpers within any module — module's exported wrapper
+       does the `tryFrom()` lift
+
+  Reconciliations:
+  - Stage 5-A.4 R5-A note ("renderPrompt converts to Result if 5-A.6
+    adopts") → CONFIRMED. renderPrompt becomes Result-returning module
+    export; internal `interpolate` stays throw.
+  - Stage 5-A.5 closing note ("localized() converts to Result") →
+    SUPERSEDED by R5-A. localized stays throw. Stage 5-A.5 closing
+    note is explicitly reversed by this SPEC's R5-A.
+
+  R5-B (Result everywhere — localized too) rejected: inline-call
+  ergonomic regression.
+  R5-C (case-by-case throw vs Result per function) rejected: inconsistency
+  cost outweighs flexibility.
+
+Canonical surface (`src/result/index.ts`):
+  Type:     Result<T, E = AgoraErrorThrown>
+  Ctors:    ok(value), err(error)
+  Combinators: map, flatMap, flatMapAsync, mapErr, unwrap, unwrapOr
+  Lift:     tryFrom(syncFn), tryFromAsync(asyncFn)
+  8 exports + 1 type alias + 1 internal type guard.
+
+What's NOT included at v1:
+  - match / fold (TS discriminated union narrowing is enough)
+  - andThen / orElse (flatMap covers; renaming is style)
+  - pipeable / curried versions (inflicts style)
+  - Result.all() / Result.collect() (add when first concrete need)
+
+CLAUDE.md L327 updated:
+  Was: "Result 패턴은 `Result<T, E>` 헬퍼 도입 검토 (Stage 5)"
+  Now: "Result<T, E>는 Stage 5-A.6에서 **도입 결정됨** — `src/result/`.
+        모듈 boundary는 Result return, 내부 helper는 throw 자유. CLI
+        top-level만 unwrap. 자세한 정책: docs/architecture/result-type.md."
+
+Boundaries enforced (16 rejections by name).
+
+Failure modes guarded:
+  - Forgotten error handling                  → TS discriminated union exhaustiveness
+  - Mixed throw + Result fatigue              → R3-A pins boundary
+  - Result fatigue at trivial paths           → internal helpers stay throw
+  - unwrap() proliferation                    → docs limit to CLI top-level / tests
+  - External library exception leakage        → tryFrom at module boundary
+  - Result library API divergence             → ADR required to extend surface
+  - localized() Result conversion (5-A.5 note)→ explicitly reversed by R5-A
+
+Module-graph note: src/result/ already declared LAYER 0 in Stage 5-A.1.
+This SPEC resolves the "decided 5-A.6" marker; no module-graph update.
+
+Full SPEC committed to `docs/architecture/result-type.md` with 6 [SPEC]
+sections + canonical types + combinators + boundaries + failure modes +
+output consumers.
+
+---
+
+## Stage 5 — All sub-questions complete
+
+| # | Topic | Path |
+|---|-------|------|
+| 5-A.1 | Module / file-tree organization | `docs/architecture/module-graph.md` ✅ |
+| 5-A.2 | Per-philosopher runbook template | `docs/architecture/runbook-template.md` ✅ |
+| 5-A.3 | 5 philosopher runbooks (Rev 2) | `docs/philosophers/runbooks/{husserl,socrates,aristotle,plato,aquinas}.md` ✅ |
+| 5-A.4 | Prompt library structure | `docs/architecture/prompt-library.md` ✅ |
+| 5-A.5 | Locale catalog content rules | `docs/architecture/locale-catalog.md` ✅ |
+| 5-A.6 | Result<T, E> adoption | `docs/architecture/result-type.md` ✅ |
+
+Stage 5 close requires (per ADR-0004):
+  1. All named deliverables exist and committed ✅
+  2. Sang explicit approval — pending close declaration
+  3. No ADR left in Proposed state — none introduced in Stage 5 ✅
+
+Awaiting Sang's "Stage 5 close 선언" → then create
+`docs/stage-5/CLOSED.md`, tag `v0.5.0-stage-5`, open `docs/stage-6/NOTES.md`
+(first vertical slice).

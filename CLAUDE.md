@@ -333,7 +333,7 @@ hardcoded defaults            ← 최후
 - TypeScript에서 immutable 강제는 `readonly` + `as const` + zod schema 활용
 - zod 도입은 Stage 4-A.3에서 결정됨 (config가 첫 사용처, `docs/infra/config.md`). 도메인 모델 zod 적용은 Stage 5+에서 자연스럽게 확장.
 - 비동기는 native Promise / async-await
-- Result 패턴은 `Result<T, E>` 헬퍼 도입 검토 (Stage 5)
+- Result<T, E>는 Stage 5-A.6에서 **도입 결정됨** — `src/result/`. 모듈 boundary는 Result return, 내부 helper는 throw 자유. CLI top-level만 unwrap. 자세한 정책: `docs/architecture/result-type.md`.
 - **에러는 모두 `AgoraError` (단일 catalog)** — Stage 4-A.6, `docs/infra/errors-and-telemetry.md`. Throw site에 string literal 금지, 모든 message는 locale catalog (en/ko) lookup.
 - **Telemetry 절대 금지 (v1)** — phone-home/Sentry/PostHog 런타임 import 금지. 로컬 crash report만 (`~/.agora/crashes/`). MANIFESTO P6 + ADR-0007.
 
