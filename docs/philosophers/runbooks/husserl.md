@@ -5,7 +5,7 @@
 > **Method (one line)**: Epoché — bracket assumed solution-frames before any other question is asked
 > **Inherited from**: `docs/philosophy/01-husserl-epoche.md`
 > **Status**: [SPEC] (Accepted 2026-05-03, Stage 5-A.3)
-> **Revision**: 1
+> **Revision**: 2
 
 ---
 
@@ -25,7 +25,7 @@
 **Skip conditions**:
 - Recent invocation: a `defended_frame` artifact exists in `.agora/seed.json` and was created within last 24 hours on the same scope
 - New request is consistent with existing `defended_frame` (no contradiction with chosen_form / audience / brackets_considered)
-- User passed `--skip-bracket` flag (Stage 3-B.4 / 3-B.5; recorded in seed metadata as override)
+- User invokes a Stage 2-B.7 bypass on Phase −1 (recorded in seed metadata as override). Concrete CLI surface for this per-phase opt-out is TBD; Stage 2-B.7 currently only specifies gate-level bypass.
 
 When skipped, Agora prints the one-line surfacing:
 ```
@@ -33,7 +33,7 @@ Skipping Phase −1 because [reason]. Run `agora bracket` to invoke explicitly.
 ```
 (Per concept doc — visibility prevents silent skipping from becoming default.)
 
-**Cross-references**: Stage 2-A (alignment-loop.md) Phase −1 SPEC; Stage 3-B.4 (`agora new --skip-bracket`); Stage 4-A.3 (`[bypass_alerts]` does NOT cover this — Phase −1 skip is per-invocation, not persistent).
+**Cross-references**: Stage 2-A (alignment-loop.md) Phase −1 SPEC; Stage 2-B.7 (general bypass mechanism — no per-phase opt-out flags exist yet, see skip conditions above); Stage 4-A.3 (`[bypass_alerts]` does NOT cover this — Phase −1 skip is per-invocation, not persistent).
 
 ## 2. Input contract
 
@@ -280,7 +280,7 @@ fire, Phase −1 likely became ceremony.
    - Mock LLM response that proposes a solution → runner detects "solution proposal during Epoché" and re-prompts
    - Mock LLM response with `defense.length < 50` → follow-up question fires; `defense_followup_triggered: true` is set on next response
    - Mock LLM response that affirms user's choice ("good thinking") → runner re-prompts to remove affirmation
-   - Input missing `raw_intent` → throws `buildAgoraError("config.invalid-toml" or new "user.aborted" if mid-flow)` — never silently proceeds
+   - Input missing `raw_intent` → throws `buildAgoraError("user.aborted")` (catalog-existing code closest to "input contract violation"); revisit when Stage 4-A.6 catalog adds a dedicated `validation.*` family for input-shape errors
 
 4. **Locale parity (en/ko)**:
    - Fixture in `en` and parallel `ko` translation produce equivalent output structure
@@ -360,6 +360,7 @@ Detection: section 8 unit test #3 (negative tests — `defense_followup_triggere
 
 ## 12. Revision history
 
-| Rev | Date       | Change                          | By         |
-|-----|------------|---------------------------------|------------|
-| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC        | Sang Rhee  |
+| Rev | Date       | Change                                                                                                                                       | By         |
+|-----|------------|----------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC                                                                                                                     | Sang Rhee  |
+| 2   | 2026-05-03 | Post-review fixes: replaced `--skip-bracket` flag mentions (flag does not exist in Stage 2-B.7) with bypass-mechanism language + TBD note; corrected §8 test #3 error-code citation to use existing `user.aborted` (with note re Stage 4-A.6 catalog gap for `validation.*` family). | Sang Rhee  |

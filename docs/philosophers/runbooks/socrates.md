@@ -5,7 +5,7 @@
 > **Method (one line)**: Elenchus — case-probe load-bearing claims toward aporia
 > **Inherited from**: `docs/philosophy/02-socrates-elenchus.md`
 > **Status**: [SPEC] (Accepted 2026-05-03, Stage 5-A.3)
-> **Revision**: 1
+> **Revision**: 2
 
 ---
 
@@ -26,11 +26,11 @@ A "claim" is one of:
 **Skip conditions**:
 - Claim tagged `load_bearing: false` (decorative claims pass without probe — F-Socrates-2 mitigation)
 - Claim already has `elenchus.aporia_count >= 1` from earlier round AND no contradicting input since
-- User passed `--skip-elenchus` for this specific claim (rare; recorded in seed metadata)
+- User invokes a Stage 2-B.7 bypass on this specific claim (rare; recorded in seed metadata). Concrete CLI surface for per-claim opt-out is TBD; Stage 2-B.7 currently only specifies gate-level bypass.
 
 Socrates is the **conductor**, not a phase. Aristotle picks *what* to probe; Socrates probes; Plato measures the result's maturity. The three operate in lockstep per Phase 2 round.
 
-**Cross-references**: Stage 2-A (alignment-loop.md) Phase 2 round structure; Stage 2-B.4 (`drift_score` LLM call shares the case-construction approach); Stage 4-A.4 (`probes/markers.ts` provides codebase signals for case construction).
+**Cross-references**: Stage 2-A (alignment-loop.md) Phase 2 round structure; Stage 4-A.4 (`probes/markers.ts` provides codebase signals for case construction).
 
 ## 2. Input contract
 
@@ -55,7 +55,7 @@ export interface SocratesInput {
 export interface PriorClaim {
   id: string;
   content: string;
-  outcome: "confirmed" | "refined" | "aporia_then_refined";
+  outcome: "confirmed" | "refined_with_addition" | "aporia_then_refined"; // matches ElenchedClaim.outcome (no translation step)
 }
 ```
 
@@ -371,6 +371,7 @@ Detection: section 8 unit test #3 — runner pre-checks generated questions for 
 
 ## 12. Revision history
 
-| Rev | Date       | Change                          | By         |
-|-----|------------|---------------------------------|------------|
-| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC        | Sang Rhee  |
+| Rev | Date       | Change                                                                                                                                       | By         |
+|-----|------------|----------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC                                                                                                                     | Sang Rhee  |
+| 2   | 2026-05-03 | Post-review fixes: dropped `--skip-elenchus` flag mention (does not exist in Stage 2-B.7) → bypass-mechanism language; dropped invented Stage 2-B.4 case-construction-sharing cross-ref; aligned PriorClaim.outcome enum to ElenchedClaim.outcome (`refined_with_addition`, not `refined`) so Socrates outputs flow back as prior_round_history without translation. | Sang Rhee  |

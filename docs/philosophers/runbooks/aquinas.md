@@ -120,7 +120,7 @@ Why vote-based consensus fails: objections aren't equivalent (serious vs trivial
 
 ## 4. Prompt
 
-Aquinas has 4 prompts. Stage A (videtur) prompts live in `critics/` (each critic persona owns its own prompt — see `docs/philosophers/runbooks/_template.md` is for philosophers, not critics; critic prompts are in `critics/definitions/` per Stage 5-A.1 module layout). Aquinas owns Stages B, C, D.
+Aquinas has 4 prompts. Stage A (videtur) prompts live in `src/critics/definitions/` per Stage 5-A.1 module layout — each critic persona owns its own prompt. Note that `docs/philosophers/runbooks/_template.md` is for philosophers, not critics. Aquinas owns Stages B, C, D directly.
 
 ### 4.1 aquinas:videtur (orchestration only — actual prompts in critics/)
 

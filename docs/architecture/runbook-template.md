@@ -134,13 +134,16 @@ prompts by stable key:
 ```
 Key format:  <philosopher_name>:<prompt_id>
 
-Examples:
+Canonical inventory (from Stage 5-A.3 runbooks; total = 12):
   husserl:phase-minus-1-bracket
   socrates:elenchus-round
-  aristotle:four-causes-extraction
-  plato:y2-divided-line-check
+  aristotle:telos-question
+  aristotle:form-question
+  aristotle:material-question
+  aristotle:efficient-question
+  plato:y2-noesis-test
   plato:dihairesis-decompose
-  aquinas:videtur
+  aquinas:videtur            (orchestration; per-critic prompts in src/critics/definitions/)
   aquinas:sed-contra
   aquinas:respondeo
   aquinas:ad-singula

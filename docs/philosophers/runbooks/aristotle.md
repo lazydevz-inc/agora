@@ -5,7 +5,7 @@
 > **Method (one line)**: Four Causes — telos primary, then form / material / efficient
 > **Inherited from**: `docs/philosophy/03-aristotle-four-causes.md`
 > **Status**: [SPEC] (Accepted 2026-05-03, Stage 5-A.3)
-> **Revision**: 1
+> **Revision**: 2
 
 ---
 
@@ -28,7 +28,7 @@
 
 **Skip conditions**: None for telos. For brownfield projects, `material` may auto-fill from Phase 0 with maturity tagged Pistis (concept doc default — material maturity floor is Pistis); user can leave it as-is or upgrade.
 
-**Cross-references**: Stage 2-A (alignment-loop.md) Phase 2 round structure; Stage 2-B.4 (Gate 5 reads `four_causes.telos.served_good` directly); Stage 2-B.3 (Gate 4 critics use telos as criterion for Sed contra).
+**Cross-references**: Stage 2-A (alignment-loop.md) Phase 2 round structure; Stage 2-B.4 (Gate 5 reads `four_causes.telos.served_good` directly); Stage 2-B.3 (defines a `telos_alignment` critic added to Gate 3 + Gate 4 Videtur — telos serves as the basis for that critic's objections, distinct from how Sed contra cites telos as evidence).
 
 ## 2. Input contract
 
@@ -397,7 +397,7 @@ The user said "blog" → "personal note-taking software with backlinking" → "H
 - ❌ **Skipping any of the 4 causes** even when it feels trivial: efficient for solo projects still must be captured (one-liner is fine).
 - ❌ **Combining causes into single prompt** (e.g. "tell me telos AND form together"): defeats reflection between sub-questions.
 - ❌ **Aristotle owning case-probing**: that's Socrates. Boundary is hard. Aristotle structures *what*; Socrates tests *how*.
-- ❌ **5th cause** ("aesthetic cause" or similar) — would require ADR superseding ADR-0006 and the 5-philosopher cap (MANIFESTO V).
+- ❌ **5th cause** ("aesthetic cause" or similar) — would require ADR superseding the 5-philosopher cap (MANIFESTO V) AND a Stage 1 / Stage 5 reopening, given Aristotle's four-cause framework is the structuring principle of Phase 2.
 - ❌ **Skipping telos when brownfield has prior project** — even brownfield needs explicit telos for the new feature/scope; inheriting prior project's telos is Pistis at best.
 
 ## 11. Examples / Anti-examples
@@ -410,6 +410,7 @@ implementation surfaces calibration ambiguity.)
 
 ## 12. Revision history
 
-| Rev | Date       | Change                          | By         |
-|-----|------------|---------------------------------|------------|
-| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC        | Sang Rhee  |
+| Rev | Date       | Change                                                                                                                                       | By         |
+|-----|------------|----------------------------------------------------------------------------------------------------------------------------------------------|------------|
+| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC                                                                                                                     | Sang Rhee  |
+| 2   | 2026-05-03 | Post-review fixes: removed stale ADR-0006 cite from §10 (ADR-0006 is Gate 0 infrastructure, unrelated to philosopher cap); rephrased §1 Stage 2-B.3 cross-ref (telos_alignment is a Videtur critic, not a Sed-contra criterion). | Sang Rhee  |

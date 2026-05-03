@@ -344,7 +344,7 @@ key. Library is auto-derived from runbooks (manual edits forbidden per
 Stage 5-A.2 R2-A). Must define: file format (YAML/JSON/TS), generation
 mechanism, fingerprint check, library file location.
 
-All 5 runbook prompt IDs already declared (count: 11 total prompts):
+All 5 runbook prompt IDs declared (count: 12 total prompts — Aristotle has 4 sub-prompts; original draft mentioned 11 in error):
   husserl:phase-minus-1-bracket
   socrates:elenchus-round
   aristotle:telos-question, aristotle:form-question,
@@ -356,3 +356,89 @@ All 5 runbook prompt IDs already declared (count: 11 total prompts):
 (Aquinas videtur is orchestration — actual critic prompts live in
 critics/definitions/ per Stage 5-A.1 module layout. Stage 5-A.4 will
 clarify whether critic prompts also flow into prompt-library.md.)
+
+### Stage 5-A.3 Rev 2 (post-review fixes, 2026-05-03)
+
+Sang requested independent review after batch commit (Option A regret).
+Spawned a fresh-eyes review agent against authoritative SPECs (concept
+docs Stage 1, alignment-loop.md, ralph-loop.md, handoff.md, module-graph.md,
+llm-integration.md). Agent found 3 CRITICAL + 5 HIGH + 5 MEDIUM issues
+concentrated in Plato (3 critical), Aristotle (2 high), Socrates (2 medium),
+Husserl (2 medium), Aquinas (1 medium grammar). Verified each finding
+against cited SPEC line numbers before fixing.
+
+**Plato Rev 2** — most damage:
+  C1: REQUIRED_FLOORS dict was paraphrased (collapsed telos.* to single
+      Noesis floor when failure_signal is DIANOIA per R2-A; called field
+      `evaluation_principles` when SPEC says `ontology`). Now verbatim
+      from alignment-loop.md L1202-1212.
+  C2: 3-AND atomicity criteria were "single file / single concern / one
+      Claude session" (invented). Now verbatim per Stage 2-C.1 R1-A
+      `is_atomic()` (handoff.md L118-131): `llm_session_judgment AND
+      estimated_file_touches ≤ 3 AND conjunction_count ≤ 1`.
+  C3: ACNode TypeScript shape used nested `binary_split: { principle,
+      alternatives_considered, children }` — actual SPEC (handoff.md
+      L92-108) uses flat `split_principle, split_defense, alternatives_considered,
+      arity, children`. Rewrote interface + section 5 worked example +
+      section 6 quality bar + section 7 forbidden + section 8 test contract
+      to match SPEC shape.
+  M1: Cross-ref "Stage 2-C.1 R1-A (atomicity + 0.6 defense)" conflated
+      two rules. Split: R1-A (atomicity), R3-A (DEFENSE_THRESHOLD).
+  M5: `evaluation_principles` ghost in skip-conditions section also fixed
+      via C1 propagation.
+  H3: `--skip-dihairesis` flag mention dropped (no SPEC defines it) →
+      Stage 2-B.7 bypass language with TBD note.
+
+**Aristotle Rev 2**:
+  H2: `5th cause...would require ADR superseding ADR-0006` — wrong ADR.
+      ADR-0006 is Gate 0 infrastructure, not philosopher cap. Removed.
+  H5: §1 cross-ref claimed "Stage 2-B.3 (Gate 4 critics use telos as
+      criterion for Sed contra)" — Stage 2-B.3 actually defines a
+      `telos_alignment` critic at Videtur (not Sed-contra). Reworded.
+
+**Husserl Rev 2**:
+  H3: `--skip-bracket` flag mention dropped (does not exist in any SPEC)
+      → Stage 2-B.7 bypass language with TBD note.
+  M4: §8 test #3 cited `buildAgoraError("config.invalid-toml" or new
+      "user.aborted")` — uncertain. Replaced with existing `user.aborted`
+      + note re Stage 4-A.6 catalog gap for `validation.*` family.
+
+**Socrates Rev 2**:
+  H4: §1 cross-ref claimed "Stage 2-B.4 case-construction sharing" —
+      invented. Stage 2-B.4 is drift_score, no case construction shared.
+      Dropped.
+  H3: `--skip-elenchus` flag dropped → bypass-mechanism language.
+  M3: PriorClaim.outcome enum was `"refined"`, but ElenchedClaim.outcome
+      uses `"refined_with_addition"`. Misalignment meant Socrates outputs
+      could not flow back as prior_round_history without translation.
+      Aligned.
+
+**Aquinas (NO Rev bump per R5-A typo rule)**:
+  M2: §4 lead paragraph had broken grammar ("see X.md is for Y, not Z").
+      Reworded for clarity. R5-A: typo/grammar fixes do not require
+      revision bump.
+
+**Template SPEC update**:
+  Stage 5-A.4 prompt library will index against runbook IDs. Updated
+  `docs/architecture/runbook-template.md` example prompt-id list to
+  reflect runbook reality (Aristotle 4 sub-prompts; Plato y2-noesis-test
+  not y2-divided-line-check). Total prompt count corrected: 11 → 12.
+
+**Layer rule, F-rule completeness, locale parity, examples policy**:
+  All verified clean by review agent. No fixes needed.
+
+**Cross-philosopher type flow**:
+  Husserl → Aristotle: DefendedFrame matches (verified clean).
+  Aristotle → Socrates: orchestrator transforms FourCauses into per-claim
+    SocratesInput (implicit; documented as orchestrator's job).
+  Socrates → Plato: ElenchedClaim matches (verified clean).
+  Plato (DH) → Aquinas: rejected_alternatives + ac_tree flow verified.
+
+Outstanding (not blocking 5-A.4):
+  - Stage 4-A.6 ERROR_CATALOG missing `validation.*` family — surface
+    in next round of catalog evolution
+  - Stage 2-B.7 lacks per-phase bypass flags — surface if/when CLI
+    needs `--skip-{bracket,elenchus,dihairesis}` per real use case
+
+Verdict from review agent: "fix before 5-A.4" — addressed. Proceeding
+to Stage 5-A.4 (prompt library structure) on the corrected runbooks.

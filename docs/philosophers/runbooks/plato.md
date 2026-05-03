@@ -5,7 +5,7 @@
 > **Method (one line)**: Divided Line (knowledge maturity tagging) + Dihairesis (cut at natural joints)
 > **Inherited from**: `docs/philosophy/04-plato-divided-line-and-dihairesis.md`
 > **Status**: [SPEC] (Accepted 2026-05-03, Stage 5-A.3)
-> **Revision**: 1
+> **Revision**: 2
 
 ---
 
@@ -26,7 +26,21 @@ the section applies to both.
 
 **Trigger A — per-claim maturity tagging**: After Socrates returns an `ElenchedClaim` for any cause-statement or AC. Plato tags maturity (eikasia / pistis / dianoia / noesis) and decides whether to re-loop the claim.
 
-**Trigger B — Y2 termination gate**: At end of Phase 2, before the Alignment Loop closes. Plato checks every required field meets its maturity floor (Stage 2-A.8 R3: telos=Noesis, form=Dianoia, material=Pistis, efficient=Pistis, AC=Dianoia, evaluation_principles=Dianoia). If any field below floor, Y2 fails and Phase 2 re-iterates (or user invokes explicit override flag).
+**Trigger B — Y2 termination gate**: At end of Phase 2, before the Alignment Loop closes. Plato checks every required field meets its maturity floor per Stage 2-A.8 R3 `REQUIRED_FLOORS` (alignment-loop.md L1202-1212):
+
+```
+telos.statement:           NOESIS
+telos.served_good:         NOESIS
+telos.failure_signal:      DIANOIA   (NOT Noesis-required per R2-A)
+form.essential_structure:  DIANOIA
+form.irreducible_parts:    PISTIS
+material.*:                PISTIS
+efficient.*:               PISTIS
+acceptance_criteria.*:     DIANOIA
+ontology.*:                DIANOIA
+```
+
+If any field is below its floor, Y2 fails and Phase 2 re-iterates (or user invokes explicit `--accept-low-telos-maturity` override per Stage 2-A.8 R3).
 
 ### 1.2 Dihairesis (DH)
 
@@ -38,9 +52,9 @@ the section applies to both.
 
 **Skip conditions**:
 - (DL) None — Divided Line is mandatory on every load-bearing claim
-- (DH) `--skip-dihairesis` flag (rare; recorded in seed metadata; Ralph sees flat AC list with warning)
+- (DH) User invokes a Stage 2-B.7 bypass on Dihairesis (rare; recorded in seed metadata; Ralph sees flat AC list with warning). Concrete CLI surface for per-phase opt-out is TBD; Stage 2-B.7 currently only specifies gate-level bypass.
 
-**Cross-references**: Stage 2-A.8 R3 maturity floors; Stage 2-C.1 R1-A (3-AND atomicity, 0.6 defense score); Stage 2-B.4 R1-A (drift_score uses noesis-tagged claims as anchors).
+**Cross-references**: Stage 2-A.8 R3 (`REQUIRED_FLOORS`); Stage 2-C.1 R1-A (3-AND atomicity); Stage 2-C.1 R3-A (`DEFENSE_THRESHOLD = 0.6`); Stage 2-B.4 R1-A (drift_score uses noesis-tagged claims as anchors).
 
 ## 2. Input contract
 
@@ -67,13 +81,13 @@ export interface ACNode {
   id: string;
   parent: string | null;
   content: string;
-  binary_split?: BinarySplit;
-}
-
-export interface BinarySplit {
-  principle: string;             // why this cut at this level (the dihairesis justification)
-  alternatives_considered: string[]; // other cuts that were rejected
-  children: [ACNode, ACNode];    // exactly 2 (rarely 3 with explicit defense)
+  // Flat decomposition fields per Stage 2-C.1 (handoff.md L92-108).
+  // Present only on non-leaf nodes.
+  split_principle?: string;       // why this cut at this level (dihairesis justification)
+  split_defense?: string;         // why MORE fundamental than alternatives
+  alternatives_considered?: string[]; // 2-3 alternative binaries that were considered
+  arity?: 2 | 3;                  // 2 default; 3 only with explicit defense (F-Plato-DH-1)
+  children?: ACNode[];            // length === arity when present
 }
 ```
 
@@ -91,7 +105,7 @@ Plato contributes two methods (`docs/philosophy/04-plato-divided-line-and-dihair
 
 The Noesis test: **"What alternative did you consider for this claim, and why did you reject it?"** A user at Noesis answers in two sentences. A user at Dianoia struggles. A user at Pistis says "I just thought it was the right way."
 
-**Dihairesis** is systematic division at natural joints. At each step: find the SINGLE most fundamental binary distinction; defend it as more fundamental than alternative binaries; cut there; recurse until atomic. The justification (`binary_split.principle`) is the work product. *Better an undivided AC than a badly divided one.*
+**Dihairesis** is systematic division at natural joints. At each step: find the SINGLE most fundamental binary distinction; defend it as more fundamental than alternative binaries; cut there; recurse until atomic. The justification (`split_principle` + `split_defense`) is the work product. *Better an undivided AC than a badly divided one.*
 
 ### 3.2 Operationalization
 
@@ -128,8 +142,8 @@ The Noesis test: **"What alternative did you consider for this claim, and why di
       "Better an undivided AC than a badly divided one.")
    e. Else → decompose into the two halves (rarely 3 with explicit defense per F-Plato-DH-1)
 3. Recurse on each half:
-   a. Atomicity check (Stage 2-C.1 R1-A 3-AND): single file change-shape
-      AND single concern AND executable in one Claude session?
+   a. Atomicity check per Stage 2-C.1 R1-A `is_atomic()` (handoff.md L118-131):
+      `llm_session_judgment AND estimated_file_touches ≤ 3 AND conjunction_count ≤ 1`
    b. If atomic OR depth == max_depth → leaf; stop recursing
    c. Else → repeat from step 2 on this child
 4. Build ac_tree.json
@@ -216,7 +230,7 @@ Hard rules:
 Acceptance criterion to decompose:
 - id: {ac.id}
 - content: {ac.content}
-- parent_principle (if applicable): {ac.parent.binary_split.principle}
+- parent_principle (if applicable): {ac.parent.split_principle}
 - depth: {current_depth} of max {max_depth}
 
 Settled telos (for context, do not re-decompose into telos-aligned subnodes
@@ -247,7 +261,7 @@ export interface PlatoDLOutput {
 }
 
 export interface PlatoDHOutput {
-  ac_tree: ACNode[];             // root nodes; children inside each node's binary_split
+  ac_tree: ACNode[];             // root nodes; children inlined per ACNode shape
   undivided_acs: string[];       // AC IDs where no defensible binary was found
   max_depth_reached: number;
   total_atomic_leaves: number;
@@ -319,42 +333,49 @@ Dihairesis trace:
    Binary: "first-time identity claim vs returning identity claim"
    defense_score: 0.78
    → ac_004 (registration), ac_005 (login)
-6. Atomicity check on ac_004 (registration):
-   single file? probably not (form + handler + DB)
-   single concern? yes (first-time identity claim)
-   executable in one session? yes
+6. Atomicity check on ac_004 (registration) per is_atomic():
+   llm_session_judgment? yes (one focused session)
+   estimated_file_touches ≤ 3? yes (form + handler + DB row = 3)
+   conjunction_count ≤ 1? yes ("first-time identity claim" — no AND)
    → atomic leaf at depth 2
 ```
 
-Output (partial):
+Output (partial — flat ACNode shape per Stage 2-C.1):
 ```yaml
 ac_tree:
   - id: ac_001
     parent: null
     content: "Users can authenticate with the system"
-    binary_split:
-      principle: "identity verification vs session management"
-      alternatives_considered:
-        - "login form vs registration form"
-        - "user-facing vs admin-facing"
-      children:
-        - id: ac_002
-          parent: ac_001
-          content: "Identity verification works"
-          binary_split:
-            principle: "first-time identity claim vs returning identity claim"
-            alternatives_considered: ["form layout vs API layout"]
-            children:
-              - id: ac_004
-                content: "First-time identity claim (registration)"
-                # atomic leaf, no further binary_split
-              - id: ac_005
-                content: "Returning identity claim (login)"
-                # atomic leaf
-        - id: ac_003
-          parent: ac_001
-          content: "Session management works"
-          # ... continues
+    split_principle: "identity verification vs session management"
+    split_defense: "Identity verification (proving you are X) and session
+                    management (maintaining you-are-X across requests) have
+                    radically different failure modes (auth bypass vs session
+                    hijack)."
+    alternatives_considered:
+      - "login form vs registration form"
+      - "user-facing vs admin-facing"
+    arity: 2
+    children:
+      - id: ac_002
+        parent: ac_001
+        content: "Identity verification works"
+        split_principle: "first-time identity claim vs returning identity claim"
+        split_defense: "Different attack surfaces; different UX trust journeys."
+        alternatives_considered: ["form layout vs API layout"]
+        arity: 2
+        children:
+          - id: ac_004
+            parent: ac_002
+            content: "First-time identity claim (registration)"
+            # atomic leaf — no split_principle / split_defense / arity / children
+          - id: ac_005
+            parent: ac_002
+            content: "Returning identity claim (login)"
+            # atomic leaf
+      - id: ac_003
+        parent: ac_001
+        content: "Session management works"
+        # ... continues
 total_atomic_leaves: 5
 max_depth_reached: 2
 undivided_acs: []
@@ -378,10 +399,10 @@ The MECE-LLM default would have produced [login_form, registration_form, passwor
 ### Dihairesis
 
 **Quantitative**:
-- Each `binary_split.principle` is a defensible binary (defense_score ≥ 0.6)
+- Each `split_principle` is a defensible binary (defense_score ≥ DEFENSE_THRESHOLD = 0.6)
 - `alternatives_considered` has ≥ 2 entries per cut
-- Tree depth ≤ 5 (max_depth contract)
-- ≥ 80% of leaves pass 3-AND atomicity (single file / single concern / one session)
+- Tree depth ≤ 5 (MAX_DEPTH contract)
+- ≥ 80% of leaves pass `is_atomic()` (`llm_session_judgment AND estimated_file_touches ≤ 3 AND conjunction_count ≤ 1`)
 
 **Qualitative tells**:
 - Refactoring an unrelated leaf does NOT require touching siblings or trunk
@@ -400,7 +421,7 @@ The MECE-LLM default would have produced [login_form, registration_form, passwor
 ### Dihairesis forbidden
 
 - ❌ **F-Plato-DH-1**: Forced binary where ternary is natural — runner allows 2-3-way splits with explicit defense; 4+ defaults to "re-binarize"
-- ❌ **F-Plato-DH-2**: Decomposition stops too early — atomicity 3-AND checklist enforced
+- ❌ **F-Plato-DH-2**: Decomposition stops too early — `is_atomic()` 3-AND check enforced (llm_session_judgment AND estimated_file_touches ≤ 3 AND conjunction_count ≤ 1)
 - ❌ **F-Plato-DH-3**: Decomposition goes too deep — max_depth 5 hard cap
 - ❌ Cuts that "feel like features" (login_form / registration_form / reset) — runner detects feature-aligned cuts and re-prompts for natural binary
 - ❌ Jargon binaries that obscure (e.g. "covariance vs contravariance" for a CRUD app) — runner re-prompts for user-grokkable binary
@@ -439,13 +460,13 @@ The MECE-LLM default would have produced [login_form, registration_form, passwor
 
 1. **Schema conformance**:
    - `PlatoDHOutput.ac_tree` recursive ACNode structure (Zod validates)
-   - `binary_split.children` has exactly 2 entries (3 only with explicit defense)
+   - `children.length === arity` when present; `arity ∈ {2, 3}` (3 only with explicit defense)
    - `max_depth_reached` <= input.max_depth
 
 2. **Quality-bar threshold**:
    - Auth AC fixture → tree matches concept doc example (identity verification vs session management at depth 1)
-   - Refactor test: removing one leaf does NOT modify sibling or parent (`binary_split.principle` unchanged)
-   - ≥ 80% of leaves pass 3-AND atomicity check
+   - Refactor test: removing one leaf does NOT modify sibling or parent (`split_principle` unchanged)
+   - ≥ 80% of leaves pass `is_atomic()` 3-AND check (per Stage 2-C.1 R1-A)
 
 3. **Negative tests**:
    - Mock LLM proposes feature-aligned cut (login_form / registration_form / reset) → runner detects, re-prompts for natural binary
@@ -455,7 +476,7 @@ The MECE-LLM default would have produced [login_form, registration_form, passwor
 
 4. **Locale parity**:
    - en + ko fixtures produce equivalent tree structure on same input AC
-   - `binary_split.principle` translated semantically equivalent
+   - `split_principle` translated semantically equivalent
 
 ### Integration tests participated in
 
@@ -542,6 +563,7 @@ Why right: 2 alternatives, each with concrete consequence (network flakiness, tw
 
 ## 12. Revision history
 
-| Rev | Date       | Change                          | By         |
-|-----|------------|---------------------------------|------------|
-| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC        | Sang Rhee  |
+| Rev | Date       | Change                                                                                                   | By         |
+|-----|------------|----------------------------------------------------------------------------------------------------------|------------|
+| 1   | 2026-05-03 | Initial Stage 5-A.3 SPEC                                                                                 | Sang Rhee  |
+| 2   | 2026-05-03 | Post-review fixes: corrected REQUIRED_FLOORS to verbatim Stage 2-A.8 R3 dict (failure_signal=DIANOIA, ontology not evaluation_principles); replaced 3-AND atomicity wording with verbatim Stage 2-C.1 R1-A `is_atomic()` (llm_session_judgment AND ≤3 file touches AND conjunction_count ≤ 1); flattened ACNode shape to match handoff.md L92-108 (split_principle/split_defense/arity/children, no nested binary_split); split atomicity vs defense_threshold cross-refs (R1-A vs R3-A); replaced --skip-dihairesis flag mention with Stage 2-B.7 bypass language. | Sang Rhee  |
