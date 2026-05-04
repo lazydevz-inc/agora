@@ -92,6 +92,11 @@
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
+    "maturity": {
+      "intro": "Plato Divided Line — maturity tagging for all 4 captured causes",
+      "context_summary": "Asking the Noesis test on each cause. Required floors: telos=noesis (rejected_alternatives required) / form=dianoia / material=pistis / efficient=pistis. All 4 must pass to unlock Y2 termination.",
+      "q_noesis_test": "[{field_path}] required floor: {required_floor}\n\nClaim: \"{claim_content}\"\n\nNoesis test: What alternative did you consider for this claim, and why did you reject it?"
+    },
     "efficient": {
       "intro": "Aristotle efficient round — Phase 2, round 4 (final Aristotle cause)",
       "q_who": "Who is involved? (solo / team of N / specific roles)",
@@ -158,7 +163,10 @@
       "material_done": "Material captured (Phase 2 round 3). Ready for efficient round (round 4).",
       "next_phase_2_efficient": "Next: `agora efficient` — Aristotle efficient round (Phase 2, round 4 — final).",
       "next_efficient_desc": "Run Aristotle efficient round (who + when + how)",
-      "efficient_done": "All 4 Aristotle causes captured (Phase 2 complete). Plato Y2 maturity tagging pending.",
+      "efficient_done": "All 4 Aristotle causes captured (Phase 2 complete). Ready for Plato maturity tagging.",
+      "next_phase_2_maturity": "Next: `agora maturity` — Plato Divided Line maturity tagging (Y2 prerequisite).",
+      "next_maturity_desc": "Run Noesis test on all 4 causes; tag maturity per Divided Line",
+      "maturity_done": "Maturity tagging complete (Phase 2 round 5). Y2 termination + handoff pending.",
       "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
       "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",
       "deferred_phase": "Phase `{phase}` recognized — downstream implementation pending. Follow-up: {follow_up}.",

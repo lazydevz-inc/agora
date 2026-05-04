@@ -200,15 +200,23 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
         description: localized("cli.resume.next_efficient_desc"),
         command: "agora efficient",
       });
-    } else {
-      // round >= 4 — all 4 Aristotle causes done; Plato termination
-      // gate not yet implemented.
+    } else if (round === 4) {
+      // All 4 Aristotle causes done; Plato Y2 maturity tagging next.
       lines.push(localized("cli.resume.efficient_done"));
+      lines.push(localized("cli.resume.next_phase_2_maturity"));
+      next.push({
+        id: "maturity",
+        description: localized("cli.resume.next_maturity_desc"),
+        command: "agora maturity",
+      });
+    } else {
+      // round >= 5 — Plato done. handoff (Dihairesis + ac_tree) next.
+      lines.push(localized("cli.resume.maturity_done"));
       lines.push(localized("cli.resume.alignment_runtime_pending", { phase: String(ap) }));
       next.push({
         id: "alignment_runtime_pending",
         description: localized("cli.resume.next_alignment_runtime_desc"),
-        command: `agora resume (TBD: Plato Y2 maturity tagging)`,
+        command: `agora resume (TBD: Plato Dihairesis + handoff)`,
       });
     }
   } else {

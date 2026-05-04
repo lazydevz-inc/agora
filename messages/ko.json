@@ -92,6 +92,11 @@
       "constructing": "Claude로 대안을 구성하는 중 (LLM 호출 1회)...",
       "ask_surprising": "그동안 모르고 있던 가정을 깨달은 순간이 있었나요?"
     },
+    "maturity": {
+      "intro": "Plato Divided Line — 4개 cause maturity tagging",
+      "context_summary": "각 cause에 Noesis 테스트 진행. 필요 floor: telos=noesis (rejected_alternatives 필요) / form=dianoia / material=pistis / efficient=pistis. 4개 모두 통과해야 Y2 termination 가능.",
+      "q_noesis_test": "[{field_path}] 필요 floor: {required_floor}\n\n주장: \"{claim_content}\"\n\nNoesis 테스트: 이 주장에 대해 어떤 대안을 고려했고, 왜 거부했나요?"
+    },
     "efficient": {
       "intro": "Aristotle efficient 라운드 — Phase 2, round 4 (마지막 Aristotle cause)",
       "q_who": "누가 참여하나요? (혼자 / N명 팀 / 특정 역할)",
@@ -158,7 +163,10 @@
       "material_done": "Material 캡처 완료 (Phase 2 round 3). Efficient 라운드 (round 4) 준비됨.",
       "next_phase_2_efficient": "다음: `agora efficient` — Aristotle efficient 라운드 (Phase 2, round 4 — 마지막).",
       "next_efficient_desc": "Aristotle efficient 라운드 실행 (who + when + how)",
-      "efficient_done": "Aristotle 4개 cause 모두 캡처 완료 (Phase 2 complete). Plato Y2 maturity tagging 대기 중.",
+      "efficient_done": "Aristotle 4개 cause 모두 캡처 완료 (Phase 2 complete). Plato maturity tagging 준비됨.",
+      "next_phase_2_maturity": "다음: `agora maturity` — Plato Divided Line maturity tagging (Y2 prerequisite).",
+      "next_maturity_desc": "4개 cause에 Noesis 테스트 실행; Divided Line으로 maturity tagging",
+      "maturity_done": "Maturity tagging 완료 (Phase 2 round 5). Y2 termination + handoff 대기 중.",
       "alignment_runtime_pending": "Phase {phase} 런타임은 이 빌드에서 아직 구현되지 않았습니다.",
       "next_alignment_runtime_desc": "이 단계의 alignment 런타임은 향후 슬라이스에서 추가 예정",
       "deferred_phase": "Phase `{phase}` 인식됨 — 하위 구현 대기 중. 후속: {follow_up}.",

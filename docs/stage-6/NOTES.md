@@ -32,6 +32,7 @@ agora telos     (6-A.9) — Aristotle Phase 2 telos round (interactive, 2nd phil
 agora form      (6-A.11) — Aristotle Phase 2 form round (essential structure + irreducible parts)
 agora material  (6-A.12) — Aristotle Phase 2 material round (tech stack + data shape + infrastructure)
 agora efficient (6-A.13) — Aristotle Phase 2 efficient round (who + when + how) — Phase 2 COMPLETE
+agora maturity  (6-A.14) — Plato Divided Line maturity tagging (3rd philosopher; Y2 prerequisite)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -2385,6 +2386,207 @@ Next task: Stage 6-A.13 — likely candidates:
   (d) Socrates case-probing of telos/form/material claims.
   (e) `src/config/` + TOML + Zod.
   (f) Remaining 14 probes.
+
+### Stage 6-A.14 — DONE (2026-05-04)
+
+**Fourteenth vertical slice: `agora maturity` — Plato Divided Line.
+3rd philosopher implementation; Y2 prerequisite gate.** Auto-selected
+per session cadence + clear unblock (all 4 Aristotle causes captured
+6-A.9..6-A.13 → maturity tagging is the next strict-prerequisite for
+Y2 termination). Slice covers ONLY DL; Plato Dihairesis (DH) lives
+in handoff slice (decomposes acceptance criteria into ac_tree).
+
+Cookie-cutter from Aristotle slices (local question + LLM extraction +
+inline prompt). Per-cause Noesis test iterated for all 4 causes;
+maturity tagged + applied back to four_causes.json; state advances to
+alignment_complete on all-pass (Y2 ready) or stays in_alignment with
+failing_causes hint on any fail.
+
+Decisions made inline (no Q):
+  - PlatoDLPerCauseOutputSchema + PlatoMaturityResultSchema (Zod).
+  - REQUIRED_FLOORS constant: telos=noesis, form=dianoia, material=
+    pistis, efficient=pistis (per alignment-loop.md L1210 + MANIFESTO
+    "telos is most load-bearing").
+  - PlatoUi adapter: single askNoesisTest method (1 question per cause).
+  - 4-level Divided Line collapsed to 3-level (eikasia downgraded to
+    pistis in extraction). Reason: practical UX simplicity; only the
+    3-tier maturity differential matters for floor comparison.
+  - State transition: all-pass → in_alignment → alignment_complete +
+    state.alignment.round → 5. Any fail → stay in_alignment, round → 5,
+    failing_causes recorded for next agora resume / re-run.
+  - .agora/maturity.json persists the full PlatoMaturityResult for
+    audit + future Aquinas Sed contra reference (rejected_alternatives
+    are needed at Ralph Gate 4).
+  - 4 refusal guards: no .agora/, missing all 4 causes, alignment.round
+    < 4, llm.no-runner-available.
+  - When all-pass: next.[handoff_pending] hint. When fail: per-cause
+    `agora <field>` re-run hints.
+
+Files shipped:
+
+src/philosophers/plato.ts (LAYER 1 — new, ~265 LOC):
+  RejectedAlternativeSchema + CauseFieldPath enum + PlatoDLPerCauseOutput
+    Schema + PlatoMaturityResultSchema (all Zod).
+  REQUIRED_FLOORS constant (telos=noesis / form=dianoia / material+
+    efficient=pistis).
+  MATURITY_ORDER constant (pistis=0/dianoia=1/noesis=2 for floor compare).
+  PlatoUi adapter: askNoesisTest({field_path, claim_content,
+    required_floor}) → user response.
+  PLATO_DL_SYSTEM inline prompt (~600 chars; describes 3-level
+    categorization rules + JSON output contract).
+  buildDLUserPrompt(input, userResponse) builder.
+  runPlatoNoesisTest(input, runner, ui) — single cause Noesis test.
+  runPlatoMaturityForAllCauses(input, runner, ui) — iterates 4 causes
+    sequentially, aggregates per_cause + all_passed + failing_causes.
+  callForDLTag — LLM extraction helper.
+
+src/cli/commands/maturity.ts (LAYER 3 — new, ~265 LOC):
+  runMaturityCommand: 4 refusal guards; loads four_causes (all 4 must
+    exist); state.alignment.round >= 4 check; selectRuntime; PlatoUi
+    via @clack/prompts; runs maturity for all 4 causes; applies tagged
+    maturity back to FourCauses; persists .agora/four_causes.json +
+    .agora/maturity.json; advances state.
+  applyTelosMaturity / applyFormMaturity / applyMaterialMaturity /
+    applyEfficientMaturity — per-cause maturity field updaters.
+  buildClackUi: askNoesisTest formatted with field_path + claim_content
+    + required_floor in prompt header.
+  buildEnvelope: next.* differs based on result.all_passed (handoff_
+    pending vs per-cause re-run hints).
+
+src/cli/index.ts: maturity command dispatch + dispatchMaturity helper.
+  Help text adds maturity line.
+src/cli/commands/resume.ts: ap===2 round===4 → live `agora maturity`
+  hint; round>=5 → maturity_done + handoff/Dihairesis pending.
+messages/en.json + ko.json: +3 cli.maturity.* + 3 cli.resume.* keys
+  × 2 locales = 12 strings net new.
+
+Tests (1 new file; total 26 files / 183 tests, was 25/172):
+  tests/unit/philosophers/plato.test.ts (11 tests):
+    REQUIRED_FLOORS sanity × 3.
+    runPlatoNoesisTest × 5 (noesis pass, dianoia-fail-noesis-floor,
+      pistis-pass-pistis-floor, empty response → user.aborted, malformed
+      → llm.invalid-response).
+    runPlatoMaturityForAllCauses × 3 (all 4 pass → all_passed=true,
+      telos fails → failing_causes=[telos], UI asked once per cause
+      in order).
+  Uses QueueRunner + RecordedUi stubs. No real LLM calls.
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (15 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 26 files, 183 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+  Manual interactive run deferred to TTY (clack pattern).
+
+Surprises encountered + decisions made:
+
+1. **4-level Divided Line collapsed to 3-level**: SPEC mentions Eikasia
+   as the lowest level ("kinda like X"). My slice's PLATO_DL_SYSTEM
+   prompt explicitly downgrades Eikasia → Pistis in the output JSON
+   (since MaturitySchema only has 3 levels: pistis/dianoia/noesis).
+   This matches Aristotle's MaturitySchema export. If Eikasia distinction
+   ever matters (e.g., per Plato runbook §6 quality bar), the schema
+   can be extended; for now, the 3-level model + binary pass/fail vs
+   floor is sufficient for Y2.
+
+2. **State enum already supports alignment_complete**: 8-phase enum
+   from 6-A.7 had this exact phase. No schema change needed; just set
+   state.current_phase to "alignment_complete" on all-pass. Resume's
+   deferred-phase dispatch (R3-A from 6-A.7) handles alignment_complete
+   gracefully (handoff_not_implemented deferred reason).
+
+3. **Material + efficient claim_content composed from sub-fields**:
+   telos has a single statement; form has essential_structure; but
+   material has tech_stack[]+data_shape+infrastructure (3 fields) and
+   efficient has who+when+how (3 fields). Composed as comma-joined
+   string for the Noesis test prompt context. Acceptable simplification;
+   future slice could ask Noesis test per sub-field if rigor needs it.
+
+4. **agora maturity is the 13th `agora <command>`** (8 shortcuts beyond
+   primary 7). `agora round` consolidation pressure increasing. Defer
+   to dedicated consolidation slice OR continue with handoff/Ralph
+   slices and revisit after Ralph foundation lands.
+
+5. **6 inline philosopher prompts now**: Husserl + Aristotle ×4 + Plato.
+   Generator-refactor batch slice ROI maximized. Consider dedicating
+   the next slice to that refactor before adding Socrates/Aquinas.
+
+Lessons / observations:
+- **MATURITY_ORDER as numeric ranks** for floor comparison is cleaner
+  than nested if/else. Pattern reusable for any maturity-comparison
+  logic (handoff Y2 check, Aquinas Gate 5 alignment scoring).
+- **PlatoUi single-method adapter** (just askNoesisTest) is the minimal
+  shape; orchestrator iterates externally. Same shape for any future
+  per-claim philosopher operation (e.g., Socrates per-claim probe).
+- **Per-cause iteration in orchestrator** keeps the LLM call count
+  bounded (4 per maturity run). For projects with many ACs, the
+  Dihairesis slice will likely benefit from a similar batching pattern.
+- **rejected_alternatives is captured but not yet consumed**: Aquinas
+  Sed contra at Ralph Gate 4 will use this to find counter-arguments.
+  Slice ships the data; downstream code wires the consumption.
+
+Outstanding (intentional defer):
+  - Plato Dihairesis (DH): decomposes seed.acceptance_criteria into
+    ac_tree.json. Lands in handoff slice (Stage 2-C.1 + 2-C.2).
+  - Acceptance criteria capture: not yet a step in our flow. Plato
+    DH operates on seed.acceptance_criteria; need to add an AC capture
+    step (perhaps `agora ac` command or fold into final round).
+  - Socrates case-probing layer between Aristotle and Plato: runbook
+    §3.2 step 7 says "Hand off to Socrates after Aristotle returns".
+    Not yet implemented; current slice runs Plato directly on Aristotle
+    output. Adds slice in future for case-probing rigor.
+  - 6-prompt batch refactor to renderPrompt (Husserl + Aristotle ×4 +
+    Plato): batch slice when ready.
+  - agora round consolidation (13 commands now).
+  - Y2 termination check after maturity: currently simple all-passed
+    boolean; SPEC L1520 wants 3-condition AND (all_required_settled +
+    no_unresolved_divergences + no_pending_backtracks). Simplification
+    is acceptable for v1 but worth surfacing.
+  - Integration test for interactive maturity run (PTY mock infra).
+  - Aquinas Sed contra consumption of rejected_alternatives (Ralph
+    Gate 4 slice).
+
+Stage 6 status: 14 slices done. **Y2 termination gate ready for first
+fire** (when user passes maturity for all 4 causes). Working commands:
+  agora --version (6-A.1)  agora intake    (6-A.8)
+  agora doctor   (6-A.2)   agora telos     (6-A.9)
+  agora ping     (6-A.3)   agora form      (6-A.11)
+  agora status   (6-A.4)   agora material  (6-A.12)
+  agora new      (6-A.5)   agora efficient (6-A.13)
+  agora bracket  (6-A.6)   agora maturity  (6-A.14) ← NEW
+  agora resume   (6-A.7)
+  (6-A.10 was infra, no new command)
+
+**Alignment loop end-to-end with Y2:**
+  agora new → bracket (greenfield) → intake → telos → form →
+  material → efficient → maturity → (all-pass → Y2 ready;
+  handoff pending) → Ralph
+
+Path to v1 daily-use: handoff (Plato Dihairesis + ac_tree generation)
++ Ralph foundation (Gate 0 already done in 6-A.2; Gates 1-5 + critics
++ Aquinas Disputatio). Estimated 5-10 more slices.
+
+Next task: Stage 6-A.15 — likely candidates:
+  (a) prompt-library generator batch refactor — 6 inline philosopher
+      prompts now (Husserl + Aristotle ×4 + Plato); refactor all to
+      renderPrompt at once. Sets pattern for Socrates/Aquinas.
+  (b) `agora round` orchestrator consolidation — 13 commands; consolidate
+      telos/form/material/efficient into single `agora round` (auto-picks
+      next cause). Reduces surface to ~10 commands.
+  (c) Acceptance criteria capture command — Plato DH needs seed.
+      acceptance_criteria as input; not yet a step in our flow.
+      Could be `agora ac` (capture user-supplied ACs) or fold into
+      maturity-success branch.
+  (d) Plato Dihairesis (handoff slice) — decompose ACs into ac_tree;
+      requires (c) first.
+  (e) Socrates case-probing layer (3rd-rd philosopher; insert between
+      Aristotle and Plato).
+  (f) `src/config/` + TOML + Zod.
+  (g) Remaining 14 probes.
+  (h) Ralph Gate 1 (deterministic — pnpm typecheck/lint/test/build
+      runner) — first Ralph slice; cookie-cutter shared/spawn.
 
 ### Stage 6-A.13 — DONE (2026-05-04)
 

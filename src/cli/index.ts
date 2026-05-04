@@ -17,6 +17,7 @@ import { runEfficientCommand } from "./commands/efficient.js";
 import { runFormCommand } from "./commands/form.js";
 import { runIntakeCommand } from "./commands/intake.js";
 import { runMaterialCommand } from "./commands/material.js";
+import { runMaturityCommand } from "./commands/maturity.js";
 import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
 import { runResumeCommand } from "./commands/resume.js";
@@ -94,6 +95,10 @@ async function main(): Promise<void> {
   }
   if (command === "efficient") {
     await dispatchEfficient(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "maturity") {
+    await dispatchMaturity(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -311,6 +316,24 @@ async function dispatchEfficient(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchMaturity(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runMaturityCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -330,6 +353,7 @@ function printHelp(): void {
   console.log("  agora form        Run Aristotle form round (Phase 2 round 2, interactive)");
   console.log("  agora material    Run Aristotle material round (Phase 2 round 3, interactive)");
   console.log("  agora efficient   Run Aristotle efficient round (Phase 2 round 4, interactive)");
+  console.log("  agora maturity    Run Plato Divided Line maturity tagging (Y2 prerequisite)");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");
