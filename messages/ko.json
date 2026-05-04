@@ -92,6 +92,9 @@
       "constructing": "Claude로 대안을 구성하는 중 (LLM 호출 1회)...",
       "ask_surprising": "그동안 모르고 있던 가정을 깨달은 순간이 있었나요?"
     },
+    "round": {
+      "alignment_complete_msg": "Alignment 완료. 4개 cause 캡처 + maturity tagging 완료. Handoff 준비됨 (Plato Dihairesis + ac_tree 생성 — 구현 대기 중)."
+    },
     "maturity": {
       "intro": "Plato Divided Line — 4개 cause maturity tagging",
       "context_summary": "각 cause에 Noesis 테스트 진행. 필요 floor: telos=noesis (rejected_alternatives 필요) / form=dianoia / material=pistis / efficient=pistis. 4개 모두 통과해야 Y2 termination 가능.",

@@ -21,6 +21,7 @@ import { runMaturityCommand } from "./commands/maturity.js";
 import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
 import { runResumeCommand } from "./commands/resume.js";
+import { runRoundCommand } from "./commands/round.js";
 import { runStatusCommand } from "./commands/status.js";
 import { runTelosCommand } from "./commands/telos.js";
 import { runVersionCommand } from "./commands/version.js";
@@ -79,6 +80,10 @@ async function main(): Promise<void> {
   }
   if (command === "intake") {
     await dispatchIntake(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "round") {
+    await dispatchRound(flags, positional.slice(1), mode, useColor);
     return;
   }
   if (command === "telos") {
@@ -244,6 +249,24 @@ async function dispatchIntake(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchRound(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runRoundCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 async function dispatchTelos(
   flags: GlobalFlags,
   positional: readonly string[],
@@ -349,11 +372,16 @@ function printHelp(): void {
   console.log("  agora bracket     Run Husserl Phase −1 Epoché (interactive)");
   console.log("  agora resume      Resume work from current state.json phase");
   console.log("  agora intake      Run Phase 1 open intake (interactive)");
-  console.log("  agora telos       Run Aristotle telos round (Phase 2 round 1, interactive)");
-  console.log("  agora form        Run Aristotle form round (Phase 2 round 2, interactive)");
-  console.log("  agora material    Run Aristotle material round (Phase 2 round 3, interactive)");
-  console.log("  agora efficient   Run Aristotle efficient round (Phase 2 round 4, interactive)");
-  console.log("  agora maturity    Run Plato Divided Line maturity tagging (Y2 prerequisite)");
+  console.log(
+    "  agora round       Run next Phase 2 round (auto-picks telos/form/material/efficient/maturity)",
+  );
+  console.log("");
+  console.log("  Phase 2 explicit shortcuts (rarely needed; agora round picks the right one):");
+  console.log("    agora telos        Force Aristotle telos round");
+  console.log("    agora form         Force Aristotle form round");
+  console.log("    agora material     Force Aristotle material round");
+  console.log("    agora efficient    Force Aristotle efficient round");
+  console.log("    agora maturity     Force Plato Divided Line maturity tagging");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

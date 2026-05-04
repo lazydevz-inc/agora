@@ -112,7 +112,7 @@ describe("agora resume — in_alignment handler", () => {
       next: { id: string; command: string }[];
     };
     expect(parsed.next.map((n) => n.id)).toEqual(["telos"]);
-    expect(parsed.next[0]?.command).toBe("agora telos");
+    expect(parsed.next[0]?.command).toBe("agora round");
   });
 
   test("phase 2 → runtime_pending message", async () => {

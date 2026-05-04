@@ -92,6 +92,9 @@
       "constructing": "Constructing alternatives via Claude (one LLM call)...",
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
+    "round": {
+      "alignment_complete_msg": "Alignment complete. All 4 causes captured + maturity tagged. Ready for handoff (Plato Dihairesis + ac_tree generation — pending implementation)."
+    },
     "maturity": {
       "intro": "Plato Divided Line — maturity tagging for all 4 captured causes",
       "context_summary": "Asking the Noesis test on each cause. Required floors: telos=noesis (rejected_alternatives required) / form=dianoia / material=pistis / efficient=pistis. All 4 must pass to unlock Y2 termination.",

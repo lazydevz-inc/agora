@@ -33,6 +33,7 @@ agora form      (6-A.11) — Aristotle Phase 2 form round (essential structure +
 agora material  (6-A.12) — Aristotle Phase 2 material round (tech stack + data shape + infrastructure)
 agora efficient (6-A.13) — Aristotle Phase 2 efficient round (who + when + how) — Phase 2 COMPLETE
 agora maturity  (6-A.14) — Plato Divided Line maturity tagging (3rd philosopher; Y2 prerequisite)
+agora round     (6-A.15) — state-aware Phase 2 orchestrator (consolidates 5 cause shortcuts → 1 entry)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -2587,6 +2588,163 @@ Next task: Stage 6-A.15 — likely candidates:
   (g) Remaining 14 probes.
   (h) Ralph Gate 1 (deterministic — pnpm typecheck/lint/test/build
       runner) — first Ralph slice; cookie-cutter shared/spawn.
+
+### Stage 6-A.15 — DONE (2026-05-04)
+
+**Fifteenth vertical slice: `agora round` — state-aware Phase 2
+orchestrator.** Auto-selected per session cadence + 6-A.14 NOTES
+recommendation (13 commands; consolidation pressure increasing).
+Reads four_causes.json + state.alignment.round and dispatches to the
+correct underlying command (telos / form / material / efficient /
+maturity / "complete"). Existing per-cause shortcut commands stay
+registered for power users; `agora round` is the discoverable
+single-entry alternative.
+
+No new core logic — `agora round` is a thin dispatcher that delegates
+to existing runX functions. Pure consolidation slice.
+
+Decisions made inline (no Q):
+  - Pure dispatcher: `agora round` calls the existing runTelos /
+    runForm / runMaterial / runEfficient / runMaturityCommand
+    functions based on `pickNextRound(causes)` result. Refusal-guards
+    in the underlying commands handle prerequisites; round doesn't
+    duplicate them.
+  - pickNextRound algorithm:
+    1. null/empty four_causes → telos
+    2. only telos → form
+    3. + form → material
+    4. + material → efficient
+    5. all 4 captured + telos.maturity !== "noesis" → maturity
+       (heuristic: noesis means Plato has run successfully on telos)
+    6. all 4 + noesis → "complete" (alignment_complete reachable)
+  - Help text reorganized: `agora round` is primary; per-cause commands
+    grouped as "explicit shortcuts (rarely needed)".
+  - resume.ts hints all updated: alignment_phase=0/-1/1/2-r1/r2/r3/r4
+    branches all point to `agora round` instead of specific cause.
+    Single canonical "next" UX from resume.
+  - Per-cause commands NOT removed (preserves explicit-invocation power
+    + existing tests + backwards compatibility for any docs/scripts).
+
+Files shipped:
+
+src/cli/commands/round.ts (LAYER 3 — new, ~135 LOC):
+  pickNextRound(causes): RoundTarget — pure dispatch logic exported
+    for testing. Six possible outputs.
+  runRoundCommand(flags, positional) → Result<CommandEnvelope>:
+    - 2 refusal guards (no .agora/, alignment.phase < 1)
+    - Reads four_causes.json + state
+    - Calls pickNextRound + dispatchTarget
+    - "complete" target prints alignment_complete_msg + envelope with
+      handoff_pending next hint.
+  dispatchTarget delegates to the 5 existing runX commands.
+  No state writes (underlying commands handle state advancement).
+
+src/cli/index.ts: round command dispatch + dispatchRound helper.
+  Help text: agora round is primary; per-cause grouped as "explicit
+  shortcuts (rarely needed)".
+
+src/cli/commands/resume.ts: 5 hint commands updated from per-cause
+  to `agora round` (replace_all). All Phase 2 next-action suggestions
+  now route through the orchestrator.
+
+messages/en.json + ko.json: +1 cli.round.* key × 2 locales = 2 strings
+  net new (alignment_complete_msg).
+
+Tests (1 new file; total 27 files / 191 tests, was 26/183):
+
+tests/unit/cli/round.test.ts (8 tests):
+  pickNextRound dispatch table:
+    - null four_causes → telos
+    - empty four_causes → telos
+    - only telos → form
+    - telos + form → material
+    - telos + form + material → efficient
+    - all 4 + telos.maturity=dianoia → maturity
+    - all 4 + telos.maturity=noesis → complete
+    - all 4 + telos.maturity=pistis (failed maturity) → maturity (re-run)
+  Pure-function tests; no I/O, no LLM, no @clack.
+
+tests/integration/cli-resume.test.ts (modified, 1 test updated):
+  - phase 1 → resume hint now expects "agora round" (was "agora telos")
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (15 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 27 files, 191 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+
+Surprises encountered + decisions made:
+
+1. **No-op for state-writing**: underlying commands (telos/form/etc)
+   each call saveState. `agora round` doesn't write state itself — it
+   delegates entirely. Clean separation; the dispatcher is stateless.
+
+2. **pickNextRound's Plato-completion heuristic**: I needed a way to
+   detect "Plato has run on these 4 causes" without reading
+   .agora/maturity.json. Used `causes.telos.maturity !== "noesis"` as
+   the signal: telos.maturity is "dianoia" (Aristotle default) until
+   Plato re-tags. If Plato succeeded, telos must be "noesis" (since
+   telos's REQUIRED_FLOORS is "noesis" — anything less means Plato
+   failed and the user needs to re-run telos). If Plato failed and
+   user re-ran telos, maturity drops back to "dianoia" → next round
+   is "maturity" again. Self-correcting.
+
+3. **resume.ts replace_all (5 commands → "agora round")**: trimmed
+   the dispatch table neatly. All Phase 2 entry hints now go through
+   `agora round`. Cleaner UX; users learn one command name.
+
+4. **Per-cause commands stay**: removing telos/form/material/efficient/
+   maturity would break 5 existing CLI command tests + locale entries.
+   Keeping them as explicit shortcuts (grouped in help under "rarely
+   needed") preserves power-user invocation paths without cluttering
+   the discoverable surface.
+
+5. **15 slices in this session — most productive Stage 6 burst yet**:
+   6-A.7 → 6-A.15 across one conversation. Cookie-cutter pattern
+   stabilized; cause slices took 20-30min each; orchestrator slices
+   took longer due to integration. Test infra (QueueRunner +
+   RecordedUi pattern) reused across all 4 Aristotle + Plato slices.
+
+Lessons / observations:
+- **State-aware orchestrators belong in their own LAYER 3 module**:
+  `agora round` is in src/cli/commands/round.ts, importing from the
+  4 cause + 1 maturity command files. No new domain logic; pure
+  routing. Tests for pickNextRound are pure (no I/O).
+- **Cookie-cutter slice cadence settled** at ~25min per Aristotle
+  cause, ~45min per philosopher (Plato), ~20min per CLI consolidation.
+  Predictable enough that "X more slices to v1" estimate is meaningful.
+- **The "explicit shortcut + orchestrator" pattern scales**: when
+  Socrates / Aquinas / handoff add new commands, `agora round` extends
+  via pickNextRound table; explicit shortcuts stay for power use.
+
+Outstanding (intentional defer):
+  Per-cause command removal/deprecation: keep until v1 user feedback
+    suggests; current grouping in help is good middle ground.
+  Help-text composition (currently hardcoded console.log lines):
+    Locale catalog could host structured help. Defer.
+  Plato Dihairesis (handoff slice — needs AC capture).
+  AC capture (`agora ac` or fold).
+  Socrates case-probing layer.
+  6-prompt batch refactor to renderPrompt.
+  Y2 termination 3-condition AND check.
+
+Stage 6 status: 15 slices done. CLI surface consolidated. Path to
+v1 daily-use: AC capture + handoff (Plato DH) + Ralph foundation.
+Estimated 4-7 more slices.
+
+Next task: Stage 6-A.16 — likely candidates:
+  (a) Acceptance criteria capture command — `agora ac` step. Plato
+      Dihairesis needs ACs. After maturity-pass branch.
+  (b) Plato Dihairesis (handoff slice) — decompose ACs into ac_tree.
+      Requires (a).
+  (c) Ralph Gate 1 (deterministic) — first Ralph slice. Gate runner
+      that invokes pnpm typecheck + lint + test + build, captures
+      outputs into a gate result envelope. Cookie-cutter shared/spawn.
+  (d) Socrates case-probing layer (4th philosopher).
+  (e) prompt-library generator batch refactor (6 inline prompts).
+  (f) ergonomics (render.ts envelope exit_code + version "unknown").
 
 ### Stage 6-A.13 — DONE (2026-05-04)
 

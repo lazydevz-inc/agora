@@ -168,7 +168,7 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
     next.push({
       id: "telos",
       description: localized("cli.resume.next_telos_desc"),
-      command: "agora telos",
+      command: "agora round",
     });
   } else if (ap === 2) {
     // Phase 2 in progress; round discriminates which Aristotle cause
@@ -182,7 +182,7 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
       next.push({
         id: "form",
         description: localized("cli.resume.next_form_desc"),
-        command: "agora form",
+        command: "agora round",
       });
     } else if (round === 2) {
       lines.push(localized("cli.resume.form_done"));
@@ -190,7 +190,7 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
       next.push({
         id: "material",
         description: localized("cli.resume.next_material_desc"),
-        command: "agora material",
+        command: "agora round",
       });
     } else if (round === 3) {
       lines.push(localized("cli.resume.material_done"));
@@ -198,7 +198,7 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
       next.push({
         id: "efficient",
         description: localized("cli.resume.next_efficient_desc"),
-        command: "agora efficient",
+        command: "agora round",
       });
     } else if (round === 4) {
       // All 4 Aristotle causes done; Plato Y2 maturity tagging next.
@@ -207,7 +207,7 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
       next.push({
         id: "maturity",
         description: localized("cli.resume.next_maturity_desc"),
-        command: "agora maturity",
+        command: "agora round",
       });
     } else {
       // round >= 5 — Plato done. handoff (Dihairesis + ac_tree) next.
