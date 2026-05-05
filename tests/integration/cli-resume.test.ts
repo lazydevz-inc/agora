@@ -157,13 +157,13 @@ describe("agora resume — deferred phases (R3-A)", () => {
     expect(parsed.result.data.deferred_reason).toBe("ralph_complete_dialog_not_implemented");
   });
 
-  test("ready_for_ralph → deferred (ralph_not_implemented)", async () => {
+  test("ready_for_ralph → deferred (ralph_iteration_pending)", async () => {
     await seedState("ready_for_ralph");
     const { output } = run("resume --json");
     const parsed = JSON.parse(output) as {
       result: { data: { deferred_reason: string } };
     };
-    expect(parsed.result.data.deferred_reason).toBe("ralph_not_implemented");
+    expect(parsed.result.data.deferred_reason).toBe("ralph_iteration_pending");
   });
 });
 

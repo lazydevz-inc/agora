@@ -95,6 +95,18 @@
     "round": {
       "alignment_complete_msg": "Alignment 완료. 4개 cause 캡처 + maturity tagging + acceptance criteria 캡처 완료. Handoff 준비됨 (Plato Dihairesis + ac_tree 생성 — 구현 대기 중)."
     },
+    "ralph": {
+      "intro": "Ralph iteration — Gate 1 (deterministic: typecheck/lint/test/build)",
+      "initialized": "Ralph 초기화 완료. 현재 leaf: {leaf_id} (1 / {total_leaves}).",
+      "implement_then_rerun": "현재 leaf를 구현 (코드 작성, 테스트 fix) 후 `agora ralph` 재실행으로 Gate 1 검증.",
+      "gate_1_running": "Leaf {leaf_id}에 Gate 1 실행 중 (시도 {attempt})...",
+      "gate_1_passed": "Leaf {leaf_id} Gate 1 통과 ({duration_s}s).",
+      "gate_1_failed": "Leaf {leaf_id} Gate 1 실패 (시도 {attempts}/{cap}). 실패한 sub-command: {failed}.",
+      "next_leaf_pending": "다음 leaf: {next_leaf_id} ({completed_count}/{total_leaves} 완료).",
+      "all_complete": "모든 leaf 완료. Phase가 ralph_complete로 전이됨.",
+      "per_leaf_cap_warning": "Leaf {leaf_id}가 {attempts}회 시도에 도달 (cap). 막혀있다면 재정렬 고려.",
+      "session_cap_warning": "세션이 총 {attempts}회 시도 도달 (soft cap). 잠시 휴식 권장."
+    },
     "handoff": {
       "intro": "Handoff — Plato Dihairesis + seed lock",
       "dh_starting": "{ac_count}개 acceptance criteria를 Plato Dihairesis로 분해 중 (재귀적 binary cut; defense floor 0.6)...",

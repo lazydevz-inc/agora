@@ -36,6 +36,7 @@ agora maturity  (6-A.14) — Plato Divided Line maturity tagging (3rd philosophe
 agora round     (6-A.15) — state-aware Phase 2 orchestrator (consolidates 5 cause shortcuts → 1 entry)
 agora ac        (6-A.16) — Acceptance Criteria capture (post-maturity prep for handoff Plato DH)
 agora handoff   (6-A.17) — Plato Dihairesis + seed.json + state lock (alignment → ready_for_ralph)
+agora ralph     (6-A.18) — Ralph foundation: orchestrator + Gate 1 (typecheck/lint/test/build)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -2868,6 +2869,210 @@ Next task: Stage 6-A.17 — likely candidates:
   (c) Non-interactive mode ergonomics across 8 interactive commands.
   (d) Socrates case-probing layer.
   (e) 7-prompt batch refactor to renderPrompt.
+
+### Stage 6-A.18 — DONE (2026-05-05)
+
+**Eighteenth vertical slice: `agora ralph` — Ralph foundation
+(orchestrator + Gate 1 deterministic).** Auto-selected per 6-A.17
+NOTES; Sang accepted all 5 R1-R5 recommendations. **First Ralph
+slice.** Reads seed.json from handoff (6-A.17), picks DFS leftmost
+atomic leaf from ac_tree, runs Gate 1 (pnpm typecheck → lint → test
+→ build), tracks per-leaf attempts + session attempts. Gate 1 pass →
+mark leaf complete + advance to next. Fail → stay on leaf, surface
+failed sub-command for user fix. Gates 2-5 (functional QA, Aquinas,
+alignment check) deferred to future slices.
+
+This slice does NOT auto-implement leaves (R4-A): user writes code
+between `agora ralph` invocations; agora is the verification tool.
+Matches Mode 3 (MCP) discipline per ADR-0005 — no nested LLM in
+the Ralph orchestrator (Gates 3-5 will use LLM but this slice is
+deterministic-only).
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: Single slice = orchestrator skeleton + Gate 1 only. Gate 2-5
+  deferred (cookie-cutter future slices).
+- R2-A: DFS leftmost-first leaf selection per Stage 2-C.2 R3-B.
+- R3-A: shared/spawn for the 4 deterministic commands; sequential;
+  per-command timeout (60s for typecheck/lint/build, 180s for test).
+- R4-A: 1 iteration = 1 leaf attempt; user implements between runs;
+  no auto-implementation.
+- R5-A: per-leaf cap=10, session cap=25 (warn only; no auto-skip in v1).
+
+Files shipped:
+
+src/ralph/state.ts (LAYER 2 — new, ~75 LOC):
+  Gate1CommandResultSchema (name enum + exit_code + duration_ms +
+    passed + timed_out + stdout/stderr tails 2KB).
+  Gate1ResultSchema (commands array length=4 + overall_passed +
+    total_duration_ms + ran_at).
+  RalphStateSchema (.strict): version=1 + current_leaf_id (nullable
+    when complete) + completed_leaves[] + per_leaf_attempts +
+    session_total_attempts + caps + last_gate_1_result? +
+    timestamps + ac_tree_snapshot.
+  RALPH_PER_LEAF_CAP_DEFAULT=10, RALPH_SESSION_CAP_DEFAULT=25 per
+    Stage 2-B.5.
+  newRalphState factory.
+
+src/ralph/leaf-selector.ts (LAYER 2 — new, ~50 LOC):
+  selectNextLeaf(ac_tree, completed: Set<string>): string | null —
+    pure DFS leftmost-first walker. Returns null when all atomic
+    leaves done.
+  countAtomicLeaves: progress display helper.
+
+src/ralph/gate-1.ts (LAYER 2 — new, ~80 LOC):
+  GATE_1_DEFAULT_COMMANDS: 4 specs (typecheck/lint/test/build) with
+    per-command timeouts (60s/60s/180s/60s).
+  runGate1({ cwd, commands? }): sequential spawnExec; aggregates
+    Gate1Result; tail (last 2KB) for stdout/stderr to bound memory.
+  Validates result via Gate1ResultSchema before returning.
+
+src/cli/commands/ralph.ts (LAYER 3 — new, ~330 LOC):
+  runRalphCommand: 3 refusal guards (no .agora/, wrong current_phase,
+    seed.json missing). Loads sessionState + seed + optional
+    ralph_state.json (Zod-validated on load).
+  First invocation (state=ready_for_ralph + no ralph_state):
+    selectNextLeaf → newRalphState → write ralph_state.json →
+    state.current_phase: ready_for_ralph → in_ralph → tell user to
+    implement and re-run.
+  Subsequent (state=in_ralph + ralph_state present):
+    runGate1 → if passed: mark leaf complete + selectNextLeaf →
+      if null (all done): state.current_phase → ralph_complete +
+        outro all_complete.
+      else: outro next leaf hint.
+    else: increment per_leaf_attempts[currentLeaf]; warn if cap hit;
+      surface failed sub-commands.
+  ralph_state.json updated on every invocation (audit trail of
+    attempts + last gate result).
+  buildEnvelope discriminates 4 actions: initialized / leaf_passed /
+    gate_1_failed / all_complete.
+
+src/cli/index.ts: ralph dispatch + dispatchRalph helper. Help text
+  ralph as primary new section ("agora ralph" — distinct from
+  Phase 2 explicit shortcuts).
+
+src/cli/commands/resume.ts: ready_for_ralph + in_ralph + in_ralph_paused
+  branches now point to live `agora ralph` (deferred_reason
+  ralph_iteration_pending). in_handoff branch updated to mention
+  it's unreachable in v1 (R4-A in 6-A.17 skipped this intermediate
+  phase).
+
+messages/en.json + ko.json: +9 cli.ralph.* keys × 2 locales = 18
+  strings net new.
+
+Tests (2 new files + 1 modified; total 32 files / 235 tests, was
+30/218):
+  tests/unit/ralph/leaf-selector.test.ts (12 tests):
+    Empty, no completion, partial completion, deep subtree before
+    sibling, all complete → null, single atomic root, degenerate
+    branch-only, countAtomicLeaves.
+  tests/unit/ralph/state.test.ts (5 tests):
+    newRalphState valid initial; PER_LEAF_CAP=10; SESSION_CAP=25;
+    .strict rejects extra keys; Gate1ResultSchema requires exactly
+    4 commands.
+  tests/integration/cli-resume.test.ts (modified): ready_for_ralph
+    deferred_reason updated from "ralph_not_implemented" →
+    "ralph_iteration_pending".
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (20 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 32 files, 235 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+  Manual smoke (non-interactive paths only):
+    $ # /tmp empty
+    $ node dist/cli/index.js ralph --json | jq '.errors[0].code, .exit_code'
+      "user.aborted" / 5
+    $ # state in_alignment (wrong phase)
+    $ node dist/cli/index.js ralph --json | jq '.errors[0].code'
+      "user.aborted"
+    $ # ready_for_ralph + no seed.json
+    $ node dist/cli/index.js ralph --json | jq '.errors[0].code'
+      "state.corrupt"
+    $ # resume on ready_for_ralph hints agora ralph
+    $ node dist/cli/index.js resume --json | jq '.next[].command, .result.data.deferred_reason'
+      "agora ralph" / "ralph_iteration_pending"
+  Manual interactive run + actual Gate 1 deferred to TTY (clack
+  intro/outro; full Gate 1 takes ~6 min worst case via shared/spawn).
+  Unit tests cover leaf-selector + Gate1Result schema 100%.
+
+Surprises encountered + decisions made:
+
+1. **shared/spawn already battle-tested** (probes/runner + ClaudeRunner
+   + intake editor): Gate 1 just uses spawnExec directly with longer
+   timeoutMs for test command. No new infra. Cookie-cutter slice.
+
+2. **ac_tree_snapshot in ralph_state**: stored a copy of seed.ac_tree
+   in ralph_state.json so leaf-selector is deterministic across
+   sessions even if seed.json is mutated externally. Stage 2-B SPEC
+   doesn't mandate snapshot but it costs ~1KB and prevents class of
+   "seed mutated mid-session" bugs.
+
+3. **3 refusal guards (down from 5 in handoff)**: ralph is the entry
+   point of an iteration loop; refusal-guards are mostly "is the
+   prerequisite state met". seed corruption / state phase mismatch /
+   no .agora are the only paths.
+
+4. **No clack confirm before running Gate 1**: gates run automatically.
+   This matches Stage 2-B SPEC (Gate 0 also runs without confirm in
+   doctor 6-A.2). User confirms come at Gate 5 escalation (Z2 mini-
+   alignment) — future slice.
+
+5. **last_gate_1_result preserved on success too**: not only on
+   failure. Allows `agora status` (future ergonomics) to show "last
+   gate ran 3 minutes ago, passed".
+
+6. **agora ralph is the 15th `agora <command>`** (10 shortcuts beyond
+   primary 7). Pattern stable: `agora new` → `agora round` (Phase 2)
+   → `agora ralph` (Ralph) is the 3-command happy path.
+
+Lessons / observations:
+- **First Ralph slice opens the iteration door**: every future Gate
+  (2/3/4/5) extends runRalphCommand by adding gate calls after Gate 1
+  passes. Each Gate is an independent slice; Gate 5 (alignment check
+  with LLM) is the most involved.
+- **DFS leftmost is trivially deterministic + audit-friendly**: any
+  ralph_state.json can be re-derived from completed_leaves + ac_tree.
+  No hidden state.
+- **`agora resume` finally has FULL coverage**: every state.current_phase
+  now routes to a live command (no more "TBD" in the active happy path).
+  Only ralph_complete still has a placeholder dialog (Stage 2-C.2 R4-A).
+- **Cookie-cutter slice cadence ~40min** (mostly schema + recursion
+  + state machine; no LLM extraction this time).
+
+Outstanding (intentional defer):
+  Gate 2 (functional QA via Playwright CLI tests) — Stage 2-B.2
+    SPEC; cookie-cutter Playwright spawn.
+  Gate 3+4 (Aquinas Disputatio with critics) — bigger slice;
+    requires critic registry + 10 critic def files OR a starter
+    critic batch.
+  Gate 5 (alignment check via LLM judgment) — drift_score per
+    Stage 2-B.4; LLM call per iteration; Z1/Z2 escalation logic.
+  Critic registry + first critic def files (foundation for Gate 3+4).
+  ralph_complete dialog (Stage 2-C.2 R4-A) — re_align / accept /
+    view_log options.
+  Audit log .agora/events.jsonl per Stage 2-C.3 R2-A — append-only
+    event recorder for replay.
+  Non-interactive mode for ralph (--no-confirm; useful for CI).
+  7-prompt batch refactor to renderPrompt.
+
+Stage 6 status: 18 slices done. **End-to-end pipeline alive**: agora new
+→ bracket → intake → round (×7) → ralph (× per leaf). Working commands:
+15. Path to v1 daily-use: Gates 2-5 + critic registry + ralph_complete
+dialog. Estimated 4-5 more slices.
+
+Next task: Stage 6-A.19 — likely candidates:
+  (a) Gate 5 (alignment check) — LLM judges actual output vs seed
+      telos; drift_score; Z1 (auto-correct next iter) / Z2 (mini-
+      alignment). Highest user-visible value (the actual alignment
+      verification).
+  (b) Gate 2 (functional QA, Playwright) — for projects with browser
+      surface; CLI projects skip.
+  (c) Critic registry + first 2-3 critic def files — foundation for
+      Gate 3+4.
+  (d) ralph_complete dialog (Stage 2-C.2 R4-A).
+  (e) Audit log (.agora/events.jsonl).
 
 ### Stage 6-A.17 — DONE (2026-05-05)
 

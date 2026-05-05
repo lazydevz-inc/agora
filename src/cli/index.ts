@@ -22,6 +22,7 @@ import { runMaterialCommand } from "./commands/material.js";
 import { runMaturityCommand } from "./commands/maturity.js";
 import { runNewCommand } from "./commands/new.js";
 import { runPingCommand } from "./commands/ping.js";
+import { runRalphCommand } from "./commands/ralph.js";
 import { runResumeCommand } from "./commands/resume.js";
 import { runRoundCommand } from "./commands/round.js";
 import { runStatusCommand } from "./commands/status.js";
@@ -114,6 +115,10 @@ async function main(): Promise<void> {
   }
   if (command === "handoff") {
     await dispatchHandoff(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "ralph") {
+    await dispatchRalph(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -403,6 +408,24 @@ async function dispatchHandoff(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchRalph(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runRalphCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -431,6 +454,10 @@ function printHelp(): void {
   console.log("    agora ac           Capture acceptance criteria (after maturity-pass)");
   console.log(
     "    agora handoff      Lock seed: Plato Dihairesis + seed.json + transition to ready_for_ralph",
+  );
+  console.log("");
+  console.log(
+    "  agora ralph       Run Ralph iteration: pick next leaf + Gate 1 (typecheck/lint/test/build)",
   );
   console.log("");
   console.log("Universal flags:");

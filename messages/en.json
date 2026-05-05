@@ -95,6 +95,18 @@
     "round": {
       "alignment_complete_msg": "Alignment complete. All 4 causes captured + maturity tagged + acceptance criteria captured. Ready for handoff (Plato Dihairesis + ac_tree generation — pending implementation)."
     },
+    "ralph": {
+      "intro": "Ralph iteration — Gate 1 (deterministic: typecheck/lint/test/build)",
+      "initialized": "Ralph initialized. Current leaf: {leaf_id} (1 of {total_leaves}).",
+      "implement_then_rerun": "Implement the current leaf (write code, fix tests), then re-run `agora ralph` to verify Gate 1.",
+      "gate_1_running": "Running Gate 1 for leaf {leaf_id} (attempt {attempt})...",
+      "gate_1_passed": "Gate 1 passed for leaf {leaf_id} ({duration_s}s).",
+      "gate_1_failed": "Gate 1 failed for leaf {leaf_id} (attempt {attempts}/{cap}). Failed sub-commands: {failed}.",
+      "next_leaf_pending": "Next leaf: {next_leaf_id} ({completed_count}/{total_leaves} done).",
+      "all_complete": "All leaves complete. Phase advanced to ralph_complete.",
+      "per_leaf_cap_warning": "Leaf {leaf_id} has reached {attempts} attempts (cap). Consider re-aligning if you're stuck.",
+      "session_cap_warning": "Session has reached {attempts} total attempts (soft cap). Consider taking a break."
+    },
     "handoff": {
       "intro": "Handoff — Plato Dihairesis + seed lock",
       "dh_starting": "Decomposing {ac_count} acceptance criteria via Plato Dihairesis (recursive binary cuts; defense floor 0.6)...",

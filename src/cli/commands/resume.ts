@@ -80,24 +80,19 @@ function dispatch(state: State): DispatchOutcome {
         "agora round",
       );
     case "in_handoff":
+      // in_handoff is currently unreachable (R4-A in 6-A.17 skipped this
+      // intermediate phase); kept here for forward-compat. Hint at the
+      // handoff command in case state was set externally.
       return buildDeferredOutcome(
         state.current_phase,
-        "handoff_not_implemented",
-        "agora handoff (TBD: Stage 2-C handoff slice)",
+        "handoff_intermediate_unreachable_in_v1",
+        "agora handoff",
       );
     case "ready_for_ralph":
-      return buildDeferredOutcome(
-        state.current_phase,
-        "ralph_not_implemented",
-        "agora ralph (TBD: Stage 2-B Ralph slice)",
-      );
     case "in_ralph":
     case "in_ralph_paused":
-      return buildDeferredOutcome(
-        state.current_phase,
-        "ralph_not_implemented",
-        "agora ralph (TBD: Stage 2-B Ralph slice)",
-      );
+      // Ralph foundation is live (6-A.18). Direct routing to agora ralph.
+      return buildDeferredOutcome(state.current_phase, "ralph_iteration_pending", "agora ralph");
     case "ralph_complete":
       return buildDeferredOutcome(
         state.current_phase,
