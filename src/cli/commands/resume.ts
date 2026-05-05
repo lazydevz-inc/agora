@@ -19,14 +19,27 @@
 // every actionable phase they would target is itself deferred, so adding
 // the flags now would be dead surface area.  See NOTES Outstanding.
 
+import { join } from "node:path";
+
+import { intro, log, outro, select } from "@clack/prompts";
 import pc from "picocolors";
 
+import { buildAgoraError } from "../../errors/build.js";
 import type { AgoraErrorThrown } from "../../errors/types.js";
+import type { Seed } from "../../handoff/seed-builder.js";
 import { localized } from "../../i18n/index.js";
-import { ok, type Result } from "../../result/index.js";
+import {
+  aggregateRalphStats,
+  type RalphSessionStats,
+  renderStatsTable,
+} from "../../ralph/end-state.js";
+import { type RalphState, RalphStateSchema } from "../../ralph/state.js";
+import { err, ok, type Result } from "../../result/index.js";
+import { readJsonOrNull } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
 import { loadState } from "../../state/reader.js";
 import type { Phase, State } from "../../state/types.js";
+import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope, NextSuggestion } from "../render.js";
 
@@ -59,6 +72,13 @@ export async function runResumeCommand(
     const outcome = buildNoSessionOutcome();
     if (!flags.json) emitTui(outcome);
     return ok(buildEnvelope(outcome, 1));
+  }
+
+  // ralph_complete state has interactive dialog (Stage 2-C.2 R4-A) in
+  // TUI mode. JSON mode falls through to deferred dispatch (envelope-
+  // only; non-interactive driver per Outstanding).
+  if (state.current_phase === "ralph_complete" && !flags.json) {
+    return await handleRalphComplete(cwd, state);
   }
 
   const outcome = dispatch(state);
@@ -94,10 +114,14 @@ function dispatch(state: State): DispatchOutcome {
       // Ralph foundation is live (6-A.18). Direct routing to agora ralph.
       return buildDeferredOutcome(state.current_phase, "ralph_iteration_pending", "agora ralph");
     case "ralph_complete":
+      // TUI mode handled by handleRalphComplete (interactive 3-option
+      // dialog per Stage 2-C.2 R4-A). JSON mode falls here — non-
+      // interactive ralph_complete actions (--accept-deferred /
+      // --re-align) are future ergonomics.
       return buildDeferredOutcome(
         state.current_phase,
-        "ralph_complete_dialog_not_implemented",
-        "agora ralph (TBD: ralph_complete dialog per Stage 2-C.2 R4-A)",
+        "ralph_complete_json_mode_pending_non_interactive_flags",
+        "agora resume (interactive TTY runs the dialog)",
       );
   }
 }
@@ -300,4 +324,161 @@ function getAgoraVersion(): string {
   } catch {
     return "unknown";
   }
+}
+
+// ─── Ralph end-state interactive handler (Stage 6-A.22 R1-A) ───
+//
+// Invoked when state.current_phase === "ralph_complete" in TUI mode.
+// Reads ralph_state + seed, aggregates stats, displays a 3-option
+// dialog (re_align / accept_deferred / view_log) per Stage 2-C.2 R4-A.
+// view_log loops back to the dialog. re_align transitions state to
+// in_alignment + alignment.round=0 (preserves ralph_state.json so
+// subsequent re-handoff + re-ralph can resume; user must clear
+// .agora/seed.json + four_causes.json fields they want to re-align).
+// accept_deferred prints final summary + leaves state at ralph_complete.
+
+async function handleRalphComplete(
+  cwd: string,
+  state: State,
+): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
+  // Load ralph_state.json — must exist if state is ralph_complete.
+  const ralphStatePath = join(cwd, ".agora", "ralph_state.json");
+  const ralphStateRaw = await readJsonOrNull<RalphState>(ralphStatePath);
+  if (ralphStateRaw === null) {
+    return err(
+      buildAgoraError("state.corrupt", {
+        context: {
+          file: ralphStatePath,
+          detail: "current_phase=ralph_complete but ralph_state.json missing",
+        },
+      }),
+    );
+  }
+  const parsedRalph = RalphStateSchema.safeParse(ralphStateRaw);
+  if (!parsedRalph.success) {
+    return err(
+      buildAgoraError("state.corrupt", {
+        context: {
+          file: ralphStatePath,
+          detail: parsedRalph.error.issues[0]?.message ?? "ralph_state.json validation failed",
+        },
+      }),
+    );
+  }
+  const ralphState = parsedRalph.data;
+
+  // Load seed.json for ac_tree (defensive — should exist alongside ralph_state).
+  const seedPath = join(cwd, ".agora", "seed.json");
+  const seed = await readJsonOrNull<Seed>(seedPath);
+  if (seed === null) {
+    return err(
+      buildAgoraError("state.corrupt", {
+        context: {
+          file: seedPath,
+          detail: "current_phase=ralph_complete but seed.json missing",
+        },
+      }),
+    );
+  }
+
+  const stats = aggregateRalphStats(ralphState, seed.ac_tree);
+
+  intro(pc.bold(localized("cli.resume.ralph_complete_intro")));
+  log.message(
+    localized("cli.resume.ralph_complete_summary", {
+      completed: String(stats.completed_leaves),
+      total: String(stats.total_leaves),
+      iterations: String(stats.total_iterations),
+    }),
+  );
+
+  // Loop until user picks re_align or accept_deferred.
+  return await dialogLoop(cwd, state, stats);
+}
+
+async function dialogLoop(
+  cwd: string,
+  state: State,
+  stats: RalphSessionStats,
+): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
+  for (;;) {
+    const choice = await select({
+      message: localized("cli.resume.ralph_complete_dialog_message"),
+      options: [
+        {
+          value: "accept_deferred" as const,
+          label: localized("cli.resume.ralph_complete_option_accept"),
+        },
+        {
+          value: "re_align" as const,
+          label: localized("cli.resume.ralph_complete_option_realign"),
+        },
+        {
+          value: "view_log" as const,
+          label: localized("cli.resume.ralph_complete_option_view"),
+        },
+      ],
+    });
+
+    if (choice === "view_log") {
+      log.message(`\n${renderStatsTable(stats)}\n`);
+      continue;
+    }
+
+    if (choice === "re_align") {
+      const advanced = await saveState(cwd, {
+        ...state,
+        current_phase: "in_alignment",
+        alignment: { phase: 2, round: 0 },
+      });
+      if (!advanced.ok) return advanced;
+      log.message(localized("cli.resume.ralph_complete_realign_instructions"));
+      outro(pc.magenta(localized("cli.resume.ralph_complete_realign_outro")));
+      return ok(buildRalphCompleteEnvelope("re_align", stats));
+    }
+
+    // accept_deferred (or clack cancel — treat cancel as accept).
+    log.message(`\n${renderStatsTable(stats)}\n`);
+    outro(pc.green(localized("cli.resume.ralph_complete_accept_outro")));
+    return ok(buildRalphCompleteEnvelope("accept_deferred", stats));
+  }
+}
+
+function buildRalphCompleteEnvelope(
+  action: "re_align" | "accept_deferred",
+  stats: RalphSessionStats,
+): CommandEnvelope {
+  return {
+    command: "agora resume",
+    version: getAgoraVersion(),
+    timestamp: new Date().toISOString(),
+    result: {
+      ok: true,
+      data: {
+        handler: "ralph_complete_dialog",
+        action,
+        stats: stats as unknown as Record<string, unknown>,
+      },
+    },
+    next:
+      action === "re_align"
+        ? [
+            {
+              id: "re_align_resume",
+              description:
+                "State reset to in_alignment. Edit/delete artifacts (four_causes.json, seed.json) to re-align, then run agora resume.",
+              command: "agora resume",
+            },
+          ]
+        : [
+            {
+              id: "session_complete",
+              description: "Ralph session accepted. .agora/ retained as audit trail.",
+              command: "agora status",
+            },
+          ],
+    warnings: [],
+    errors: [],
+    exit_code: 0,
+  };
 }

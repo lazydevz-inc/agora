@@ -207,7 +207,16 @@
       "alignment_runtime_pending": "Phase {phase} runtime is not yet implemented in this build.",
       "next_alignment_runtime_desc": "Alignment runtime for this phase will land in a future slice",
       "deferred_phase": "Phase `{phase}` recognized — downstream implementation pending. Follow-up: {follow_up}.",
-      "deferred_follow_up_desc": "Downstream command for `{phase}` not yet implemented"
+      "deferred_follow_up_desc": "Downstream command for `{phase}` not yet implemented",
+      "ralph_complete_intro": "Ralph session complete",
+      "ralph_complete_summary": "✓ {completed} of {total} leaves complete across {iterations} iterations.",
+      "ralph_complete_dialog_message": "What's next?",
+      "ralph_complete_option_accept": "Accept this session (record + exit). The .agora/ stays as audit trail.",
+      "ralph_complete_option_realign": "Re-align: state → in_alignment + alignment.round=0 (preserves ralph_state)",
+      "ralph_complete_option_view": "View detailed session log (per-leaf attempts, drift, verdicts)",
+      "ralph_complete_realign_instructions": "To actually re-align, edit/delete artifacts you want to overwrite (.agora/four_causes.json, .agora/seed.json), then run `agora resume` to re-enter alignment loop. ralph_state.json is preserved — when you re-run agora ralph after re-handoff, leaves at cap will retry.",
+      "ralph_complete_realign_outro": "State reset to in_alignment. Run `agora resume` to continue.",
+      "ralph_complete_accept_outro": "Session accepted. .agora/ retained as audit trail."
     }
   }
 }

@@ -40,6 +40,7 @@ agora ralph     (6-A.18) — Ralph foundation: orchestrator + Gate 1 (typecheck/
                 (6-A.19) — Gate 5 (alignment check via LLM drift_score + Z1/Z2 escalation)
                 (6-A.20) — Critic registry + 3 starter critics (universal-telos-alignment, tech-solid, tech-error-handling)
                 (6-A.21) — Aquinas Disputatio (Gate 3+4): 4-stage Videtur → Sed contra → Respondeo → Ad singula
+                (6-A.22) — ralph_complete dialog (Stage 2-C.2 R4-A): re_align / accept_deferred / view_log
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -3463,6 +3464,175 @@ Next task: Stage 6-A.22 — likely candidates:
   (d) 10-prompt batch refactor.
   (e) Gate 2 Playwright (browser projects).
   (f) Non-interactive ergonomics across 11 interactive commands.
+
+### Stage 6-A.22 — DONE (2026-05-06)
+
+**Twenty-second vertical slice: ralph_complete dialog (Stage 2-C.2 R4-A).**
+Auto-selected per 6-A.21 NOTES; Sang accepted all 5 R-A. **Closes the
+Ralph end-state UX**: when state.current_phase === ralph_complete in
+TUI mode, agora resume now renders an interactive 3-option dialog
+(re_align / accept_deferred / view_log) with aggregated session stats.
+
+ZERO new CLI commands; pure handler addition to existing `agora resume`.
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: Fold into `agora resume` ralph_complete branch (no new
+  command surface).
+- R2-A: 3 options exact per SPEC L2-C.2 R4-A. view_log loops back
+  to dialog. re_align transitions state to in_alignment +
+  alignment.round=0 (ralph_state.json preserved). accept_deferred
+  prints summary + outro.
+- R3-A: Skipped leaves derived from per_leaf_attempts >= cap (no
+  new field). v1: ralph_complete only reached when all leaves PASS,
+  so skipped count = 0 in practice. Future Z2/auto-skip slices
+  populate the count.
+- R4-A: re_align prints instructions to manually delete artifacts
+  (.agora/four_causes.json, .agora/seed.json) before re-resume.
+  accept_deferred prints final summary + state stays. view_log
+  renders + re-displays dialog.
+- R5-A: Fixed-width table format (clack log.message + indented
+  text). per-leaf rows + aggregate summary row.
+
+Files shipped:
+
+src/ralph/end-state.ts (LAYER 2 — new, ~155 LOC):
+  PerLeafSummary + RalphSessionStats interfaces.
+  PER_ITERATION_LLM_CALLS_ESTIMATE constant (=7: Gate 5 + 3 critics
+    + Sed contra + Respondeo + Ad singula).
+  aggregateRalphStats(state, ac_tree): walks ac_tree leaves, joins
+    per_leaf_attempts + completed_leaves to determine status, joins
+    last gate_5 + disputatio results per leaf. Computes session
+    duration + avg drift across history.
+  renderStatsTable(stats): fixed-width table + aggregate footer.
+  Pure functions; no I/O.
+
+src/cli/commands/resume.ts (modified):
+  New runResumeCommand pre-dispatch hook: if state.current_phase
+    === "ralph_complete" && !flags.json, calls handleRalphComplete.
+  handleRalphComplete: loads + validates ralph_state.json + seed.json
+    (state.corrupt on missing). Aggregates stats. clack intro +
+    summary. Calls dialogLoop.
+  dialogLoop: clack select with 3 options. view_log renders table +
+    loops. re_align saves state (in_alignment + round=0) + outro.
+    accept_deferred renders table + outro.
+  buildRalphCompleteEnvelope: action discriminator (re_align /
+    accept_deferred), stats embedded in envelope, next[] hints.
+  dispatch ralph_complete branch updated for JSON-mode-only path
+    (deferred_reason renamed to ralph_complete_json_mode_pending_
+    non_interactive_flags).
+
+messages/en.json + ko.json: +9 cli.resume.ralph_complete_* keys × 2
+  locales = 18 strings net new.
+
+Tests (1 new file + 1 modified; total 37 files / 287 tests, was
+36/277):
+  tests/unit/ralph/end-state.test.ts (10 tests):
+    aggregateRalphStats completed × 5 (counts / iterations / duration
+      / avg drift / per_leaf enrichment).
+    cap-reached × 1 (status="cap-reached").
+    empty history × 2 (avg null / per_leaf null fields).
+    renderStatsTable × 2 (header+rows+aggregate / no-history fallback).
+  tests/integration/cli-resume.test.ts (modified): updated
+    deferred_reason expectation for new JSON-mode label.
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (22 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 37 files, 287 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+  Manual smoke (non-interactive paths):
+    $ # state ralph_complete in JSON mode → deferred dispatch
+    $ node dist/cli/index.js resume --json | jq '.result.data.handler, .result.data.deferred_reason'
+      "deferred"
+      "ralph_complete_json_mode_pending_non_interactive_flags"
+  Manual interactive run (clack dialog) deferred to TTY (the dialog
+  itself requires keyboard interaction; aggregateRalphStats +
+  renderStatsTable covered by unit tests).
+
+Surprises encountered + decisions made:
+
+1. **JSON-mode ralph_complete deferred by design**: handleRalphComplete
+   is interactive-only (clack select). JSON mode falls through to the
+   updated deferred outcome with a clear "interactive TTY" hint.
+   Future ergonomics slice can add --accept-deferred / --re-align
+   flags for non-interactive driving (parallel to Stage 3-B.5 R1-A
+   non-TTY paths for alignment_complete).
+
+2. **cap-reached status path is currently unreachable**: ralph_complete
+   only fires when nextLeaf === null (all leaves complete). per_leaf_
+   attempts can hit cap but agora ralph stays on that leaf (no
+   auto-skip per 6-A.18 R5-A). So cap_reached_leaves count is
+   structurally 0 in v1. Tests cover the path anyway for forward-
+   compat (future Z2/auto-skip slices may produce ralph_complete
+   with skipped leaves).
+
+3. **re_align does NOT delete artifacts**: state transitions to
+   in_alignment + round=0, but four_causes.json / seed.json /
+   ralph_state.json all stay. User must manually delete to actually
+   re-align (or accept that prior-session artifacts dictate). v1
+   limitation documented in dialog instructions. Future ergonomics
+   slice could offer "agora resume --reset-causes" or similar.
+
+4. **view_log loops via for(;;)**: clack select inside a loop;
+   user picks view_log → render table → re-displays dialog.
+   accept_deferred or re_align breaks loop. Common pattern; clean.
+
+5. **PER_ITERATION_LLM_CALLS_ESTIMATE = 7 is approximate**: Gate 5
+   (1) + critics (3 in v1, more later) + Sed contra (1) + Respondeo
+   (1) + Ad singula (1, conditional on objections > 0). For v1 with
+   3 always-trigger critics + objections likely → 7 calls per
+   iteration. As critic count grows, estimate becomes less accurate;
+   future slice could compute from disputatio_history for accuracy.
+
+6. **Stats aggregation uses ac_tree from seed.json**, not ralph_state's
+   ac_tree_snapshot: seed.json IS the source of truth for ac_tree
+   structure; snapshot in ralph_state is for selectNextLeaf
+   determinism. Stats computation can use either; chose seed.json
+   for consistency with handoff result.
+
+Lessons / observations:
+- **Pure aggregation modules are testable without LLM/IO**: end-state.ts
+  is 100% pure functions; tests cover every branch with synthetic
+  RalphState fixtures. No mocking needed.
+- **Interactive dialog state transitions are state-machine-cleanly
+  modeled**: 3 options × explicit handlers; no implicit fallthroughs.
+- **PER_ITERATION_LLM_CALLS_ESTIMATE is informational**: surfaces in
+  stats display but doesn't drive logic. Users see "~28 LLM calls"
+  for a 4-iteration session and understand the cost.
+- **Dialog loop via for(;;) + break-via-return** is clean clack
+  pattern. view_log doesn't need state mutation; just re-renders.
+
+Outstanding (intentional defer):
+  Non-interactive ralph_complete actions (--accept-deferred /
+    --re-align flags for JSON mode).
+  re_align "reset causes" affordance (delete .agora/four_causes.json
+    interactively / via flag). Currently user must manually delete.
+  Z2 / auto-skip slices that populate cap_reached_leaves count.
+  Gate 2 (Playwright functional QA — browser projects).
+  4 UI critics + 3 more Tech critics (per-PR additions).
+  Audit log .agora/events.jsonl per Stage 2-C.3 R2-A.
+  status command Gate 5 + Disputatio trend display.
+  Smarter diff truncation.
+  10-prompt batch refactor (8 philosopher + 3 Aquinas inline; critics
+    already in library).
+
+Stage 6 status: 22 slices done. **Ralph end-state UX complete.** 15
+working commands. 37 test files / 287 tests.
+
+Next task: Stage 6-A.23 — likely candidates:
+  (a) Audit log .agora/events.jsonl — append-only event recorder
+      (Stage 2-C.3 R2-A). Records every state transition + gate
+      result for replay/debug.
+  (b) status command Gate 5 + Disputatio trend display — surfaces
+      ralph_state's gate_5_history + disputatio_history (similar
+      table to ralph_complete dialog's view_log).
+  (c) 10-prompt batch refactor (8 philosopher + 3 Aquinas inline).
+  (d) Gate 2 Playwright functional QA.
+  (e) Non-interactive ergonomics (--accept-deferred / --re-align /
+      --no-confirm across 11 interactive commands).
+  (f) Additional critic def files (4 UI + 3 Tech).
 
 ### Stage 6-A.17 — DONE (2026-05-05)
 

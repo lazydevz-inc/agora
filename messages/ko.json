@@ -207,7 +207,16 @@
       "alignment_runtime_pending": "Phase {phase} 런타임은 이 빌드에서 아직 구현되지 않았습니다.",
       "next_alignment_runtime_desc": "이 단계의 alignment 런타임은 향후 슬라이스에서 추가 예정",
       "deferred_phase": "Phase `{phase}` 인식됨 — 하위 구현 대기 중. 후속: {follow_up}.",
-      "deferred_follow_up_desc": "`{phase}` 단계의 하위 명령은 아직 구현되지 않음"
+      "deferred_follow_up_desc": "`{phase}` 단계의 하위 명령은 아직 구현되지 않음",
+      "ralph_complete_intro": "Ralph 세션 완료",
+      "ralph_complete_summary": "✓ {iterations}회 iteration 동안 {completed} / {total} leaves 완료.",
+      "ralph_complete_dialog_message": "다음 단계는?",
+      "ralph_complete_option_accept": "세션 수락 (기록 + 종료). .agora/는 audit trail로 유지.",
+      "ralph_complete_option_realign": "재정렬: state → in_alignment + alignment.round=0 (ralph_state 보존)",
+      "ralph_complete_option_view": "세션 로그 상세 보기 (per-leaf 시도 / drift / verdict)",
+      "ralph_complete_realign_instructions": "실제 재정렬을 위해 덮어쓸 artifacts (.agora/four_causes.json, .agora/seed.json) 편집/삭제 후 `agora resume`으로 alignment 재진입. ralph_state.json은 보존됨 — 재handoff 후 agora ralph 재실행 시 cap 도달 leaves가 재시도됨.",
+      "ralph_complete_realign_outro": "State가 in_alignment로 reset됨. `agora resume`으로 계속.",
+      "ralph_complete_accept_outro": "세션 수락됨. .agora/는 audit trail로 유지."
     }
   }
 }
