@@ -38,6 +38,7 @@ agora ac        (6-A.16) — Acceptance Criteria capture (post-maturity prep for
 agora handoff   (6-A.17) — Plato Dihairesis + seed.json + state lock (alignment → ready_for_ralph)
 agora ralph     (6-A.18) — Ralph foundation: orchestrator + Gate 1 (typecheck/lint/test/build)
                 (6-A.19) — Gate 5 (alignment check via LLM drift_score + Z1/Z2 escalation)
+                (6-A.20) — Critic registry + 3 starter critics (universal-telos-alignment, tech-solid, tech-error-handling)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -3251,6 +3252,109 @@ Next task: Stage 6-A.20 — likely candidates:
       view_log options.
   (e) Audit log (.agora/events.jsonl) — append-only event recorder.
   (f) Non-interactive mode ergonomics across 10 interactive commands.
+
+### Stage 6-A.20 — DONE (2026-05-06)
+
+**Twentieth vertical slice: Critic registry + 3 starter critics +
+prompt-library generator extension.** Auto-selected per 6-A.19 NOTES;
+Sang accepted all 5 R-A. **Foundation slice for Gate 3+4** (Aquinas
+Disputatio). Activates the prompt-library generator's previously
+stubbed critic-prompt extraction (PROMPT_LIBRARY now 12 entries:
+9 philosopher + 3 critic). ZERO new CLI commands.
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: 3 critics first batch (universal-telos-alignment + tech-solid
+  + tech-error-handling). UI critics + remaining tech critics deferred.
+- R2-A: src/critics/definitions/<id>.ts named exports per Stage 5-A.4
+  R3-A. registry.ts assembles + Zod-validates at module init.
+- R3-A: Trigger discriminated union (always | ac_field | file_pattern
+  | tech_stack); .refine enforces exactly-one-active.
+- R4-A: selectCritics(context) single entry; namespace_filter optional
+  (Aquinas uses "ui" / "tech" / undefined for cross-cutting).
+- R5-A: gen-prompts.ts dynamic-import critic def files; PROMPT_LIBRARY
+  gains `critic:<id>` keys; lint:prompts CI gate covers in-sync.
+
+Files shipped:
+  src/critics/types.ts (LAYER 1 — new):
+    CriticTriggerSchema (.refine for exactly-one discriminator).
+    CriticPromptSchema + CriticDefSchema + CriticContext.
+  src/critics/definitions/universal-telos-alignment.ts (LAYER 1 — new):
+    Always-on, namespace=universal. Cross-iteration telos drift.
+  src/critics/definitions/tech-solid.ts (LAYER 1 — new):
+    Always-on, namespace=tech. SOLID violations.
+  src/critics/definitions/tech-error-handling.ts (LAYER 1 — new):
+    Always-on, namespace=tech. 5 error-handling concerns.
+  src/critics/registry.ts (LAYER 1 — new):
+    ALL_CRITICS module-init load + Zod validation.
+    selectCritics(context) + findCriticById helpers.
+    Tiny inline glob matcher (** + *) for file_pattern triggers.
+  scripts/gen-prompts.ts: readCriticDefs replaced stub with dynamic-
+    import extractor. buildEntries iterates critics. PROMPT_LIBRARY
+    9 → 12 entries.
+
+Tests (2 new files; total 35 files / 269 tests, was 33/254):
+  tests/unit/critics/registry.test.ts (8 tests):
+    ALL_CRITICS schema × 3 + findCriticById × 2 + selectCritics
+    namespace filter × 4.
+  tests/unit/critics/trigger.test.ts (6 tests):
+    Each discriminator type valid × 4 + two-active rejected × 1
+    + zero-active rejected × 1.
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (20 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 35 files, 269 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓ (12 entries in sync)
+  pnpm build    ✓
+  Manual:
+    $ pnpm gen:prompts → 12 entries (3 critics added).
+    $ pnpm lint:prompts → in sync.
+
+Surprises encountered + decisions made:
+
+1. Dynamic import of .ts files works under tsx. gen-prompts.ts's
+   `await import(absolutePath)` resolves transparently to .ts source.
+   No tsc step needed before generation.
+2. Critic def files use NAMED exports (not default) per Stage 5-A.4
+   R3-A. Module-side schema validation (CriticDefSchema.parse at
+   registry init) catches missing/wrong fields at startup.
+3. CriticTrigger uses .refine for exactly-one-active discriminator.
+   Zod union types awkward for "exactly one optional key set"; flat
+   object + .refine simpler. Trade-off: TS doesn't narrow type after
+   parse.
+4. Tiny inline glob matcher (~10 LOC). Avoids glob dep (ADR-0001
+   minimalism). Sufficient for v1 file_pattern.
+5. registry.ts uses static imports (not dynamic discovery). Adding
+   the 4th critic = (a) new def file, (b) 1 line in ALL_CRITICS,
+   (c) re-run gen-prompts. Generator IS glob-based; source-of-truth
+   split is a known cost.
+6. NO new CLI command in this slice (pure foundation). 14 commands
+   unchanged.
+
+Outstanding (intentional defer):
+  Gate 3+4 (Aquinas Disputatio — uses selectCritics; 4-stage
+    Videtur → Sed contra → Respondeo → Ad singula protocol).
+  4 UI critics + 3 more Tech critics (per-PR additions).
+  ralph_complete dialog (Stage 2-C.2 R4-A).
+  Audit log .agora/events.jsonl.
+  status command Gate 5 trend display.
+  Smarter diff truncation.
+  8-prompt batch refactor for philosophers (critics already use the
+    library indirection via generator).
+
+Stage 6 status: 20 slices done. **Critic foundation laid.** 15 working
+commands (no new in this slice). 35 test files / 269 tests.
+PROMPT_LIBRARY: 9 → 12 entries.
+
+Next task: Stage 6-A.21 — likely candidates:
+  (a) Gate 3+4 Aquinas Disputatio — wires selectCritics into agora
+      ralph after Gate 5. 4-stage protocol per Aquinas runbook §3.
+  (b) ralph_complete dialog (Stage 2-C.2 R4-A).
+  (c) Audit log .agora/events.jsonl.
+  (d) Gate 2 Playwright (browser projects).
+  (e) Non-interactive ergonomics across 10 interactive commands.
+  (f) status command Gate 5 trend display.
 
 ### Stage 6-A.17 — DONE (2026-05-05)
 

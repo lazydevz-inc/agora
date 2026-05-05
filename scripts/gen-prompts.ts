@@ -107,17 +107,46 @@ async function readPhilosopherRunbooks(): Promise<PhilosopherSource[]> {
   return sources;
 }
 
-async function readCriticDefs(): Promise<{ id: string; relpath: string; system: string; user_template: string; placeholders: string[] }[]> {
-  // Critic def files don't exist in this slice (will land with first critic).
-  // Generator skips gracefully so the slice ships before critics are wired.
+interface CriticSource {
+  id: string;
+  relpath: string;
+  system: string;
+  user_template: string;
+  placeholders: string[];
+}
+
+async function readCriticDefs(): Promise<CriticSource[]> {
   if (!existsSync(CRITIC_DIR)) return [];
-  const files = await readdir(CRITIC_DIR);
-  // Reserved for future critic implementation — see SPEC §"Critic Prompt Inclusion".
+  const files = (await readdir(CRITIC_DIR)).filter((f) => f.endsWith(".ts"));
   if (files.length === 0) return [];
-  console.warn(
-    `[gen-prompts] critic def files exist at ${CRITIC_DIR} but extractor not yet implemented. Skipping ${String(files.length)} files.`,
-  );
-  return [];
+  const sources: CriticSource[] = [];
+  for (const file of files) {
+    const id = file.replace(/\.ts$/, "");
+    const abs = join(CRITIC_DIR, file);
+    // Dynamic import — works under tsx (which runs this generator).
+    const mod = (await import(abs)) as {
+      id?: string;
+      prompt?: { system?: unknown; user_template?: unknown; placeholders?: unknown };
+    };
+    const prompt = mod.prompt;
+    if (
+      prompt === undefined ||
+      typeof prompt.system !== "string" ||
+      typeof prompt.user_template !== "string" ||
+      !Array.isArray(prompt.placeholders)
+    ) {
+      console.warn(`[gen-prompts] critic ${id}: missing/invalid prompt export, skipping`);
+      continue;
+    }
+    sources.push({
+      id: typeof mod.id === "string" ? mod.id : id,
+      relpath: `src/critics/definitions/${file}`,
+      system: prompt.system,
+      user_template: prompt.user_template,
+      placeholders: prompt.placeholders.filter((p): p is string => typeof p === "string"),
+    });
+  }
+  return sources;
 }
 
 function parseRevision(text: string): number {
@@ -205,7 +234,7 @@ function parseFencedPromptBlock(
 
 function buildEntries(
   philosophers: PhilosopherSource[],
-  _critics: { id: string }[],
+  critics: CriticSource[],
 ): { key: string; entry: z.infer<typeof PromptEntrySchema> }[] {
   const entries: { key: string; entry: z.infer<typeof PromptEntrySchema> }[] = [];
   for (const p of philosophers) {
@@ -225,7 +254,21 @@ function buildEntries(
       entries.push({ key: sec.key, entry });
     }
   }
-  // Critic entries: deferred until critic def files land.
+  for (const c of critics) {
+    // Use the def's declared placeholders (vs the runbook-style derived
+    // ones) since critic prompts may have placeholders in system too.
+    const entry: z.infer<typeof PromptEntrySchema> = {
+      namespace: "critic",
+      owner: c.id,
+      critic_def: c.relpath,
+      system_prompt: c.system,
+      user_prompt_template: c.user_template,
+      placeholders: c.placeholders,
+      fingerprint: fingerprint(c.system, c.user_template),
+      used_by: [],
+    };
+    entries.push({ key: `critic:${c.id}`, entry });
+  }
   return entries;
 }
 
