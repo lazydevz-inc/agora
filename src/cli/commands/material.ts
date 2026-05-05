@@ -153,10 +153,14 @@ export async function runMaterialCommand(
   });
   await writeJsonAtomic(fourCausesPath, causes);
 
-  const advanced = await saveState(cwd, {
-    ...state,
-    alignment: { phase: 2, round: 3 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: 2, round: 3 },
+    },
+    "agora material",
+  );
   if (!advanced.ok) return advanced;
 
   outro(pc.green("✓ Material captured. .agora/four_causes.json updated."));

@@ -151,10 +151,14 @@ export async function runEfficientCommand(
   await writeJsonAtomic(fourCausesPath, causes);
 
   // alignment.phase stays at 2; round 3 → 4 (all 4 Aristotle causes done).
-  const advanced = await saveState(cwd, {
-    ...state,
-    alignment: { phase: 2, round: 4 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: 2, round: 4 },
+    },
+    "agora efficient",
+  );
   if (!advanced.ok) return advanced;
 
   outro(

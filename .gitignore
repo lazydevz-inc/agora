@@ -29,6 +29,7 @@ Thumbs.db
 .agora/cache/
 .agora/logs/
 .agora/runtime.db
+.agora/events.jsonl
 
 # Logs
 *.log

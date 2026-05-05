@@ -35,6 +35,7 @@ import {
 } from "../../ralph/end-state.js";
 import { type RalphState, RalphStateSchema } from "../../ralph/state.js";
 import { err, ok, type Result } from "../../result/index.js";
+import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
 import { loadState } from "../../state/reader.js";
@@ -420,17 +421,32 @@ async function dialogLoop(
       ],
     });
 
+    const choiceLabel =
+      typeof choice === "string" ? choice : "cancelled_treated_as_accept_deferred";
+    await appendEvent(cwd, {
+      type: "dialog.choice",
+      command: "agora resume",
+      data: {
+        dialog: "ralph_complete",
+        choice: choiceLabel,
+      },
+    });
+
     if (choice === "view_log") {
       log.message(`\n${renderStatsTable(stats)}\n`);
       continue;
     }
 
     if (choice === "re_align") {
-      const advanced = await saveState(cwd, {
-        ...state,
-        current_phase: "in_alignment",
-        alignment: { phase: 2, round: 0 },
-      });
+      const advanced = await saveState(
+        cwd,
+        {
+          ...state,
+          current_phase: "in_alignment",
+          alignment: { phase: 2, round: 0 },
+        },
+        "agora resume",
+      );
       if (!advanced.ok) return advanced;
       log.message(localized("cli.resume.ralph_complete_realign_instructions"));
       outro(pc.magenta(localized("cli.resume.ralph_complete_realign_outro")));

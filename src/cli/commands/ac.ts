@@ -140,10 +140,14 @@ export async function runAcCommand(
   // State: alignment.phase stays at 2 (alignment phase); round 5 → 6
   // (AC capture done). current_phase remains alignment_complete; handoff
   // slice owns the in_handoff transition.
-  const advanced = await saveState(cwd, {
-    ...state,
-    alignment: { phase: 2, round: 6 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: 2, round: 6 },
+    },
+    "agora ac",
+  );
   if (!advanced.ok) return advanced;
 
   outro(

@@ -11,6 +11,8 @@
 
 import { AgoraErrorThrown } from "../errors/types.js";
 import { setLocale } from "../i18n/index.js";
+import { appendEvent } from "../shared/events.js";
+import { findProjectRoot } from "../shared/path.js";
 import { runAcCommand } from "./commands/ac.js";
 import { runBracketCommand } from "./commands/bracket.js";
 import { runDoctorCommand } from "./commands/doctor.js";
@@ -52,11 +54,13 @@ async function main(): Promise<void> {
 
   // Version short-circuit (also default for first slice with no command).
   if (flags.version) {
+    await emitCommandInvoked("agora --version", flags, positional);
     await dispatchVersion(flags, mode, useColor);
     return;
   }
 
   const command = positional[0];
+  await emitCommandInvoked(command !== undefined ? `agora ${command}` : "agora", flags, positional);
   if (command === "doctor") {
     await dispatchDoctor(flags, mode, useColor);
     return;
@@ -475,6 +479,33 @@ function printHelp(): void {
 
 function inferEmitMode(argv: readonly string[]): EmitMode {
   return argv.includes("--json") || process.env["AGORA_JSON"] === "1" ? "json" : "tui";
+}
+
+async function emitCommandInvoked(
+  command: string,
+  flags: GlobalFlags,
+  positional: readonly string[],
+): Promise<void> {
+  // Audit-log entry per Stage 6-A.23 R5-A. Fail-soft: if no .agora/
+  // exists (greenfield pre-`agora new`), appendEvent returns false.
+  // AGORA_COMMAND is also exposed for downstream emitters (notably
+  // llm.call inside CachedRunner) that don't otherwise know the
+  // originating CLI command.
+  process.env["AGORA_COMMAND"] = command;
+  await appendEvent(findProjectRoot(process.cwd()), {
+    type: "command.invoked",
+    command,
+    data: {
+      positional: [...positional],
+      flags: {
+        json: flags.json,
+        locale: flags.locale,
+        no_color: flags.noColor,
+        help: flags.help,
+        version: flags.version,
+      },
+    },
+  });
 }
 
 function useColorFromEnv(): boolean {

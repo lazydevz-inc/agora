@@ -217,11 +217,15 @@ export async function runHandoffCommand(
 
   // R4-A: single state transition alignment_complete → ready_for_ralph.
   // alignment.round 6 → 7 (handoff done; Ralph next).
-  const advanced = await saveState(cwd, {
-    ...state,
-    current_phase: "ready_for_ralph",
-    alignment: { phase: 2, round: 7 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      current_phase: "ready_for_ralph",
+      alignment: { phase: 2, round: 7 },
+    },
+    "agora handoff",
+  );
   if (!advanced.ok) return advanced;
 
   outro(

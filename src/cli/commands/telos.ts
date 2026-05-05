@@ -164,10 +164,14 @@ export async function runTelosCommand(
 
   // Advance state: alignment.phase → 2 (Phase 2 active), round = 1
   // (first telos round just completed).
-  const advanced = await saveState(cwd, {
-    ...state,
-    alignment: { phase: 2, round: 1 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: 2, round: 1 },
+    },
+    "agora telos",
+  );
   if (!advanced.ok) return advanced;
 
   outro(pc.green("✓ Telos captured. .agora/four_causes.json written."));

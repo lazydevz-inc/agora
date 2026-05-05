@@ -3634,6 +3634,178 @@ Next task: Stage 6-A.23 — likely candidates:
       --no-confirm across 11 interactive commands).
   (f) Additional critic def files (4 UI + 3 Tech).
 
+---
+
+### Stage 6-A.23 — DONE (2026-05-05)
+
+Audit log foundation (`.agora/events.jsonl`) per Stage 2-C.3 R2-A:
+append-only NDJSON event log, written by every command via a single
+LAYER 0 helper. First wire pass covers 8 high-value event types
+across all retrofit sites (state writers, ralph orchestrator, resume
+dialog, CLI dispatch, ClaudeRunner).
+
+R1-A: appendEvent(cwd, input) helper at src/shared/events.ts (LAYER 0).
+R2-A: EventSchema {id (uuid), ts (ISO), type (enum), command, data,
+      prev_state_phase?, new_state_phase?}. .strict() rejects extras.
+R3-A: node:fs/promises fs.appendFile, lock-free, fail-soft. Returns
+      false on any failure (missing .agora/, schema fail, I/O throw).
+      AGORA_EVENTS_DEBUG=1 surfaces failures on stderr.
+R4-A: 8 event types — state.transition, gate_1.result, gate_5.result,
+      disputatio.verdict, dialog.choice, cap.warning, llm.call,
+      command.invoked.
+R5-A: All sites wired in this slice (no batched follow-up):
+  - state.transition: state/writer.ts saveState detects phase change
+    by comparing pre-write phase against next.current_phase. All 11
+    saveState callers updated to pass their command name (new, bracket,
+    intake, telos, form, material, efficient, maturity, ac, handoff,
+    ralph × 4 sites, resume × 1).
+  - gate_1.result + gate_5.result + disputatio.verdict: ralph.ts
+    after each module returns (no batching — one event per gate).
+  - cap.warning: ralph.ts emitCapWarningEvents() helper called
+    alongside emitCapWarnings (UI) at all 4 cap-check sites.
+  - dialog.choice: resume.ts dialogLoop emits choice (or
+    "cancelled_treated_as_accept_deferred" for clack cancel).
+  - llm.call: cached-runner.ts emits after every call (cache hit OR
+    miss). Records prompt/system char counts only — never raw text.
+    Constructor now takes cwd; selection.ts passes it through.
+  - command.invoked: cli/index.ts emitCommandInvoked() before
+    dispatch. Also stamps process.env.AGORA_COMMAND so downstream
+    emitters (notably CachedRunner) attribute the command.
+
+Files:
+  src/shared/events.ts (NEW, ~95 LOC) — EventSchema + appendEvent +
+    EVENTS_FILE_NAME + eventsFilePath. node:crypto.randomUUID via ESM
+    import (NOT require — see surprises §1).
+  src/state/writer.ts: saveState reads prior state, compares phase,
+    emits state.transition on change. Optional `command` arg (default
+    "agora") flows into event.command.
+  src/cli/index.ts: emitCommandInvoked helper + AGORA_COMMAND env
+    stamp before each dispatch.
+  src/cli/commands/ralph.ts: appendEvent for gate_1/gate_5/disputatio
+    + emitCapWarningEvents helper at 4 sites + saveState command
+    arg (4 call sites: in_ralph init, ralph_complete reconcile,
+    in_alignment Z2 re-entry, current at top of dispatch).
+  src/cli/commands/resume.ts: dialog.choice emit + saveState command
+    arg in re_align branch.
+  src/llm/cached-runner.ts: constructor(inner, cache, cwd); private
+    recordEvent emits llm.call with cache_hit / prompt_chars /
+    system_chars / format / ok / error_code / attempts /
+    total_duration_ms / source.
+  src/llm/selection.ts: passes cwd to CachedRunner constructor.
+  9 cli/commands/*.ts: pass command name as 3rd arg to saveState
+    (new, bracket, intake, telos, form, material, efficient, maturity,
+    ac, handoff). Closing-brace position made each call multi-line.
+
+Tests (1 new file; total 38 files / 298 tests, was 37/287):
+  tests/unit/shared/events.test.ts (11 tests):
+    eventsFilePath path resolution.
+    appendEvent fail-soft × 2 (no .agora dir, validation fail).
+    appendEvent happy path × 5 (file shape, schema parse, multi-append
+      append-only, prev/new phase pass-through, omits absent prev).
+    EventSchema × 3 (8 types accepted, unknown type rejected,
+      strict rejects extras).
+  tests/unit/llm/cached-runner.test.ts: 4 sites updated for new cwd
+    arg. All 4 existing tests still pass.
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (22 pre-existing warnings unchanged)
+  pnpm test     ✓ 38 files, 298 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓ (12 entries unchanged)
+  pnpm build    ✓
+  Manual smoke (/tmp/agora-events-smoke):
+    `agora new test-session --json` + `agora status --json` +
+    `agora resume --json` produce 3-line .agora/events.jsonl
+    with valid uuid/iso ts + state.transition (command=agora new,
+    new_state_phase=in_alignment) + 2 command.invoked entries.
+
+Surprises encountered + decisions made:
+
+1. **ESM project: `require("node:crypto")` fails at runtime** — first
+   version of cryptoRandomUuid() used CommonJS require. Tests passed
+   (vitest treats both forms), but `node dist/...` and `tsx ...`
+   threw "require is not defined". Switched to top-level
+   `import { randomUUID } from "node:crypto";`. Lesson: ESM projects
+   must use static ESM imports for node:* modules, not require.
+   Vitest tolerates both because of esbuild's CJS/ESM interop.
+
+2. **First command's command.invoked event is silently dropped** —
+   `agora new` runs BEFORE .agora/ exists. emitCommandInvoked calls
+   appendEvent → hasAgoraDir returns false → returns false silently.
+   Subsequent commands DO emit. This is intentional: the first
+   command's *state.transition* (via saveState, after .agora/ is
+   created) IS recorded. So the audit trail starts at the first
+   state write, not the first dispatch. Acceptable trade: alternative
+   would be to lazily create .agora/ inside appendEvent, which violates
+   the helper's "non-mutating discovery" contract and could create
+   .agora/ in random user cwds during `agora --version`.
+
+3. **AGORA_COMMAND env coupling for llm.call attribution** — the
+   ClaudeRunner stack (CachedRunner) doesn't know which CLI command
+   originated the call. Passing command through every call site
+   (probes, philosopher prompts, gate 5, disputatio, critics) would
+   touch 20+ files just for attribution. Cleaner: stamp AGORA_COMMAND
+   once at the top of each CLI dispatch; CachedRunner reads it in its
+   recordEvent. Slightly indirect but pragmatic.
+
+4. **EventSchema strict() catches typos in producers** — strict mode
+   rejects unknown top-level fields. If a future producer typos
+   `command` → `cmd`, the event is silently dropped (with debug log
+   if AGORA_EVENTS_DEBUG=1). This is intentional fail-soft —
+   audit-log writes must never crash a command.
+
+5. **prev_state_phase / new_state_phase are LAYER-0-typed strings**,
+   not state/types.PhaseSchema enum — LAYER 0 cannot depend on
+   LAYER 1+ (architecture rule). State producers carry the enum
+   constraint themselves; the event log is content-typed via `data`.
+
+6. **llm.call records char counts, never text** — prompt + system
+   strings can contain user code, secrets, or copyrighted material.
+   The audit log is supposed to be safe to ship to debug pipelines
+   (when telemetry-out is added in a future ADR). Char counts
+   (prompt_chars, system_chars) are sufficient for size analysis +
+   cache-hit-rate computation without leaking content.
+
+Lessons / observations:
+- **Single LAYER 0 helper avoids producer drift**: every emit goes
+  through appendEvent → EventSchema. Future event types only need
+  enum extension + producer; consumer code (jq queries, future
+  `agora trace` viewer) depends on the schema, not on each producer.
+- **state.transition naturally idempotent**: saveState emits ONLY
+  when current_phase actually changes. Repeated `agora status` (which
+  doesn't write state) → 0 transition events. `agora intake` after
+  intake already done re-writes state but phase unchanged → 0
+  transitions. Clean signal-to-noise.
+- **cap.warning is paired with UI cap-warn**: emitCapWarningEvents
+  runs alongside emitCapWarnings (TUI log.warn). Not consolidated
+  into a single function because UI is sync and event emit is async;
+  forcing them together would require awaiting in 4 places (already
+  done) without obvious gain.
+
+Outstanding (intentional defer):
+  Audit log viewer (`agora trace --since=1h --type=gate_5.result`).
+  Privacy redaction policy doc (when telemetry-out is added).
+  Probe runs → probe.result event type (probes/runner.ts).
+  Phase 1 intake → intake.captured event type.
+  Doctor probes → doctor.gate_0.result event type.
+  status command Gate 5 + Disputatio trend (deferred from candidate b).
+  10-prompt batch refactor.
+
+Stage 6 status: 23 slices done. **Audit log foundation in place.**
+15 working commands; .agora/events.jsonl auto-populates. 38 test
+files / 298 tests.
+
+Next task: Stage 6-A.24 — likely candidates:
+  (a) status command Gate 5 + Disputatio trend display.
+  (b) Audit log viewer (`agora trace`).
+  (c) 10-prompt batch refactor (Husserl + Aristotle ×4 + Plato + 3
+      Aquinas inline → renderPrompt).
+  (d) Gate 2 Playwright functional QA.
+  (e) Non-interactive ergonomics (--accept-deferred / --re-align /
+      --no-confirm).
+  (f) Additional critic def files (4 UI + 3 Tech).
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 **Seventeenth vertical slice: `agora handoff` — Plato Dihairesis +

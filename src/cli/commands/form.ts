@@ -158,10 +158,14 @@ export async function runFormCommand(
   await writeJsonAtomic(fourCausesPath, causes);
 
   // Advance state: alignment.phase stays at 2; round 1 → 2 (form just done).
-  const advanced = await saveState(cwd, {
-    ...state,
-    alignment: { phase: 2, round: 2 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: 2, round: 2 },
+    },
+    "agora form",
+  );
   if (!advanced.ok) return advanced;
 
   outro(pc.green("✓ Form captured. .agora/four_causes.json updated."));

@@ -130,10 +130,14 @@ export async function runBracketCommand(
 
   // Advance state: bracket done → alignment.phase: -1 (Husserl complete; Phase 0
   // scan was already done in `agora new`, so next step is Phase 1 intake).
-  const advanced = await saveState(cwd, {
-    ...state,
-    alignment: { phase: -1, round: state.alignment?.round ?? 0 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: -1, round: state.alignment?.round ?? 0 },
+    },
+    "agora bracket",
+  );
   if (!advanced.ok) return advanced;
 
   outro(pc.green("✓ Bracketing complete. .agora/defended_frame.json written."));

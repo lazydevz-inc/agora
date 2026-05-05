@@ -99,10 +99,14 @@ export async function runIntakeCommand(
   await writeJsonAtomic(join(cwd, ".agora", "intake.json"), phase1);
 
   // Advance state: alignment.phase: 0|-1 → 1.
-  const advanced = await saveState(cwd, {
-    ...state,
-    alignment: { phase: 1, round: state.alignment?.round ?? 0 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: 1, round: state.alignment?.round ?? 0 },
+    },
+    "agora intake",
+  );
   if (!advanced.ok) return advanced;
 
   outro(pc.green("✓ Phase 1 intake captured. .agora/intake.json written."));

@@ -41,7 +41,7 @@ describe("CachedRunner", () => {
   test("delegates when no cache_key", async () => {
     const inner = new CountingRunner(okResponse);
     const cache = await loadLLMCache(cwd);
-    const cached = new CachedRunner(inner, cache);
+    const cached = new CachedRunner(inner, cache, cwd);
     await cached.call({ prompt: "hi" });
     await cached.call({ prompt: "hi" });
     expect(inner.callCount).toBe(2);
@@ -50,7 +50,7 @@ describe("CachedRunner", () => {
   test("caches when cache_key + ttl set; second call hits cache", async () => {
     const inner = new CountingRunner(okResponse);
     const cache = await loadLLMCache(cwd);
-    const cached = new CachedRunner(inner, cache);
+    const cached = new CachedRunner(inner, cache, cwd);
     const first = await cached.call({ prompt: "hi", cache_key: "k1", cache_ttl_seconds: 60 });
     const second = await cached.call({ prompt: "hi", cache_key: "k1", cache_ttl_seconds: 60 });
     expect(inner.callCount).toBe(1);
@@ -62,7 +62,7 @@ describe("CachedRunner", () => {
   test("does not cache when ttl=0", async () => {
     const inner = new CountingRunner(okResponse);
     const cache = await loadLLMCache(cwd);
-    const cached = new CachedRunner(inner, cache);
+    const cached = new CachedRunner(inner, cache, cwd);
     await cached.call({ prompt: "hi", cache_key: "k1", cache_ttl_seconds: 0 });
     await cached.call({ prompt: "hi", cache_key: "k1", cache_ttl_seconds: 0 });
     expect(inner.callCount).toBe(2);
@@ -78,7 +78,7 @@ describe("CachedRunner", () => {
     };
     const inner = new CountingRunner(failResponse);
     const cache = await loadLLMCache(cwd);
-    const cached = new CachedRunner(inner, cache);
+    const cached = new CachedRunner(inner, cache, cwd);
     await cached.call({ prompt: "hi", cache_key: "k1", cache_ttl_seconds: 60 });
     await cached.call({ prompt: "hi", cache_key: "k1", cache_ttl_seconds: 60 });
     expect(inner.callCount).toBe(2);

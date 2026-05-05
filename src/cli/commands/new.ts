@@ -37,7 +37,7 @@ export async function runNewCommand(
   await ensureAgoraDir(cwd);
   const initialState = newState();
   initialState.alignment = { phase: 0, round: 0 };
-  const stateResult = await saveState(cwd, initialState);
+  const stateResult = await saveState(cwd, initialState, "agora new");
   if (!stateResult.ok) return stateResult;
 
   await writeJsonAtomic(join(cwd, ".agora", "scan.json"), scan);

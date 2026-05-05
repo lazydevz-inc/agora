@@ -155,11 +155,15 @@ export async function runMaturityCommand(
   // State transition: all-pass → alignment_complete (Y2 termination ready).
   // Otherwise stay in_alignment, record failing causes for next agora resume.
   const newPhase = result.all_passed ? ("alignment_complete" as const) : state.current_phase;
-  const advanced = await saveState(cwd, {
-    ...state,
-    current_phase: newPhase,
-    alignment: { phase: 2, round: 5 },
-  });
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      current_phase: newPhase,
+      alignment: { phase: 2, round: 5 },
+    },
+    "agora maturity",
+  );
   if (!advanced.ok) return advanced;
 
   if (result.all_passed) {

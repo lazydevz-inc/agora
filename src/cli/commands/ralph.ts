@@ -47,6 +47,7 @@ import {
   RalphStateSchema,
 } from "../../ralph/state.js";
 import { err, ok, type Result } from "../../result/index.js";
+import { appendEvent } from "../../shared/events.js";
 import { getRecentDiff } from "../../shared/git-diff.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
@@ -142,10 +143,11 @@ export async function runRalphCommand(
       initial_leaf_id: firstLeaf,
     });
     await writeJsonAtomic(ralphStatePath, initial);
-    const advanced = await saveState(cwd, {
-      ...sessionState,
-      current_phase: "in_ralph",
-    });
+    const advanced = await saveState(
+      cwd,
+      { ...sessionState, current_phase: "in_ralph" },
+      "agora ralph",
+    );
     if (!advanced.ok) return advanced;
 
     log.message(
@@ -173,10 +175,11 @@ export async function runRalphCommand(
   // Subsequent invocation: run Gate 1 for current leaf.
   if (ralphState.current_leaf_id === null) {
     // ralph_state thinks we're done; reconcile with state.current_phase.
-    const advanced = await saveState(cwd, {
-      ...sessionState,
-      current_phase: "ralph_complete",
-    });
+    const advanced = await saveState(
+      cwd,
+      { ...sessionState, current_phase: "ralph_complete" },
+      "agora ralph",
+    );
     if (!advanced.ok) return advanced;
     outro(pc.green(localized("cli.ralph.all_complete")));
     return ok(
@@ -199,6 +202,17 @@ export async function runRalphCommand(
   );
 
   const gate1 = await runGate1({ cwd });
+  await appendEvent(cwd, {
+    type: "gate_1.result",
+    command: "agora ralph",
+    data: {
+      leaf_id: currentLeaf,
+      attempt: attemptsBefore + 1,
+      overall_passed: gate1.overall_passed,
+      total_duration_ms: gate1.total_duration_ms,
+      failed_commands: gate1.commands.filter((c) => !c.passed).map((c) => c.name),
+    },
+  });
 
   // Gate 1 failure short-circuits — Gate 5 only runs after deterministic
   // checks pass (no point judging alignment if the code doesn't even
@@ -213,7 +227,7 @@ export async function runRalphCommand(
       updated_at: new Date().toISOString(),
     });
     await writeJsonAtomic(ralphStatePath, updated);
-    return await emitGate1Failure(currentLeaf, newAttempts, updated, gate1);
+    return await emitGate1Failure(cwd, currentLeaf, newAttempts, updated, gate1);
   }
 
   // Gate 1 passed → Gate 5 alignment check.
@@ -255,6 +269,17 @@ export async function runRalphCommand(
     return gate5R;
   }
   const gate5 = gate5R.value;
+  await appendEvent(cwd, {
+    type: "gate_5.result",
+    command: "agora ralph",
+    data: {
+      leaf_id: currentLeaf,
+      drift_score: gate5.drift_score,
+      action: gate5.action,
+      diff_source: gate5.diff_source,
+      diff_truncated: gate5.diff_truncated,
+    },
+  });
 
   // Gate 5 PASS / SOFT_WARN → run Aquinas Disputatio (Gate 3+4) BEFORE
   // marking leaf complete. Verdict drives whether leaf actually advances.
@@ -288,6 +313,17 @@ export async function runRalphCommand(
       return disputatioR;
     }
     disputatio = disputatioR.value;
+    await appendEvent(cwd, {
+      type: "disputatio.verdict",
+      command: "agora ralph",
+      data: {
+        leaf_id: currentLeaf,
+        verdict: disputatio.respondeo.verdict,
+        all_objections_count: disputatio.all_objections_count,
+        critical_objections_count: disputatio.critical_objections_count,
+        action_items_count: disputatio.action_items.length,
+      },
+    });
   }
   await runtime.cache.flush();
 
@@ -479,6 +515,7 @@ async function applyGate5Outcome(
       );
     }
     emitCapWarnings(updated, currentLeaf, newAttempts);
+    await emitCapWarningEvents(cwd, updated, currentLeaf, newAttempts);
     outro(
       pc.yellow(
         `Aquinas rejected (${String(disputatio.all_objections_count)} objections). Address concedo rulings + re-run.`,
@@ -526,6 +563,7 @@ async function applyGate5Outcome(
       log.message(localized("cli.ralph.gate_5_z1_directive", { directive: gate5.z1_directive }));
     }
     emitCapWarnings(updated, currentLeaf, newAttempts);
+    await emitCapWarningEvents(cwd, updated, currentLeaf, newAttempts);
     outro(pc.yellow(`Drift ${gate5.drift_score.toFixed(2)} (Z1). Adjust + re-run.`));
     return ok(
       buildEnvelope({
@@ -568,11 +606,15 @@ async function applyGate5Outcome(
   if (z2Confirmed) {
     // Re-enter alignment loop. Preserve ralph_state.json so leaf can
     // be re-attempted after re-alignment + re-handoff.
-    const advanced = await saveState(cwd, {
-      ...sessionState,
-      current_phase: "in_alignment",
-      alignment: { phase: 2, round: 0 },
-    });
+    const advanced = await saveState(
+      cwd,
+      {
+        ...sessionState,
+        current_phase: "in_alignment",
+        alignment: { phase: 2, round: 0 },
+      },
+      "agora ralph",
+    );
     if (!advanced.ok) return advanced;
     outro(
       pc.magenta(
@@ -592,6 +634,7 @@ async function applyGate5Outcome(
 
   // Z2 declined: treat as Z1 (stay on leaf, accumulate directive).
   emitCapWarnings(updated, currentLeaf, newAttempts);
+  await emitCapWarningEvents(cwd, updated, currentLeaf, newAttempts);
   outro(
     pc.yellow(
       `Z2 declined. Drift ${gate5.drift_score.toFixed(2)}. Adjust + re-run \`agora ralph\`.`,
@@ -619,6 +662,7 @@ function findLeafContent(tree: readonly ACNode[], leafId: string): string | null
 }
 
 async function emitGate1Failure(
+  cwd: string,
   currentLeaf: string,
   newAttempts: number,
   updated: RalphState,
@@ -634,6 +678,8 @@ async function emitGate1Failure(
       failed: failed.join(", "),
     }),
   );
+
+  await emitCapWarningEvents(cwd, updated, currentLeaf, newAttempts);
 
   // Per-leaf cap warning.
   if (newAttempts >= updated.iteration_cap_per_leaf) {
@@ -704,6 +750,37 @@ function emitCapWarnings(state: RalphState, leafId: string, attempts: number): v
         attempts: String(state.session_total_attempts),
       }),
     );
+  }
+}
+
+async function emitCapWarningEvents(
+  cwd: string,
+  state: RalphState,
+  leafId: string,
+  attempts: number,
+): Promise<void> {
+  if (attempts >= state.iteration_cap_per_leaf) {
+    await appendEvent(cwd, {
+      type: "cap.warning",
+      command: "agora ralph",
+      data: {
+        kind: "per_leaf",
+        leaf_id: leafId,
+        attempts,
+        cap: state.iteration_cap_per_leaf,
+      },
+    });
+  }
+  if (state.session_total_attempts >= state.session_cap_total) {
+    await appendEvent(cwd, {
+      type: "cap.warning",
+      command: "agora ralph",
+      data: {
+        kind: "session",
+        attempts: state.session_total_attempts,
+        cap: state.session_cap_total,
+      },
+    });
   }
 }
 

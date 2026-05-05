@@ -38,7 +38,7 @@ export async function selectRuntime(cwd: string): Promise<SelectedRuntime> {
   }
   const baseRunner = new ClaudeCliRunner();
   cached = {
-    runner: new CachedRunner(baseRunner, cache),
+    runner: new CachedRunner(baseRunner, cache, cwd),
     kind: "subprocess",
     cache,
   };
