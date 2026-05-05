@@ -36,6 +36,7 @@ import type { ACNode } from "../../handoff/dihairesis.js";
 import type { Seed } from "../../handoff/seed-builder.js";
 import { localized } from "../../i18n/index.js";
 import { selectRuntime } from "../../llm/selection.js";
+import { type DisputatioResult, runDisputatio } from "../../ralph/disputatio.js";
 import { runGate1 } from "../../ralph/gate-1.js";
 import { type Gate5Result, runGate5 } from "../../ralph/gate-5.js";
 import { countAtomicLeaves, selectNextLeaf } from "../../ralph/leaf-selector.js";
@@ -249,9 +250,46 @@ export async function runRalphCommand(
     },
     runtime.runner,
   );
-  await runtime.cache.flush();
-  if (!gate5R.ok) return gate5R;
+  if (!gate5R.ok) {
+    await runtime.cache.flush();
+    return gate5R;
+  }
   const gate5 = gate5R.value;
+
+  // Gate 5 PASS / SOFT_WARN → run Aquinas Disputatio (Gate 3+4) BEFORE
+  // marking leaf complete. Verdict drives whether leaf actually advances.
+  // Z1 / Z2 → skip Disputatio (Gate 5 already deferred this iteration).
+  let disputatio: DisputatioResult | undefined;
+  if (gate5.action === "PASS" || gate5.action === "SOFT_WARN") {
+    log.message(localized("cli.ralph.disputatio_running", { leaf_id: currentLeaf }));
+    const completedSummary =
+      ralphState.completed_leaves.length === 0
+        ? "(none — first leaf)"
+        : ralphState.completed_leaves.map((id) => `- ${id}`).join("\n");
+    const disputatioR = await runDisputatio(
+      {
+        leaf_id: currentLeaf,
+        leaf_content: leafContent ?? "(content missing from ac_tree_snapshot)",
+        telos_statement: seed.four_causes.telos?.statement ?? "(telos missing)",
+        telos_failure_signal: seed.four_causes.telos?.failure_signal ?? "(failure_signal missing)",
+        all_acceptance_criteria: seed.acceptance_criteria.criteria,
+        completed_leaves_summary: completedSummary,
+        diff: diffResult.diff,
+        diff_source: diffResult.source,
+        critic_context: {
+          leaf_content: leafContent ?? "",
+          changed_files: [],
+        },
+      },
+      runtime.runner,
+    );
+    if (!disputatioR.ok) {
+      await runtime.cache.flush();
+      return disputatioR;
+    }
+    disputatio = disputatioR.value;
+  }
+  await runtime.cache.flush();
 
   return await applyGate5Outcome({
     cwd,
@@ -263,6 +301,7 @@ export async function runRalphCommand(
     attemptsBefore,
     gate1,
     gate5,
+    ...(disputatio !== undefined ? { disputatio } : {}),
   });
 }
 
@@ -276,6 +315,7 @@ interface ApplyGate5OutcomeArgs {
   attemptsBefore: number;
   gate1: Gate1Result;
   gate5: Gate5Result;
+  disputatio?: DisputatioResult; // present iff Gate 5 was PASS/SOFT_WARN
 }
 
 async function applyGate5Outcome(
@@ -291,13 +331,24 @@ async function applyGate5Outcome(
     attemptsBefore,
     gate1,
     gate5,
+    disputatio,
   } = args;
   const newAttempts = attemptsBefore + 1;
   const completed = new Set(ralphState.completed_leaves);
-  const nextHistory = [...ralphState.gate_5_history, gate5];
+  const nextGate5History = [...ralphState.gate_5_history, gate5];
+  const nextDisputatioHistory =
+    disputatio !== undefined
+      ? [...ralphState.disputatio_history, disputatio]
+      : ralphState.disputatio_history;
 
-  // PASS / SOFT_WARN: leaf complete, advance.
-  if (gate5.action === "PASS" || gate5.action === "SOFT_WARN") {
+  // Disputatio verdict overrides Gate 5 leaf-advance for rejected case.
+  // PASS / SOFT_WARN + verdict in {approved, conditional} → advance.
+  // PASS / SOFT_WARN + verdict=rejected → stay (Z1-equivalent).
+  const willAdvance =
+    (gate5.action === "PASS" || gate5.action === "SOFT_WARN") &&
+    (disputatio === undefined || disputatio.respondeo.verdict !== "rejected");
+
+  if (willAdvance) {
     completed.add(currentLeaf);
     const nextLeaf = selectNextLeaf(ralphState.ac_tree_snapshot as ACNode[], completed);
     const updated: RalphState = RalphStateSchema.parse({
@@ -307,7 +358,9 @@ async function applyGate5Outcome(
       session_total_attempts: ralphState.session_total_attempts + 1,
       last_gate_1_result: gate1,
       last_gate_5_result: gate5,
-      gate_5_history: nextHistory,
+      ...(disputatio !== undefined ? { last_disputatio_result: disputatio } : {}),
+      gate_5_history: nextGate5History,
+      disputatio_history: nextDisputatioHistory,
       z1_directives: [], // cleared on leaf completion
       updated_at: new Date().toISOString(),
     });
@@ -328,6 +381,29 @@ async function applyGate5Outcome(
           drift: gate5.drift_score.toFixed(2),
         }),
       );
+    }
+    if (disputatio !== undefined) {
+      const v = disputatio.respondeo.verdict;
+      if (v === "approved") {
+        log.success(
+          localized("cli.ralph.disputatio_approved", {
+            leaf_id: currentLeaf,
+            objections_count: String(disputatio.all_objections_count),
+          }),
+        );
+      } else {
+        log.warn(
+          localized("cli.ralph.disputatio_conditional", {
+            leaf_id: currentLeaf,
+            objections_count: String(disputatio.all_objections_count),
+            critical_count: String(disputatio.critical_objections_count),
+            actions:
+              disputatio.action_items.length > 0
+                ? disputatio.action_items.map((a) => `  - ${a}`).join("\n")
+                : "(none)",
+          }),
+        );
+      }
     }
 
     if (nextLeaf === null) {
@@ -370,7 +446,58 @@ async function applyGate5Outcome(
     );
   }
 
-  // Z1 / Z2: leaf NOT complete.
+  // Disputatio rejected verdict (Gate 5 PASS/SOFT_WARN but Aquinas
+  // rejected): leaf NOT complete; treat as Z1-equivalent.
+  if (disputatio !== undefined && disputatio.respondeo.verdict === "rejected") {
+    const disputatioDirectives = [...ralphState.z1_directives, ...disputatio.action_items];
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      per_leaf_attempts: { ...ralphState.per_leaf_attempts, [currentLeaf]: newAttempts },
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_1_result: gate1,
+      last_gate_5_result: gate5,
+      last_disputatio_result: disputatio,
+      gate_5_history: nextGate5History,
+      disputatio_history: nextDisputatioHistory,
+      z1_directives: disputatioDirectives,
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+    log.error(
+      localized("cli.ralph.disputatio_rejected", {
+        leaf_id: currentLeaf,
+        objections_count: String(disputatio.all_objections_count),
+        critical_count: String(disputatio.critical_objections_count),
+        reasoning: disputatio.respondeo.reasoning,
+      }),
+    );
+    if (disputatio.action_items.length > 0) {
+      log.message(
+        localized("cli.ralph.disputatio_action_items", {
+          actions: disputatio.action_items.map((a) => `  - ${a}`).join("\n"),
+        }),
+      );
+    }
+    emitCapWarnings(updated, currentLeaf, newAttempts);
+    outro(
+      pc.yellow(
+        `Aquinas rejected (${String(disputatio.all_objections_count)} objections). Address concedo rulings + re-run.`,
+      ),
+    );
+    return ok(
+      buildEnvelope({
+        action: "disputatio_rejected",
+        current_leaf_id: currentLeaf,
+        attempts: newAttempts,
+        cap: updated.iteration_cap_per_leaf,
+        last_gate_1_result: gate1,
+        last_gate_5_result: gate5,
+        last_disputatio_result: disputatio,
+      }),
+    );
+  }
+
+  // Z1 / Z2 (Gate 5 itself escalated): leaf NOT complete.
   const z1Directives =
     gate5.z1_directive !== undefined
       ? [...ralphState.z1_directives, gate5.z1_directive]
@@ -383,7 +510,7 @@ async function applyGate5Outcome(
       session_total_attempts: ralphState.session_total_attempts + 1,
       last_gate_1_result: gate1,
       last_gate_5_result: gate5,
-      gate_5_history: nextHistory,
+      gate_5_history: nextGate5History,
       z1_directives: z1Directives,
       updated_at: new Date().toISOString(),
     });
@@ -432,7 +559,7 @@ async function applyGate5Outcome(
     session_total_attempts: ralphState.session_total_attempts + 1,
     last_gate_1_result: gate1,
     last_gate_5_result: gate5,
-    gate_5_history: nextHistory,
+    gate_5_history: nextGate5History,
     z1_directives: z1Directives,
     updated_at: new Date().toISOString(),
   });
@@ -548,6 +675,7 @@ interface RalphEnvelopeData {
     | "gate_5_z1"
     | "gate_5_z2_accepted"
     | "gate_5_z2_declined"
+    | "disputatio_rejected"
     | "all_complete";
   current_leaf_id?: string;
   previous_leaf_id?: string;
@@ -558,6 +686,7 @@ interface RalphEnvelopeData {
   failed_commands?: string[];
   last_gate_1_result?: Gate1Result;
   last_gate_5_result?: Gate5Result;
+  last_disputatio_result?: DisputatioResult;
 }
 
 function emitCapWarnings(state: RalphState, leafId: string, attempts: number): void {
@@ -612,7 +741,9 @@ function buildEnvelope(data: RalphEnvelopeData): CommandEnvelope {
                     ? "Fix the failed sub-command, then re-run agora ralph"
                     : data.action === "gate_5_z1" || data.action === "gate_5_z2_declined"
                       ? "Adjust per Gate 5 directive, then re-run agora ralph"
-                      : "Implement the next leaf, then re-run agora ralph",
+                      : data.action === "disputatio_rejected"
+                        ? "Address Aquinas concedo rulings, then re-run agora ralph"
+                        : "Implement the next leaf, then re-run agora ralph",
                 command: "agora ralph",
               },
             ],

@@ -112,7 +112,12 @@
       "gate_5_z1": "Leaf {leaf_id} Gate 5 Z1 (drift {drift}). Leaf 미완료 처리. {rationale}",
       "gate_5_z1_directive": "다음 시도용 Z1 지시: {directive}",
       "gate_5_z2": "Leaf {leaf_id} Gate 5 Z2 (drift {drift} ≥ 0.60 — alignment 자체가 부정확할 수 있음). {rationale}",
-      "gate_5_z2_confirm": "Alignment loop로 재진입할까요 (state in_ralph → in_alignment)?"
+      "gate_5_z2_confirm": "Alignment loop로 재진입할까요 (state in_ralph → in_alignment)?",
+      "disputatio_running": "Leaf {leaf_id}에 Aquinas Disputatio (Gate 3+4) 실행 중...",
+      "disputatio_approved": "Aquinas가 leaf {leaf_id} 승인 ({objections_count}개 objection — critical 없음, action 불요). 진행.",
+      "disputatio_conditional": "Aquinas가 leaf {leaf_id} 조건부 승인 ({objections_count}개 objection, {critical_count}개 critical). Action item:\n{actions}",
+      "disputatio_rejected": "Aquinas가 leaf {leaf_id} 거부 ({objections_count}개 objection, {critical_count}개 critical). 이유: {reasoning}",
+      "disputatio_action_items": "Action item (concedo 판결):\n{actions}"
     },
     "handoff": {
       "intro": "Handoff — Plato Dihairesis + seed lock",

@@ -39,6 +39,7 @@ agora handoff   (6-A.17) — Plato Dihairesis + seed.json + state lock (alignmen
 agora ralph     (6-A.18) — Ralph foundation: orchestrator + Gate 1 (typecheck/lint/test/build)
                 (6-A.19) — Gate 5 (alignment check via LLM drift_score + Z1/Z2 escalation)
                 (6-A.20) — Critic registry + 3 starter critics (universal-telos-alignment, tech-solid, tech-error-handling)
+                (6-A.21) — Aquinas Disputatio (Gate 3+4): 4-stage Videtur → Sed contra → Respondeo → Ad singula
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -3355,6 +3356,113 @@ Next task: Stage 6-A.21 — likely candidates:
   (d) Gate 2 Playwright (browser projects).
   (e) Non-interactive ergonomics across 10 interactive commands.
   (f) status command Gate 5 trend display.
+
+### Stage 6-A.21 — DONE (2026-05-06)
+
+**Twenty-first vertical slice: Aquinas Disputatio (Gate 3+4).** Auto-
+selected per 6-A.20 NOTES; Sang accepted all 5 R-A. **Closes the Ralph
+gate set.** 4-stage protocol (Videtur → Sed contra → Respondeo → Ad
+singula) wired into agora ralph after Gate 5 PASS/SOFT_WARN. Verdict
+drives leaf-advance.
+
+**First real consumer of PROMPT_LIBRARY's renderPrompt API**: Videtur
+stage uses renderPrompt(`critic:${critic.id}`, ctx) per 6-A.20's
+generated entries. Type-safe key lookup; placeholder validation at
+runtime. The 6-A.10 infrastructure pays off for the first time.
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: Single slice = 4 stages atomic + wiring into agora ralph.
+- R2-A: selectCritics + parallel Promise.all per critic.
+- R3-A: Single Sed contra LLM call (counter-position synthesis).
+- R4-A: Verdict-driven advance: approved → advance, conditional →
+  advance + log action_items, rejected → stay (Z1-equivalent).
+- R5-A: last_disputatio_result + disputatio_history[] per 6-A.19
+  Gate 5 history pattern.
+
+Files shipped:
+  src/ralph/disputatio.ts (LAYER 2 — new, ~470 LOC):
+    Schemas (Objection, VideturPerCritic, Verdict, Respondeo,
+    AdSingulaRuling, DisputatioResult). 3 Aquinas inline prompts
+    (SED_CONTRA / RESPONDEO with F-Aquinas-3 / AD_SINGULA with
+    F-Aquinas-4). runDisputatio orchestrator with F-Aquinas-4
+    enforcement (every objection must have ruling).
+  src/ralph/state.ts: + last_disputatio_result + disputatio_history[].
+  src/cli/commands/ralph.ts: integrated Disputatio after Gate 5
+    PASS/SOFT_WARN. willAdvance gates on verdict; new
+    disputatio_rejected branch (Z1-equivalent). Renamed nextHistory
+    → nextGate5History. Envelope action union extended.
+  messages/en.json + ko.json: +5 cli.ralph.disputatio_* keys × 2
+    locales = 10 strings net new.
+
+Tests (1 new file; total 36 files / 277 tests, was 35/269):
+  tests/unit/ralph/disputatio.test.ts (8 tests):
+    Happy path × 1 (3 empty critics → approved, ad_singula skipped).
+    Conditional × 1 (1 objection → action_items populated).
+    Rejected × 1 (critical objection surfaced).
+    F-Aquinas-4 enforcement × 1 (missing ruling → invariant-violation).
+    Schema × 1.
+    Error paths × 3 (critic LLM error, malformed Sed contra, bad
+      verdict).
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (22 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 36 files, 277 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓ (12 entries; 3 critic prompts active)
+  pnpm build    ✓
+  Manual smoke (non-interactive paths only):
+    $ # /tmp empty
+    $ node dist/cli/index.js ralph --json | jq '.errors[0].code'
+      "user.aborted"
+    $ node -e "import('.../prompts/index.js').then(m => console.log(Object.keys(m.PROMPT_LIBRARY).length))"
+      12
+    $ node -e "import('.../critics/registry.js').then(m => console.log(m.selectCritics({}).map(c => c.id)))"
+      [universal-telos-alignment, tech-solid, tech-error-handling]
+  Manual interactive run + actual Disputatio LLM calls deferred to
+  TTY (full Ralph iteration ~10+min via 5+ LLM calls).
+
+Surprises encountered + decisions made:
+
+1. renderPrompt's first real consumer: Videtur uses
+   `renderPrompt(\`critic:\${critic.id}\`, ctx)`. PROMPT_LIBRARY's
+   indirection pays off — critic prompt edits flow through gen-prompts
+   + lint:prompts CI gate.
+2. CriticResponseSchema uses .passthrough for critic-specific extras
+   (SOLID's principle, error-handling's concern).
+3. 5 LLM calls per Ralph iteration when Gate 5 PASS (Gate 5 + 3
+   critics + Sed contra + Respondeo + optional Ad singula). Cache
+   layer mitigates re-runs at same diff.
+4. F-Aquinas-4 enforcement at orchestrator level: missing Ad singula
+   ruling → internal.invariant-violation. Bug-detect-at-source for
+   the LLM.
+5. disputatio_rejected is a NEW envelope action — distinct trigger
+   from gate_5_z1 (Gate 5 passed but Aquinas rejected).
+6. 3 Aquinas inline prompts NOT in PROMPT_LIBRARY yet — runbook
+   §4.2-4.4 partially parsed (per 6-A.10 NOTES). Future batch
+   refactor activates.
+
+Outstanding (intentional defer):
+  Gate 2 (Playwright functional QA — browser projects).
+  4 UI critics + 3 more Tech critics (per-PR additions).
+  ralph_complete dialog (Stage 2-C.2 R4-A).
+  Audit log .agora/events.jsonl per Stage 2-C.3 R2-A.
+  status command Gate 5 + Disputatio trend display.
+  Smarter diff truncation.
+  10-prompt batch refactor (8 philosopher + 3 Aquinas inline; critics
+    already in library).
+  aquinas:videtur runbook section parser fix.
+
+Stage 6 status: 21 slices done. **Ralph 5-gate set complete.** 15
+working commands. 36 test files / 277 tests.
+
+Next task: Stage 6-A.22 — likely candidates:
+  (a) ralph_complete dialog (Stage 2-C.2 R4-A).
+  (b) Audit log .agora/events.jsonl.
+  (c) status command Gate 5 + Disputatio trend display.
+  (d) 10-prompt batch refactor.
+  (e) Gate 2 Playwright (browser projects).
+  (f) Non-interactive ergonomics across 11 interactive commands.
 
 ### Stage 6-A.17 — DONE (2026-05-05)
 

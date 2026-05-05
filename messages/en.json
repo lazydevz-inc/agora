@@ -112,7 +112,12 @@
       "gate_5_z1": "Gate 5 Z1 for leaf {leaf_id} (drift {drift}). Leaf NOT marked complete. {rationale}",
       "gate_5_z1_directive": "Z1 directive for next iteration: {directive}",
       "gate_5_z2": "Gate 5 Z2 for leaf {leaf_id} (drift {drift} ≥ 0.60 — alignment may itself be off). {rationale}",
-      "gate_5_z2_confirm": "Re-enter alignment loop (state in_ralph → in_alignment)?"
+      "gate_5_z2_confirm": "Re-enter alignment loop (state in_ralph → in_alignment)?",
+      "disputatio_running": "Running Aquinas Disputatio (Gate 3+4) for leaf {leaf_id}...",
+      "disputatio_approved": "Aquinas APPROVED leaf {leaf_id} ({objections_count} objections — none critical, none required action). Advancing.",
+      "disputatio_conditional": "Aquinas CONDITIONAL on leaf {leaf_id} ({objections_count} objections, {critical_count} critical). Action items recorded:\n{actions}",
+      "disputatio_rejected": "Aquinas REJECTED leaf {leaf_id} ({objections_count} objections, {critical_count} critical). Reasoning: {reasoning}",
+      "disputatio_action_items": "Action items (concedo rulings):\n{actions}"
     },
     "handoff": {
       "intro": "Handoff — Plato Dihairesis + seed lock",
