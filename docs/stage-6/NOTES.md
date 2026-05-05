@@ -37,6 +37,7 @@ agora round     (6-A.15) — state-aware Phase 2 orchestrator (consolidates 5 ca
 agora ac        (6-A.16) — Acceptance Criteria capture (post-maturity prep for handoff Plato DH)
 agora handoff   (6-A.17) — Plato Dihairesis + seed.json + state lock (alignment → ready_for_ralph)
 agora ralph     (6-A.18) — Ralph foundation: orchestrator + Gate 1 (typecheck/lint/test/build)
+                (6-A.19) — Gate 5 (alignment check via LLM drift_score + Z1/Z2 escalation)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -3073,6 +3074,183 @@ Next task: Stage 6-A.19 — likely candidates:
       Gate 3+4.
   (d) ralph_complete dialog (Stage 2-C.2 R4-A).
   (e) Audit log (.agora/events.jsonl).
+
+### Stage 6-A.19 — DONE (2026-05-05)
+
+**Nineteenth vertical slice: Gate 5 (alignment check).** Auto-selected
+per 6-A.18 NOTES + Sang's R1-R5 acceptance. **Closes the 0.9^10
+defense**: every Ralph iteration now judges actual implementation work
+(git diff) against locked seed (telos + acceptance criteria for the
+current leaf). drift_score 0-1 + 3-tier action (PASS / SOFT_WARN / Z1 /
+Z2) per Stage 2-B.4. Z2 confirm → state in_ralph → in_alignment +
+alignment.round=0 (mini-alignment re-entry per Stage 2-A.10).
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: Gate 5 fires automatically after Gate 1 passes (single iteration
+  = Gate 1 + Gate 5).
+- R2-A: 3-input single LLM call: telos + ACs + git diff (HEAD~1..HEAD
+  with unstaged fallback). diff capped at 10KB to bound LLM tokens.
+- R3-A: 3-tier thresholds per Stage 2-B.4 (0.15 / 0.30 / 0.60).
+- R4-A: Z2 → state in_ralph → in_alignment + alignment.round=0; ralph_
+  state preserved so leaf re-attempts after re-alignment.
+- R5-A: gate_5_history[] persisted in ralph_state for trend display.
+
+Files shipped:
+
+src/shared/git-diff.ts (LAYER 0 — new, ~75 LOC):
+  getRecentDiff(cwd) → GitDiffResult { diff, source, truncated }.
+  Tries `git diff HEAD~1..HEAD` first (most recent commit).
+  Falls back to `git diff HEAD` (unstaged work).
+  Detects "no_git" / "no_changes" / "error" cases.
+  Truncates at 10KB UTF-8-safely.
+
+src/ralph/gate-5.ts (LAYER 2 — new, ~225 LOC):
+  Gate5ActionSchema (PASS / SOFT_WARN / Z1 / Z2).
+  Gate5ResultSchema (leaf_id + drift_score + action + rationale +
+    z1_directive? + diff_source + diff_truncated + ran_at).
+  GATE_5_THRESHOLDS constants (0.15 / 0.30 / 0.60).
+  Gate5Input { leaf_id + leaf_content + telos_statement +
+    telos_failure_signal + all_acceptance_criteria + diff +
+    diff_source + diff_truncated }.
+  GATE_5_SYSTEM inline prompt (~1.5KB; 3-tier calibration anchors +
+    6 hard rules + JSON contract).
+  buildGate5UserPrompt builder.
+  runGate5 orchestrator: 1 LLM call → extract → mapDriftToAction →
+    validate via Gate5ResultSchema.
+  mapDriftToAction (pure function, exported for tests).
+
+src/ralph/state.ts (modified):
+  Added last_gate_5_result + gate_5_history[] (default []) +
+    z1_directives[] (default []) to RalphStateSchema.
+
+src/cli/commands/ralph.ts (modified, +~280 LOC):
+  After Gate 1 pass: selectRuntime → getRecentDiff → runGate5.
+  applyGate5Outcome dispatches by action:
+    PASS / SOFT_WARN: leaf complete, advance, clear z1_directives.
+    Z1: leaf NOT complete, attempts++, accumulate z1_directive,
+      cap warnings.
+    Z2: clack confirm. accept → state in_ralph → in_alignment +
+      alignment.round=0 (preserves ralph_state for retry post-
+      realignment). decline → treat as Z1.
+  Gate 1 fail short-circuits (no Gate 5 call when code doesn't build).
+  emitCapWarnings helper extracted (per-leaf + session caps).
+  buildEnvelope action union extended: gate_5_z1, gate_5_z2_accepted,
+    gate_5_z2_declined.
+  next[] suggests "agora resume" for Z2 accepted (re-align path);
+    "agora ralph" for everything else (iterate).
+
+messages/en.json + ko.json: +8 cli.ralph.gate_5_* keys × 2 locales =
+  16 strings net new.
+
+Tests (1 new file; total 33 files / 254 tests, was 32/235):
+  tests/unit/ralph/gate-5.test.ts (19 tests):
+    mapDriftToAction × 9 (boundary tests at every threshold + edges).
+    runGate5 happy path × 5 (PASS/SOFT_WARN/Z1/Z2 actions; schema
+      validation; diff_source preservation).
+    Error paths × 4 (LLM error, non-object content, malformed
+      schema, drift out of range).
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (20 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 33 files, 254 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+  Manual smoke (non-interactive paths only):
+    $ # /tmp empty
+    $ node dist/cli/index.js ralph --json | jq '.errors[0].code, .exit_code'
+      "user.aborted" / 5
+    $ # git-diff helper on empty git repo (no commits)
+    $ node -e "import('.../git-diff.js').then(m => m.getRecentDiff(cwd))"
+      { source: "error", ... } — degrades gracefully
+  Manual interactive run + actual Gate 5 LLM call deferred to TTY
+  (clack confirm needed for Z2; full Ralph iteration takes 6+min via
+  Gate 1 + Gate 5).
+  Unit tests cover Gate5 + mapDriftToAction 100%.
+
+Surprises encountered + decisions made:
+
+1. **git diff fallback chain**: HEAD~1..HEAD only works when there's
+   a previous commit. On initial commit / no commits, falls back to
+   unstaged. On no git at all, returns no_git source. Gate 5 prompt
+   handles all three cases gracefully ("judge based on leaf + telos
+   alone, default drift 0.50").
+
+2. **Gate 5 only fires AFTER Gate 1 passes**: no point judging
+   alignment if the code doesn't even build. Saves an LLM call per
+   gate-1-failed iteration. Gate 1 fail handler short-circuits.
+
+3. **Z2 confirm preserves ralph_state.json**: when user accepts Z2,
+   state.current_phase rolls back to in_alignment + alignment.round=0,
+   but ralph_state.json (with current_leaf_id + completed_leaves +
+   gate_5_history) stays. After re-alignment + re-handoff, agora
+   ralph picks up where it left off (same leaf, same accumulated
+   history). Z2 declined = treat as Z1 (stay on leaf, no state
+   change).
+
+4. **z1_directives cleared on leaf completion**: when leaf finally
+   passes (PASS or SOFT_WARN), z1_directives reset to []. Each new
+   leaf starts with fresh slate. Per-leaf accumulation only.
+
+5. **Threshold boundary tests caught off-by-one**: initial draft
+   had `<= 0.15` for PASS; should be `< 0.15` so 0.15 → SOFT_WARN
+   per SPEC. 9 boundary tests in gate-5.test.ts catch this.
+
+6. **agora ralph LOC growth**: 330 → ~610 LOC. Single command file
+   handles 4 outcome paths (Gate 1 fail, PASS/SOFT_WARN, Z1, Z2).
+   Extracted applyGate5Outcome helper to bound complexity. Could
+   split to src/ralph/orchestrator.ts in future ergonomics slice.
+
+7. **Diff truncation at 10KB**: most leaves should produce diffs
+   under this; large refactors may hit. Truncation note appended to
+   prompt so LLM knows it's seeing partial diff. Future: smarter
+   truncation (keep file headers; summarize middle).
+
+Lessons / observations:
+- **Gate 5 is the alignment loop's reason to exist**: closes the
+  0.9^10 defense by checking each iteration's actual output against
+  locked telos. Without Gate 5, Ralph is just a build-runner; with
+  Gate 5, Ralph is the alignment harness Manifesto promised.
+- **Z1 vs Z2 distinction matters**: Z1 says "this attempt drifted;
+  try again with hint". Z2 says "the alignment itself may be wrong;
+  re-align". Different escalation paths. The 0.30/0.60 split makes
+  this a smooth gradient, not a cliff.
+- **gate_5_history accumulates trend signal**: future status command
+  can show "drift trending up over last 5 leaves" as warning.
+  Currently just logged; future viz slice activates.
+- **selectRuntime + LLM call adds ~5-15s per iteration**: meaningful
+  overhead vs Gate 1's deterministic ~1-3min. Acceptable cost for
+  alignment verification.
+
+Outstanding (intentional defer):
+  Gate 2 (Playwright functional QA) — for browser projects.
+  Gate 3+4 (Aquinas Disputatio with critics).
+  Critic registry + first critic def files.
+  ralph_complete dialog (Stage 2-C.2 R4-A).
+  Audit log .agora/events.jsonl per Stage 2-C.3 R2-A.
+  status command Gate 5 trend display.
+  Smarter diff truncation (keep file headers, summarize middle).
+  Non-interactive mode for Z2 confirm (--accept-z2 / --decline-z2).
+  7-prompt batch refactor to renderPrompt (now 8 inline prompts:
+    Husserl + Aristotle ×4 + Plato DL + Plato DH + AC + Gate 5).
+
+Stage 6 status: 19 slices done. **Alignment harness CORE complete**:
+agora new → bracket → intake → round (×7) → ralph (Gate 1 + Gate 5
+per iteration with Z1/Z2 escalation). 15 working commands. Gates 2/3/4
+remain (browser QA + Aquinas critics — orthogonal to alignment core).
+
+Next task: Stage 6-A.20 — likely candidates:
+  (a) Gate 2 (Playwright functional QA) — for projects with browser
+      surface; cookie-cutter spawn + result aggregation.
+  (b) Gate 3+4 (Aquinas Disputatio) — bigger; requires critic
+      registry foundation.
+  (c) Critic registry + first 3 critic def files (foundation slice
+      enabling Gate 3+4).
+  (d) ralph_complete dialog (Stage 2-C.2 R4-A) — re_align / accept /
+      view_log options.
+  (e) Audit log (.agora/events.jsonl) — append-only event recorder.
+  (f) Non-interactive mode ergonomics across 10 interactive commands.
 
 ### Stage 6-A.17 — DONE (2026-05-05)
 

@@ -17,6 +17,7 @@
 import { z } from "zod";
 
 import { ACNodeSchema } from "../handoff/dihairesis.js";
+import { Gate5ResultSchema } from "./gate-5.js";
 
 export const Gate1CommandResultSchema = z.object({
   name: z.enum(["typecheck", "lint", "test", "build"]),
@@ -50,6 +51,14 @@ export const RalphStateSchema = z
     iteration_cap_per_leaf: z.number().int().min(1),
     session_cap_total: z.number().int().min(1),
     last_gate_1_result: Gate1ResultSchema.optional(),
+    last_gate_5_result: Gate5ResultSchema.optional(),
+    // Per-iteration Gate 5 trend history (Stage 6-A.19 R5-A); cap-bounded
+    // by session_cap_total since each entry corresponds to ≤1 iteration.
+    gate_5_history: z.array(Gate5ResultSchema).default([]),
+    // Z1 self-correction hints accumulated across iterations. Cleared
+    // when leaf advances (PASS / SOFT_WARN). Surfaced in CLI output
+    // for the user's next implementation attempt on the same leaf.
+    z1_directives: z.array(z.string()).default([]),
     started_at: z.string().datetime(),
     updated_at: z.string().datetime(),
     // ac_tree snapshot — captured at Ralph start so leaf-selector is

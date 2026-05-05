@@ -27,7 +27,7 @@
 
 import { join } from "node:path";
 
-import { intro, log, outro } from "@clack/prompts";
+import { confirm, intro, log, outro } from "@clack/prompts";
 import pc from "picocolors";
 
 import { buildAgoraError } from "../../errors/build.js";
@@ -35,7 +35,9 @@ import type { AgoraErrorThrown } from "../../errors/types.js";
 import type { ACNode } from "../../handoff/dihairesis.js";
 import type { Seed } from "../../handoff/seed-builder.js";
 import { localized } from "../../i18n/index.js";
+import { selectRuntime } from "../../llm/selection.js";
 import { runGate1 } from "../../ralph/gate-1.js";
+import { type Gate5Result, runGate5 } from "../../ralph/gate-5.js";
 import { countAtomicLeaves, selectNextLeaf } from "../../ralph/leaf-selector.js";
 import {
   type Gate1Result,
@@ -44,6 +46,7 @@ import {
   RalphStateSchema,
 } from "../../ralph/state.js";
 import { err, ok, type Result } from "../../result/index.js";
+import { getRecentDiff } from "../../shared/git-diff.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
 import { loadState } from "../../state/reader.js";
@@ -196,35 +199,137 @@ export async function runRalphCommand(
 
   const gate1 = await runGate1({ cwd });
 
-  // Persist updated ralph_state.
-  const newAttempts = attemptsBefore + 1;
-  const completed = new Set(ralphState.completed_leaves);
-  let nextLeaf: string | null = currentLeaf;
-  if (gate1.overall_passed) {
-    completed.add(currentLeaf);
-    nextLeaf = selectNextLeaf(ralphState.ac_tree_snapshot as ACNode[], completed);
+  // Gate 1 failure short-circuits — Gate 5 only runs after deterministic
+  // checks pass (no point judging alignment if the code doesn't even
+  // build).
+  if (!gate1.overall_passed) {
+    const newAttempts = attemptsBefore + 1;
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      per_leaf_attempts: { ...ralphState.per_leaf_attempts, [currentLeaf]: newAttempts },
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_1_result: gate1,
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+    return await emitGate1Failure(currentLeaf, newAttempts, updated, gate1);
   }
-  const updated: RalphState = RalphStateSchema.parse({
-    ...ralphState,
-    current_leaf_id: nextLeaf,
-    completed_leaves: [...completed],
-    per_leaf_attempts: gate1.overall_passed
-      ? ralphState.per_leaf_attempts
-      : { ...ralphState.per_leaf_attempts, [currentLeaf]: newAttempts },
-    session_total_attempts: ralphState.session_total_attempts + 1,
-    last_gate_1_result: gate1,
-    updated_at: new Date().toISOString(),
-  });
-  await writeJsonAtomic(ralphStatePath, updated);
 
-  // Render + decide outcome.
-  if (gate1.overall_passed) {
-    log.success(
-      localized("cli.ralph.gate_1_passed", {
-        leaf_id: currentLeaf,
-        duration_s: (gate1.total_duration_ms / 1000).toFixed(1),
+  // Gate 1 passed → Gate 5 alignment check.
+  log.success(
+    localized("cli.ralph.gate_1_passed", {
+      leaf_id: currentLeaf,
+      duration_s: (gate1.total_duration_ms / 1000).toFixed(1),
+    }),
+  );
+  log.message(localized("cli.ralph.gate_5_running", { leaf_id: currentLeaf }));
+
+  const leafContent = findLeafContent(ralphState.ac_tree_snapshot as ACNode[], currentLeaf);
+  let runtime: Awaited<ReturnType<typeof selectRuntime>>;
+  try {
+    runtime = await selectRuntime(cwd);
+  } catch (e) {
+    return err(
+      buildAgoraError("llm.no-runner-available", {
+        context: { detail: e instanceof Error ? e.message : String(e) },
       }),
     );
+  }
+  const diffResult = await getRecentDiff(cwd);
+  const gate5R = await runGate5(
+    {
+      leaf_id: currentLeaf,
+      leaf_content: leafContent ?? "(content missing from ac_tree_snapshot)",
+      telos_statement: seed.four_causes.telos?.statement ?? "(telos missing)",
+      telos_failure_signal: seed.four_causes.telos?.failure_signal ?? "(failure_signal missing)",
+      all_acceptance_criteria: seed.acceptance_criteria.criteria,
+      diff: diffResult.diff,
+      diff_source: diffResult.source,
+      diff_truncated: diffResult.truncated,
+    },
+    runtime.runner,
+  );
+  await runtime.cache.flush();
+  if (!gate5R.ok) return gate5R;
+  const gate5 = gate5R.value;
+
+  return await applyGate5Outcome({
+    cwd,
+    sessionState,
+    ralphState,
+    ralphStatePath,
+    seed,
+    currentLeaf,
+    attemptsBefore,
+    gate1,
+    gate5,
+  });
+}
+
+interface ApplyGate5OutcomeArgs {
+  cwd: string;
+  sessionState: import("../../state/types.js").State;
+  ralphState: RalphState;
+  ralphStatePath: string;
+  seed: Seed;
+  currentLeaf: string;
+  attemptsBefore: number;
+  gate1: Gate1Result;
+  gate5: Gate5Result;
+}
+
+async function applyGate5Outcome(
+  args: ApplyGate5OutcomeArgs,
+): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
+  const {
+    cwd,
+    sessionState,
+    ralphState,
+    ralphStatePath,
+    seed,
+    currentLeaf,
+    attemptsBefore,
+    gate1,
+    gate5,
+  } = args;
+  const newAttempts = attemptsBefore + 1;
+  const completed = new Set(ralphState.completed_leaves);
+  const nextHistory = [...ralphState.gate_5_history, gate5];
+
+  // PASS / SOFT_WARN: leaf complete, advance.
+  if (gate5.action === "PASS" || gate5.action === "SOFT_WARN") {
+    completed.add(currentLeaf);
+    const nextLeaf = selectNextLeaf(ralphState.ac_tree_snapshot as ACNode[], completed);
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      current_leaf_id: nextLeaf,
+      completed_leaves: [...completed],
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_1_result: gate1,
+      last_gate_5_result: gate5,
+      gate_5_history: nextHistory,
+      z1_directives: [], // cleared on leaf completion
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+
+    if (gate5.action === "SOFT_WARN") {
+      log.warn(
+        localized("cli.ralph.gate_5_soft_warn", {
+          leaf_id: currentLeaf,
+          drift: gate5.drift_score.toFixed(2),
+          rationale: gate5.rationale,
+        }),
+      );
+    } else {
+      log.success(
+        localized("cli.ralph.gate_5_pass", {
+          leaf_id: currentLeaf,
+          drift: gate5.drift_score.toFixed(2),
+        }),
+      );
+    }
+
     if (nextLeaf === null) {
       const advanced = await saveState(cwd, {
         ...sessionState,
@@ -238,6 +343,7 @@ export async function runRalphCommand(
           completed_count: completed.size,
           total_leaves: countAtomicLeaves(seed.ac_tree as ACNode[]),
           last_gate_1_result: gate1,
+          last_gate_5_result: gate5,
         }),
       );
     }
@@ -249,7 +355,7 @@ export async function runRalphCommand(
       }),
     );
     outro(
-      pc.cyan(`Gate 1 passed. Next leaf: ${nextLeaf}. Implement, then re-run \`agora ralph\`.`),
+      pc.cyan(`Leaf complete (drift ${gate5.drift_score.toFixed(2)}). Next leaf: ${nextLeaf}.`),
     );
     return ok(
       buildEnvelope({
@@ -259,10 +365,138 @@ export async function runRalphCommand(
         completed_count: completed.size,
         total_leaves: countAtomicLeaves(seed.ac_tree as ACNode[]),
         last_gate_1_result: gate1,
+        last_gate_5_result: gate5,
       }),
     );
   }
 
+  // Z1 / Z2: leaf NOT complete.
+  const z1Directives =
+    gate5.z1_directive !== undefined
+      ? [...ralphState.z1_directives, gate5.z1_directive]
+      : ralphState.z1_directives;
+
+  if (gate5.action === "Z1") {
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      per_leaf_attempts: { ...ralphState.per_leaf_attempts, [currentLeaf]: newAttempts },
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_1_result: gate1,
+      last_gate_5_result: gate5,
+      gate_5_history: nextHistory,
+      z1_directives: z1Directives,
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+    log.error(
+      localized("cli.ralph.gate_5_z1", {
+        leaf_id: currentLeaf,
+        drift: gate5.drift_score.toFixed(2),
+        rationale: gate5.rationale,
+      }),
+    );
+    if (gate5.z1_directive !== undefined) {
+      log.message(localized("cli.ralph.gate_5_z1_directive", { directive: gate5.z1_directive }));
+    }
+    emitCapWarnings(updated, currentLeaf, newAttempts);
+    outro(pc.yellow(`Drift ${gate5.drift_score.toFixed(2)} (Z1). Adjust + re-run.`));
+    return ok(
+      buildEnvelope({
+        action: "gate_5_z1",
+        current_leaf_id: currentLeaf,
+        attempts: newAttempts,
+        cap: updated.iteration_cap_per_leaf,
+        last_gate_1_result: gate1,
+        last_gate_5_result: gate5,
+      }),
+    );
+  }
+
+  // Z2: clack confirm → state in_ralph → in_alignment + reset round.
+  log.error(
+    localized("cli.ralph.gate_5_z2", {
+      leaf_id: currentLeaf,
+      drift: gate5.drift_score.toFixed(2),
+      rationale: gate5.rationale,
+    }),
+  );
+  const accepted = await confirm({
+    message: localized("cli.ralph.gate_5_z2_confirm"),
+    initialValue: true,
+  });
+  const z2Confirmed = accepted === true;
+
+  const updated: RalphState = RalphStateSchema.parse({
+    ...ralphState,
+    per_leaf_attempts: { ...ralphState.per_leaf_attempts, [currentLeaf]: newAttempts },
+    session_total_attempts: ralphState.session_total_attempts + 1,
+    last_gate_1_result: gate1,
+    last_gate_5_result: gate5,
+    gate_5_history: nextHistory,
+    z1_directives: z1Directives,
+    updated_at: new Date().toISOString(),
+  });
+  await writeJsonAtomic(ralphStatePath, updated);
+
+  if (z2Confirmed) {
+    // Re-enter alignment loop. Preserve ralph_state.json so leaf can
+    // be re-attempted after re-alignment + re-handoff.
+    const advanced = await saveState(cwd, {
+      ...sessionState,
+      current_phase: "in_alignment",
+      alignment: { phase: 2, round: 0 },
+    });
+    if (!advanced.ok) return advanced;
+    outro(
+      pc.magenta(
+        `Z2: re-entering alignment (drift ${gate5.drift_score.toFixed(2)}). Run \`agora resume\`.`,
+      ),
+    );
+    return ok(
+      buildEnvelope({
+        action: "gate_5_z2_accepted",
+        current_leaf_id: currentLeaf,
+        attempts: newAttempts,
+        last_gate_1_result: gate1,
+        last_gate_5_result: gate5,
+      }),
+    );
+  }
+
+  // Z2 declined: treat as Z1 (stay on leaf, accumulate directive).
+  emitCapWarnings(updated, currentLeaf, newAttempts);
+  outro(
+    pc.yellow(
+      `Z2 declined. Drift ${gate5.drift_score.toFixed(2)}. Adjust + re-run \`agora ralph\`.`,
+    ),
+  );
+  return ok(
+    buildEnvelope({
+      action: "gate_5_z2_declined",
+      current_leaf_id: currentLeaf,
+      attempts: newAttempts,
+      cap: updated.iteration_cap_per_leaf,
+      last_gate_1_result: gate1,
+      last_gate_5_result: gate5,
+    }),
+  );
+}
+
+function findLeafContent(tree: readonly ACNode[], leafId: string): string | null {
+  for (const node of tree) {
+    if (node.id === leafId) return node.content;
+    const inChild = findLeafContent(node.children, leafId);
+    if (inChild !== null) return inChild;
+  }
+  return null;
+}
+
+async function emitGate1Failure(
+  currentLeaf: string,
+  newAttempts: number,
+  updated: RalphState,
+  gate1: Gate1Result,
+): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   // Gate 1 failed.
   const failed = gate1.commands.filter((c) => !c.passed).map((c) => c.name);
   log.error(
@@ -307,7 +541,14 @@ export async function runRalphCommand(
 }
 
 interface RalphEnvelopeData {
-  action: "initialized" | "leaf_passed" | "gate_1_failed" | "all_complete";
+  action:
+    | "initialized"
+    | "leaf_passed"
+    | "gate_1_failed"
+    | "gate_5_z1"
+    | "gate_5_z2_accepted"
+    | "gate_5_z2_declined"
+    | "all_complete";
   current_leaf_id?: string;
   previous_leaf_id?: string;
   completed_count?: number;
@@ -316,6 +557,25 @@ interface RalphEnvelopeData {
   cap?: number;
   failed_commands?: string[];
   last_gate_1_result?: Gate1Result;
+  last_gate_5_result?: Gate5Result;
+}
+
+function emitCapWarnings(state: RalphState, leafId: string, attempts: number): void {
+  if (attempts >= state.iteration_cap_per_leaf) {
+    log.warn(
+      localized("cli.ralph.per_leaf_cap_warning", {
+        leaf_id: leafId,
+        attempts: String(attempts),
+      }),
+    );
+  }
+  if (state.session_total_attempts >= state.session_cap_total) {
+    log.warn(
+      localized("cli.ralph.session_cap_warning", {
+        attempts: String(state.session_total_attempts),
+      }),
+    );
+  }
 }
 
 function buildEnvelope(data: RalphEnvelopeData): CommandEnvelope {
@@ -332,20 +592,30 @@ function buildEnvelope(data: RalphEnvelopeData): CommandEnvelope {
         ? [
             {
               id: "ralph_complete",
-              description: "Ralph complete; downstream gates (2-5) not yet implemented",
+              description: "Ralph complete; ralph_complete dialog (Stage 2-C.2 R4-A) pending",
               command: "agora resume",
             },
           ]
-        : [
-            {
-              id: "implement_or_fix",
-              description:
-                data.action === "gate_1_failed"
-                  ? "Fix the failed sub-command, then re-run agora ralph"
-                  : "Implement the current leaf, then re-run agora ralph",
-              command: "agora ralph",
-            },
-          ],
+        : data.action === "gate_5_z2_accepted"
+          ? [
+              {
+                id: "re_align",
+                description: "Z2 accepted: re-enter alignment loop (state in_alignment)",
+                command: "agora resume",
+              },
+            ]
+          : [
+              {
+                id: "implement_or_fix",
+                description:
+                  data.action === "gate_1_failed"
+                    ? "Fix the failed sub-command, then re-run agora ralph"
+                    : data.action === "gate_5_z1" || data.action === "gate_5_z2_declined"
+                      ? "Adjust per Gate 5 directive, then re-run agora ralph"
+                      : "Implement the next leaf, then re-run agora ralph",
+                command: "agora ralph",
+              },
+            ],
     warnings: [],
     errors: [],
     exit_code: 0,

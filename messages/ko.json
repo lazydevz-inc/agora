@@ -105,7 +105,14 @@
       "next_leaf_pending": "다음 leaf: {next_leaf_id} ({completed_count}/{total_leaves} 완료).",
       "all_complete": "모든 leaf 완료. Phase가 ralph_complete로 전이됨.",
       "per_leaf_cap_warning": "Leaf {leaf_id}가 {attempts}회 시도에 도달 (cap). 막혀있다면 재정렬 고려.",
-      "session_cap_warning": "세션이 총 {attempts}회 시도 도달 (soft cap). 잠시 휴식 권장."
+      "session_cap_warning": "세션이 총 {attempts}회 시도 도달 (soft cap). 잠시 휴식 권장.",
+      "gate_5_running": "Leaf {leaf_id}에 Gate 5 (alignment check) 실행 중...",
+      "gate_5_pass": "Leaf {leaf_id} Gate 5 PASS (drift {drift}). Telos alignment 확인됨.",
+      "gate_5_soft_warn": "Leaf {leaf_id} Gate 5 SOFT_WARN (drift {drift}). {rationale}",
+      "gate_5_z1": "Leaf {leaf_id} Gate 5 Z1 (drift {drift}). Leaf 미완료 처리. {rationale}",
+      "gate_5_z1_directive": "다음 시도용 Z1 지시: {directive}",
+      "gate_5_z2": "Leaf {leaf_id} Gate 5 Z2 (drift {drift} ≥ 0.60 — alignment 자체가 부정확할 수 있음). {rationale}",
+      "gate_5_z2_confirm": "Alignment loop로 재진입할까요 (state in_ralph → in_alignment)?"
     },
     "handoff": {
       "intro": "Handoff — Plato Dihairesis + seed lock",
