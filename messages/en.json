@@ -78,7 +78,15 @@
       "phase_label": "Phase: {phase}",
       "alignment_progress": "  Alignment phase {phase}, round {round}",
       "ralph_progress": "  Ralph iteration {iteration}, last gate: {last_gate}",
-      "timestamps": "Created: {created}\nUpdated: {updated}"
+      "timestamps": "Created: {created}\nUpdated: {updated}",
+      "ralph_trend_header": "Ralph trend:",
+      "ralph_trend_summary": "  Current leaf: {current_leaf} · {completed} completed · {iterations} iterations",
+      "ralph_trend_gate_5": "  Gate 5 ({count}): {sparkline}  last {last_drift} ({last_action}) · avg {avg_drift}",
+      "ralph_trend_disputatio": "  Disputatio ({count}): approved {approved} · conditional {conditional} · rejected {rejected} · last {last_verdict}",
+      "ralph_trend_no_gate_5": "  Gate 5: (no history yet)",
+      "ralph_trend_no_disputatio": "  Disputatio: (no history yet)",
+      "ralph_trend_missing": "ralph_state.json not found — trend unavailable.",
+      "ralph_trend_corrupt": "ralph_state.json corrupt ({detail}) — trend unavailable."
     },
     "new": {
       "created": "Agora session started: {project}",

@@ -103,3 +103,170 @@ describe("agora status (with session)", () => {
     expect(output).toContain("활성 Agora 세션이 없습니다");
   });
 });
+
+describe("agora status (Ralph trend — Stage 6-A.24)", () => {
+  async function seedRalphSession(opts: {
+    phase: "in_ralph" | "in_ralph_paused" | "ralph_complete";
+    ralphState?: Record<string, unknown> | null;
+  }): Promise<void> {
+    await mkdir(join(cwd, ".agora"), { recursive: true });
+    await writeFile(
+      join(cwd, ".agora", "state.json"),
+      JSON.stringify({
+        version: 1,
+        current_phase: opts.phase,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      "utf8",
+    );
+    if (opts.ralphState !== undefined && opts.ralphState !== null) {
+      await writeFile(
+        join(cwd, ".agora", "ralph_state.json"),
+        JSON.stringify(opts.ralphState),
+        "utf8",
+      );
+    }
+  }
+
+  function ralphStateFixture(): Record<string, unknown> {
+    const ts = "2026-05-06T00:00:00.000Z";
+    return {
+      version: 1,
+      current_leaf_id: "ac_002",
+      completed_leaves: ["ac_001.1", "ac_001.2"],
+      per_leaf_attempts: { "ac_001.1": 1, "ac_001.2": 2, ac_002: 1 },
+      session_total_attempts: 4,
+      iteration_cap_per_leaf: 10,
+      session_cap_total: 25,
+      gate_5_history: [
+        {
+          leaf_id: "ac_001.1",
+          drift_score: 0.05,
+          action: "PASS",
+          rationale: "ok",
+          diff_source: "head_minus_one_to_head",
+          diff_truncated: false,
+          ran_at: ts,
+        },
+        {
+          leaf_id: "ac_001.2",
+          drift_score: 0.2,
+          action: "SOFT_WARN",
+          rationale: "ok",
+          diff_source: "head_minus_one_to_head",
+          diff_truncated: false,
+          ran_at: ts,
+        },
+      ],
+      disputatio_history: [
+        {
+          leaf_id: "ac_001.1",
+          videtur: [],
+          sed_contra: "x",
+          respondeo: { verdict: "approved", reasoning: "ok" },
+          ad_singula: [],
+          action_items: [],
+          all_objections_count: 0,
+          critical_objections_count: 0,
+          ran_at: ts,
+        },
+      ],
+      z1_directives: [],
+      started_at: ts,
+      updated_at: ts,
+      ac_tree_snapshot: [
+        { id: "ac_002", content: "ac_002 content", depth: 1, atomic: true, children: [] },
+      ],
+    };
+  }
+
+  test("in_ralph + valid ralph_state → JSON envelope includes ralph_trend", async () => {
+    await seedRalphSession({ phase: "in_ralph", ralphState: ralphStateFixture() });
+    const { output, status } = run("status --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: {
+        data: { ralph_trend?: { gate_5: { count: number }; disputatio: { count: number } } };
+      };
+      warnings: { code: string; message: string }[];
+    };
+    expect(parsed.result.data.ralph_trend).toBeDefined();
+    expect(parsed.result.data.ralph_trend?.gate_5.count).toBe(2);
+    expect(parsed.result.data.ralph_trend?.disputatio.count).toBe(1);
+    expect(parsed.warnings).toHaveLength(0);
+  });
+
+  test("in_ralph + valid ralph_state → TUI prints trend section with sparkline", async () => {
+    await seedRalphSession({ phase: "in_ralph", ralphState: ralphStateFixture() });
+    const { output, status } = run("status");
+    expect(status).toBe(0);
+    expect(output).toContain("Ralph trend:");
+    expect(output).toContain("Gate 5 (2):");
+    expect(output).toContain("Disputatio (1):");
+    expect(output).toContain("approved 1");
+  });
+
+  test("ralph_complete + missing ralph_state.json → warning, no error, no trend", async () => {
+    await seedRalphSession({ phase: "ralph_complete", ralphState: null });
+    const { output, status } = run("status --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: { data: { ralph_trend?: unknown } };
+      warnings: { code: string; message: string }[];
+    };
+    expect(parsed.result.data.ralph_trend).toBeUndefined();
+    expect(parsed.warnings.length).toBeGreaterThan(0);
+    expect(parsed.warnings[0]?.message).toContain("ralph_state.json not found");
+  });
+
+  test("in_ralph + corrupt ralph_state → warning, no error, exit 0", async () => {
+    await seedRalphSession({
+      phase: "in_ralph",
+      ralphState: { version: 1, current_leaf_id: 42 } as unknown as Record<string, unknown>,
+    });
+    const { output, status } = run("status --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: { data: { ralph_trend?: unknown } };
+      warnings: { code: string; message: string }[];
+    };
+    expect(parsed.result.data.ralph_trend).toBeUndefined();
+    expect(parsed.warnings.length).toBeGreaterThan(0);
+    expect(parsed.warnings[0]?.message).toContain("ralph_state.json corrupt");
+  });
+
+  test("in_alignment phase does NOT load ralph_state (R3-A gate)", async () => {
+    await mkdir(join(cwd, ".agora"), { recursive: true });
+    await writeFile(
+      join(cwd, ".agora", "state.json"),
+      JSON.stringify({
+        version: 1,
+        current_phase: "in_alignment",
+        alignment: { phase: 2, round: 3 },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      "utf8",
+    );
+    // Even with a junk ralph_state.json present, in_alignment phase
+    // skips trend-loading entirely.
+    await writeFile(join(cwd, ".agora", "ralph_state.json"), "not even json", "utf8");
+    const { output, status } = run("status --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: { data: { ralph_trend?: unknown } };
+      warnings: { code: string; message: string }[];
+    };
+    expect(parsed.result.data.ralph_trend).toBeUndefined();
+    expect(parsed.warnings).toHaveLength(0);
+  });
+
+  test("ko locale renders Ralph trend header in Korean", async () => {
+    await seedRalphSession({ phase: "in_ralph", ralphState: ralphStateFixture() });
+    const { output, status } = run("status --locale=ko");
+    expect(status).toBe(0);
+    expect(output).toContain("Ralph 추세:");
+    expect(output).toContain("승인 1");
+  });
+});

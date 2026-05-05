@@ -3806,6 +3806,152 @@ Next task: Stage 6-A.24 — likely candidates:
       --no-confirm).
   (f) Additional critic def files (4 UI + 3 Tech).
 
+---
+
+### Stage 6-A.24 — DONE (2026-05-05)
+
+`agora status` Gate 5 + Disputatio trend display per Stage 6-A.24
+R1-A. When state.current_phase ∈ {in_ralph, in_ralph_paused,
+ralph_complete}, status reads ralph_state.json and surfaces a compact
+trend block: current leaf + completed/iteration counts, Gate 5
+sparkline (▁..█) with last drift + action + avg, Disputatio verdict
+counts + last verdict. JSON envelope adds optional
+`data.ralph_trend` field (R4-A); other phases unchanged
+(backward-compatible).
+
+R1-A: Both gate_5 + disputatio summaries. Mirrors ralph_complete
+      dialog's view_log table but condensed (single-line each).
+R2-A: All-time scope — history arrays in ralph_state.json are
+      session-bound already (cleared on new alignment).
+R3-A: Trend block rendered ONLY when state.current_phase ∈ Ralph
+      phases AND ralph_state.json loadable. Other phases: zero
+      surface change.
+R4-A: data.ralph_trend optional field. Absent when not in Ralph
+      phase or when load fails. Backward-compatible with existing
+      JSON consumers.
+R5-A: ralph_state.json missing/corrupt → warning to envelope's
+      warnings[] (typed Warning {code, message}); status returns 0,
+      not state.corrupt. Read-only diagnostic shouldn't crash.
+
+Files:
+  src/ralph/trend.ts (NEW, ~95 LOC) — pure aggregation + sparkline.
+    computeRalphTrend(state) → RalphTrend with gate_5 + disputatio
+    summaries. renderSparkline(numbers[]) → 8-char Unicode block
+    series (▁▂▃▄▅▆▇█), clamp [0,1], empty input → "".
+  src/cli/commands/status.ts: RALPH_PHASES set + loadRalphTrend
+    helper + emitTrendTui + envelope ralph_trend + warnings wiring.
+    Pre-existing alignment/ralph branches unchanged.
+  messages/{en,ko}.json: +8 cli.status.* keys × 2 = 16 strings net
+    new (header, summary, gate_5 line, disputatio line, no_gate_5,
+    no_disputatio, missing, corrupt).
+
+Tests (1 new file + 1 modified; total 39 files / 313 tests, was
+38/298):
+  tests/unit/ralph/trend.test.ts (10 tests):
+    computeRalphTrend populated × 3 (counts, gate_5 stats,
+      disputatio stats).
+    computeRalphTrend empty history × 1.
+    computeRalphTrend all-complete × 1.
+    renderSparkline × 4 (empty, monotone, clamping, constant).
+  tests/integration/cli-status.test.ts: +6 new tests covering
+    in_ralph happy path (JSON + TUI), ralph_complete missing-state,
+    in_ralph corrupt-state, in_alignment R3-A gate, ko locale.
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (22 pre-existing warnings; new files formatted)
+  pnpm test     ✓ 39 files, 313 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓ (12 entries unchanged)
+  pnpm build    ✓
+  Manual smoke (/tmp/agora-trend-smoke):
+    Seeded in_ralph state + ralph_state with 3 Gate 5 + 1
+    Disputatio entries. `agora status` rendered:
+      Phase: in_ralph
+      Ralph trend:
+        Current leaf: ac_002 · 2 completed · 4 iterations
+        Gate 5 (3): ▁▄▁  last 0.10 (PASS) · avg 0.18
+        Disputatio (1): approved 1 · conditional 0 · rejected 0 · last approved
+    Sparkline visualizes drift dip → spike → recovery cleanly.
+
+Surprises encountered + decisions made:
+
+1. **Warning type is structured, not string** — first version of
+   buildEnvelope wrote `warnings: [trendLoad.warning]` (string array),
+   but cli/render.ts:32 declares `Warning { code, message, fix? }`.
+   Fixed by wrapping: `[{ code: "ralph_trend.unavailable", message }]`.
+   Lesson: when adding the first warning to a command's envelope,
+   verify the Warning type — easy to assume string given how often
+   warnings are stringified for TUI.
+
+2. **biome formatter pickier than expected** — first version had
+   3-line `Set([\n  "in_ralph",\n  ...])` and split conditional
+   chain. biome reformatted on `--write`. lint:fix doesn't run
+   formatter automatically; need explicit `biome check --write`.
+   Lesson: include format pass in the verify chain (or upgrade
+   `lint:fix` to also format).
+
+3. **Sparkline math: 8 chars × floor(value × 8)** — naive `floor(v
+   * 7)` would map 1.0 → index 7 (correct) but 0.99999 → index 7
+   too. Used `Math.floor(clamped * SPARKLINE_CHARS.length)` then
+   capped via `Math.min(7, ...)`. Edge case: exactly 1.0 → floor(8)
+   = 8 → capped to 7 → █. Correct.
+
+4. **R5-A "warning, not error" applies even to obviously-corrupt
+   data** — a ralph_state.json with current_leaf_id: 42 (number)
+   fails Zod parse. Old instinct: bubble up state.corrupt → exit 20.
+   But status is a *read-only diagnostic* — it should never crash.
+   Better: warn + omit trend section + return 0. User sees there's
+   a problem without losing the rest of the status info.
+
+5. **R3-A gating prevents spurious trend errors in alignment phase**
+   — without the RALPH_PHASES guard, every `agora status` during
+   alignment would attempt to load ralph_state.json (which doesn't
+   exist) and emit a warning. Annoying noise. The phase guard
+   ensures trend-loading only runs when relevant.
+
+Lessons / observations:
+- **Pure aggregation modules extend cleanly**: trend.ts mirrors
+  end-state.ts pattern from 6-A.22 — both consume RalphState, both
+  test 100% via synthetic fixtures, no LLM/IO. Could share a
+  `summarizeHistory<T>` helper but YAGNI for 2 instances.
+- **Sparkline is unreasonably effective for trend display**: 3-15
+  characters convey direction + magnitude without reading numbers.
+  Future use: doctor probe trend, intake size trend, etc.
+- **Warning channel proves its design**: this is the first command
+  to populate warnings[] (most prior commands either succeed cleanly
+  or error out). The structured Warning type with code lets future
+  consumers filter (e.g., GitHub Actions workflow could `jq
+  '.warnings[] | select(.code == "ralph_trend.unavailable")'` to
+  detect missing-state-file conditions across CI runs).
+
+Outstanding (intentional defer):
+  Sparkline color/intensity (low drift green, high drift red) —
+    requires render-time pc.green/red, not just plain string.
+  Per-leaf trend table (full table, not condensed). Currently lives
+    in ralph_complete dialog's view_log; could surface via
+    `agora status --detailed` flag.
+  Disputatio per-verdict trend over time (e.g., approval rate
+    increasing/decreasing). Would need timestamp-aware aggregation.
+  Trend-event emission to events.jsonl (status read is currently
+    silent in the audit log; arguably should emit a status.read
+    event for analytics).
+
+Stage 6 status: 24 slices done. **Status command shows Ralph
+trend.** 15 working commands; alignment loop end-to-end + Ralph
+foundation + audit log + status enrichment. 39 test files / 313
+tests.
+
+Next task: Stage 6-A.25 — likely candidates:
+  (a) Audit log viewer (`agora trace --since=1h --type=gate_5.result`).
+  (b) 10-prompt batch refactor (8 philosopher + 3 Aquinas inline).
+  (c) Non-interactive ergonomics (--accept-deferred / --re-align /
+      --no-confirm flags across dialog sites).
+  (d) Gate 2 Playwright functional QA (browser projects).
+  (e) Additional critic def files (4 UI + 3 Tech).
+  (f) Color/intensity for sparkline (low green, high red).
+  (g) Probe results → events.jsonl (probe.result event type).
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 **Seventeenth vertical slice: `agora handoff` — Plato Dihairesis +

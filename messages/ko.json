@@ -78,7 +78,15 @@
       "phase_label": "단계: {phase}",
       "alignment_progress": "  Alignment 단계 {phase}, 라운드 {round}",
       "ralph_progress": "  Ralph iteration {iteration}, 마지막 게이트: {last_gate}",
-      "timestamps": "생성: {created}\n업데이트: {updated}"
+      "timestamps": "생성: {created}\n업데이트: {updated}",
+      "ralph_trend_header": "Ralph 추세:",
+      "ralph_trend_summary": "  현재 리프: {current_leaf} · {completed} 완료 · {iterations} 회차",
+      "ralph_trend_gate_5": "  Gate 5 ({count}): {sparkline}  최근 {last_drift} ({last_action}) · 평균 {avg_drift}",
+      "ralph_trend_disputatio": "  Disputatio ({count}): 승인 {approved} · 조건부 {conditional} · 기각 {rejected} · 최근 {last_verdict}",
+      "ralph_trend_no_gate_5": "  Gate 5: (이력 없음)",
+      "ralph_trend_no_disputatio": "  Disputatio: (이력 없음)",
+      "ralph_trend_missing": "ralph_state.json 파일이 없습니다 — 추세 표시 불가.",
+      "ralph_trend_corrupt": "ralph_state.json 파일이 손상되었습니다 ({detail}) — 추세 표시 불가."
     },
     "new": {
       "created": "Agora 세션 시작: {project}",
