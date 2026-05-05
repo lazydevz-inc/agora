@@ -11,6 +11,7 @@
 
 import { AgoraErrorThrown } from "../errors/types.js";
 import { setLocale } from "../i18n/index.js";
+import { runAcCommand } from "./commands/ac.js";
 import { runBracketCommand } from "./commands/bracket.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runEfficientCommand } from "./commands/efficient.js";
@@ -104,6 +105,10 @@ async function main(): Promise<void> {
   }
   if (command === "maturity") {
     await dispatchMaturity(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "ac") {
+    await dispatchAc(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -357,6 +362,24 @@ async function dispatchMaturity(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchAc(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runAcCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -382,6 +405,7 @@ function printHelp(): void {
   console.log("    agora material     Force Aristotle material round");
   console.log("    agora efficient    Force Aristotle efficient round");
   console.log("    agora maturity     Force Plato Divided Line maturity tagging");
+  console.log("    agora ac           Capture acceptance criteria (after maturity-pass)");
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

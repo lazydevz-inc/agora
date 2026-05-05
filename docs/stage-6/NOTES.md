@@ -34,6 +34,7 @@ agora material  (6-A.12) — Aristotle Phase 2 material round (tech stack + data
 agora efficient (6-A.13) — Aristotle Phase 2 efficient round (who + when + how) — Phase 2 COMPLETE
 agora maturity  (6-A.14) — Plato Divided Line maturity tagging (3rd philosopher; Y2 prerequisite)
 agora round     (6-A.15) — state-aware Phase 2 orchestrator (consolidates 5 cause shortcuts → 1 entry)
+agora ac        (6-A.16) — Acceptance Criteria capture (post-maturity prep for handoff Plato DH)
 ```
 
 **To find the next slice's starting context**: scroll to the bottom of
@@ -2745,6 +2746,127 @@ Next task: Stage 6-A.16 — likely candidates:
   (d) Socrates case-probing layer (4th philosopher).
   (e) prompt-library generator batch refactor (6 inline prompts).
   (f) ergonomics (render.ts envelope exit_code + version "unknown").
+
+### Stage 6-A.16 — DONE (2026-05-05)
+
+**Sixteenth vertical slice: `agora ac` — Acceptance Criteria capture +
+bonus i18n bug fix bundle (8 commands).** Auto-selected per 6-A.15 NOTES;
+Sang accepted all 5 R1-R5 recommendations. Bridges 6-A.14 Plato DL
+output to upcoming handoff slice (Plato DH needs ACs as input). Pure
+capture; DH decomposition lives in handoff.
+
+**Bonus bug fix bundled in this slice**: 8 commands (bracket / material /
+form / intake / efficient / maturity / telos / round) had a latent i18n
+bug — `buildAgoraError("state.corrupt", { detail: ... })` missed the
+`{file}` placeholder the locale template requires. Bug invisible until
+manual smoke test of `agora ac` with alignment_complete state + no
+four_causes.json hit the path. Bulk-fixed all 8.
+
+Five decisions accepted (R1-R5 recommended):
+- R1-A: Separate `agora ac` command (matches established shortcut
+  pattern; `agora round` routes to it).
+- R2-A: Free-text input + 1 LLM call extracts structured ACs (cookie-
+  cutter from Aristotle/Plato extraction pattern).
+- R3-A: Minimal AcceptanceCriterion schema { id, content }. Plato DH
+  slice extends with parent_id/children/atomic/depth.
+- R4-A: Refusal guard requires state.current_phase ===
+  "alignment_complete" (maturity must have passed).
+- R5-A: state.current_phase stays alignment_complete; only writes
+  acceptance_criteria.json + advances state.alignment.round 5 → 6.
+  Handoff slice owns the in_handoff transition.
+
+Files shipped:
+  src/alignment/acceptance-criteria.ts (LAYER 2 — new):
+    AcceptanceCriterionSchema (id ac_NNN regex). AcceptanceCriteria
+    ResultSchema. AcCaptureUi single-method adapter.
+    AC_EXTRACT_SYSTEM inline prompt + builder. runAcCapture orchestrator
+    + auto-ID + Zod validation. formatAcId helper.
+  src/cli/commands/ac.ts (LAYER 3 — new):
+    runAcCommand: 4 refusal guards + clack adapter + persists
+    acceptance_criteria.json + state.alignment.round 5 → 6.
+  src/cli/index.ts: ac dispatch + dispatchAc.
+  src/cli/commands/round.ts: pickNextRound now (causes, acsPresent=false);
+    routes to "ac" target after maturity-pass when AC missing.
+  src/cli/commands/resume.ts: alignment_complete branch points to
+    `agora round` with deferred_reason ac_capture_or_handoff_pending.
+  src/cli/commands/{bracket,material,form,intake,efficient,maturity,
+    telos,round}.ts: bulk i18n fix — state.corrupt context now includes
+    {file} placeholder.
+  messages/en.json + ko.json: +3 cli.ac.* keys × 2 locales = 6 strings;
+    cli.round.alignment_complete_msg updated for AC mention.
+
+Tests (1 new + 2 modified; total 28 files / 202 tests, was 27/191):
+  tests/unit/alignment/acceptance-criteria.test.ts (12 tests):
+    formatAcId × 1, happy path × 4, error paths × 4 (incl. AC < 5 chars).
+  tests/unit/cli/round.test.ts (modified, +3 tests for ac branch).
+  tests/integration/cli-resume.test.ts (modified, deferred_reason update).
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (16 pre-existing cognitive-complexity warnings)
+  pnpm test     ✓ 28 files, 202 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+  Manual smoke (non-interactive paths only):
+    $ # /tmp empty
+    $ node dist/cli/index.js ac --json | jq '.errors[0].code, .exit_code'
+      "user.aborted" / 5
+    $ # alignment_complete + no four_causes.json
+    $ node dist/cli/index.js ac --json | jq '.errors[0].code'
+      "state.corrupt"   ← was "internal.invariant-violation" before bug fix
+    $ # alignment_complete + four_causes.json
+    $ node dist/cli/index.js resume --json | jq '.next[].command, .result.data.deferred_reason'
+      "agora round" / "ac_capture_or_handoff_pending"
+  Manual ko locale + actual LLM call deferred to TTY (interactive @clack;
+  unit tests with mock UI cover orchestrator logic 100%).
+
+Surprises encountered + decisions made:
+
+1. **Latent i18n bug across 8 commands**: state.corrupt locale template
+   needs {file} but every command's "state.json missing despite .agora/
+   existing" path passed only {detail}. Manual smoke test of new ac
+   command surfaced it. Bulk fix across all 8. Lesson: every state.corrupt
+   path needs a regression test that actually triggers it.
+2. **AC schema content min length 5 chars**: Zod refinement caught test
+   data using 1-char placeholders ("A","B","C") in raw_input test. Fixed
+   with realistic AC strings. Lesson: tests with realistic data, not
+   placeholders, when schema has constraints.
+3. **JSON mode + interactive @clack/prompts conflict**: agora ac --json
+   when guards pass starts clack intro then waits for user input → JSON
+   envelope only emits at end → non-TTY hangs. Same gap on 7 other
+   interactive commands. Defer to non-interactive ergonomics slice.
+4. **acsPresent boolean parameter to pickNextRound**: signature changed
+   from `(causes)` to `(causes, acsPresent=false)`. Default preserves
+   existing test expectations.
+5. **Bug fix bundled in this slice**: 8-command i18n fix shipped here
+   instead of separate slice — bug discovered during AC manual probe;
+   small + mechanical; AC's verification benefits from it.
+
+Outstanding (intentional defer):
+  Plato Dihairesis (handoff slice — operates on AC list).
+  seed.json artifact construction (handoff slice).
+  in_handoff state transition (handoff slice).
+  Non-interactive mode for AC + 7 other interactive commands.
+  Unit test exercising every state.corrupt path (regression protection).
+  7-prompt batch refactor to renderPrompt (Husserl + Aristotle ×4 +
+    Plato + AC).
+  Y2 termination 3-condition AND check.
+
+Stage 6 status: 16 slices done. **Alignment loop produces all 5 seed
+artifacts** (defended_frame / intake / four_causes / maturity / acs).
+Working commands: 14. Path to v1: handoff + Ralph foundation. ~4-6
+more slices.
+
+Next task: Stage 6-A.17 — likely candidates:
+  (a) Handoff slice (Plato Dihairesis): operates on AC list. Decomposes
+      into ac_tree per runbook §3.2 DH. Constructs seed.json. State
+      transitions alignment_complete → in_handoff → ready_for_ralph.
+  (b) Ralph Gate 1 (deterministic) — first Ralph slice. Cookie-cutter
+      shared/spawn.
+  (c) Non-interactive mode ergonomics across 8 interactive commands.
+  (d) Socrates case-probing layer.
+  (e) 7-prompt batch refactor to renderPrompt.
 
 ### Stage 6-A.13 — DONE (2026-05-04)
 

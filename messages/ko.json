@@ -93,7 +93,12 @@
       "ask_surprising": "그동안 모르고 있던 가정을 깨달은 순간이 있었나요?"
     },
     "round": {
-      "alignment_complete_msg": "Alignment 완료. 4개 cause 캡처 + maturity tagging 완료. Handoff 준비됨 (Plato Dihairesis + ac_tree 생성 — 구현 대기 중)."
+      "alignment_complete_msg": "Alignment 완료. 4개 cause 캡처 + maturity tagging + acceptance criteria 캡처 완료. Handoff 준비됨 (Plato Dihairesis + ac_tree 생성 — 구현 대기 중)."
+    },
+    "ac": {
+      "intro": "Acceptance Criteria 캡처",
+      "context_summary": "Maturity 통과. 이제 acceptance criteria를 캡처합니다 — 소프트웨어가 '완료'된 것으로 간주되는 조건들. 자유 텍스트 입력; LLM이 복합 항목 분리, 중복 제거, 정규화.",
+      "q_acs_list": "Telos: \"{telos}\"\nForm: \"{form}\"\n\nAcceptance criteria를 나열하세요 (한 줄에 하나, 또는 쉼표로 구분):"
     },
     "maturity": {
       "intro": "Plato Divided Line — 4개 cause maturity tagging",

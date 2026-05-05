@@ -135,7 +135,7 @@ describe("agora resume — in_alignment handler", () => {
 });
 
 describe("agora resume — deferred phases (R3-A)", () => {
-  test("alignment_complete → deferred (handoff_not_implemented)", async () => {
+  test("alignment_complete → deferred (ac_capture_or_handoff_pending)", async () => {
     await seedState("alignment_complete");
     const { output, status } = run("resume --json");
     expect(status).toBe(0);
@@ -143,7 +143,7 @@ describe("agora resume — deferred phases (R3-A)", () => {
       result: { data: { handler: string; deferred_reason: string } };
     };
     expect(parsed.result.data.handler).toBe("deferred");
-    expect(parsed.result.data.deferred_reason).toBe("handoff_not_implemented");
+    expect(parsed.result.data.deferred_reason).toBe("ac_capture_or_handoff_pending");
   });
 
   test("ralph_complete → deferred with explicit reason", async () => {

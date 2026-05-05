@@ -72,10 +72,12 @@ function dispatch(state: State): DispatchOutcome {
     case "in_alignment_paused":
       return buildAlignmentOutcome(state);
     case "alignment_complete":
+      // Y2 passed. Next step is AC capture (then handoff). agora round
+      // routes to ac if not yet captured, or shows complete if it has been.
       return buildDeferredOutcome(
         state.current_phase,
-        "handoff_not_implemented",
-        "agora handoff (TBD: Stage 2-C handoff slice)",
+        "ac_capture_or_handoff_pending",
+        "agora round",
       );
     case "in_handoff":
       return buildDeferredOutcome(

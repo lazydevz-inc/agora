@@ -35,13 +35,14 @@ import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
 import { loadState } from "../../state/reader.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
+import { runAcCommand } from "./ac.js";
 import { runEfficientCommand } from "./efficient.js";
 import { runFormCommand } from "./form.js";
 import { runMaterialCommand } from "./material.js";
 import { runMaturityCommand } from "./maturity.js";
 import { runTelosCommand } from "./telos.js";
 
-type RoundTarget = "telos" | "form" | "material" | "efficient" | "maturity" | "complete";
+type RoundTarget = "telos" | "form" | "material" | "efficient" | "maturity" | "ac" | "complete";
 
 export async function runRoundCommand(
   flags: GlobalFlags,
@@ -61,7 +62,10 @@ export async function runRoundCommand(
   if (stateResult.value === null) {
     return err(
       buildAgoraError("state.corrupt", {
-        context: { detail: "state.json missing despite .agora/ existing" },
+        context: {
+          file: join(cwd, ".agora", "state.json"),
+          detail: "state.json missing despite .agora/ existing",
+        },
       }),
     );
   }
@@ -79,7 +83,10 @@ export async function runRoundCommand(
   }
 
   const causes = await readJsonOrNull<FourCauses>(join(cwd, ".agora", "four_causes.json"));
-  const target = pickNextRound(causes);
+  // AC presence is the discriminator for the post-maturity branch.
+  const acsPresent =
+    (await readJsonOrNull<unknown>(join(cwd, ".agora", "acceptance_criteria.json"))) !== null;
+  const target = pickNextRound(causes, acsPresent);
 
   if (target === "complete") {
     return ok(buildCompleteEnvelope());
@@ -88,16 +95,17 @@ export async function runRoundCommand(
   return await dispatchTarget(target, flags, positional);
 }
 
-export function pickNextRound(causes: FourCauses | null): RoundTarget {
+export function pickNextRound(causes: FourCauses | null, acsPresent = false): RoundTarget {
   if (causes === null || causes.telos === undefined) return "telos";
   if (causes.form === undefined) return "form";
   if (causes.material === undefined) return "material";
   if (causes.efficient === undefined) return "efficient";
   // All 4 captured. Maturity has not been re-tagged yet if every claim's
-  // maturity is still its Aristotle-default ("dianoia" for telos/form,
-  // "pistis" for material/efficient) AND no maturity.json exists. Heuristic:
-  // if telos.maturity === "noesis", maturity has run.
+  // maturity is still its Aristotle-default. Heuristic: if telos.maturity
+  // === "noesis", Plato has run successfully on telos.
   if (causes.telos.maturity !== "noesis") return "maturity";
+  // Maturity passed. AC capture is next prep step before handoff.
+  if (!acsPresent) return "ac";
   return "complete";
 }
 
@@ -117,6 +125,8 @@ async function dispatchTarget(
       return await runEfficientCommand(flags, positional);
     case "maturity":
       return await runMaturityCommand(flags, positional);
+    case "ac":
+      return await runAcCommand(flags, positional);
   }
 }
 

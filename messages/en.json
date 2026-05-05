@@ -93,7 +93,12 @@
       "ask_surprising": "Was there a moment where you noticed an assumption you didn't know you had?"
     },
     "round": {
-      "alignment_complete_msg": "Alignment complete. All 4 causes captured + maturity tagged. Ready for handoff (Plato Dihairesis + ac_tree generation — pending implementation)."
+      "alignment_complete_msg": "Alignment complete. All 4 causes captured + maturity tagged + acceptance criteria captured. Ready for handoff (Plato Dihairesis + ac_tree generation — pending implementation)."
+    },
+    "ac": {
+      "intro": "Acceptance Criteria capture",
+      "context_summary": "Maturity passed. Now capture acceptance criteria — the testable conditions under which the software is 'done'. Free-text input; LLM will split compound items, dedup, normalize.",
+      "q_acs_list": "Settled telos: \"{telos}\"\nSettled form: \"{form}\"\n\nList your acceptance criteria (one per line, or comma-separated):"
     },
     "maturity": {
       "intro": "Plato Divided Line — maturity tagging for all 4 captured causes",

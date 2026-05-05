@@ -89,7 +89,10 @@ export async function runTelosCommand(
   if (stateResult.value === null) {
     return err(
       buildAgoraError("state.corrupt", {
-        context: { detail: "state.json missing despite .agora/ existing" },
+        context: {
+          file: join(cwd, ".agora", "state.json"),
+          detail: "state.json missing despite .agora/ existing",
+        },
       }),
     );
   }
