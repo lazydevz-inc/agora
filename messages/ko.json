@@ -95,6 +95,11 @@
     "round": {
       "alignment_complete_msg": "Alignment 완료. 4개 cause 캡처 + maturity tagging + acceptance criteria 캡처 완료. Handoff 준비됨 (Plato Dihairesis + ac_tree 생성 — 구현 대기 중)."
     },
+    "handoff": {
+      "intro": "Handoff — Plato Dihairesis + seed lock",
+      "dh_starting": "{ac_count}개 acceptance criteria를 Plato Dihairesis로 분해 중 (재귀적 binary cut; defense floor 0.6)...",
+      "dh_summary": "DH 완료: LLM 호출 {llm_calls}회, atomic leaf {atomic_leaves}개, 최대 depth {max_depth}, undivided AC {undivided}개."
+    },
     "ac": {
       "intro": "Acceptance Criteria 캡처",
       "context_summary": "Maturity 통과. 이제 acceptance criteria를 캡처합니다 — 소프트웨어가 '완료'된 것으로 간주되는 조건들. 자유 텍스트 입력; LLM이 복합 항목 분리, 중복 제거, 정규화.",

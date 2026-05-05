@@ -16,6 +16,7 @@ import { runBracketCommand } from "./commands/bracket.js";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runEfficientCommand } from "./commands/efficient.js";
 import { runFormCommand } from "./commands/form.js";
+import { runHandoffCommand } from "./commands/handoff.js";
 import { runIntakeCommand } from "./commands/intake.js";
 import { runMaterialCommand } from "./commands/material.js";
 import { runMaturityCommand } from "./commands/maturity.js";
@@ -109,6 +110,10 @@ async function main(): Promise<void> {
   }
   if (command === "ac") {
     await dispatchAc(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "handoff") {
+    await dispatchHandoff(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -380,6 +385,24 @@ async function dispatchAc(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchHandoff(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runHandoffCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -406,6 +429,9 @@ function printHelp(): void {
   console.log("    agora efficient    Force Aristotle efficient round");
   console.log("    agora maturity     Force Plato Divided Line maturity tagging");
   console.log("    agora ac           Capture acceptance criteria (after maturity-pass)");
+  console.log(
+    "    agora handoff      Lock seed: Plato Dihairesis + seed.json + transition to ready_for_ralph",
+  );
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");

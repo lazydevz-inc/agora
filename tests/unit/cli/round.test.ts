@@ -79,10 +79,10 @@ describe("pickNextRound", () => {
       efficient,
       ...baseTimestamps,
     };
-    expect(pickNextRound(causes, false)).toBe("ac");
+    expect(pickNextRound(causes, false, false)).toBe("ac");
   });
 
-  test("all 4 causes, telos.maturity=noesis, AC present → complete", () => {
+  test("all 4 causes, telos.maturity=noesis, AC present, seed NOT present → handoff", () => {
     const causes: FourCauses = {
       telos: { ...telos, maturity: "noesis" },
       form,
@@ -90,7 +90,18 @@ describe("pickNextRound", () => {
       efficient,
       ...baseTimestamps,
     };
-    expect(pickNextRound(causes, true)).toBe("complete");
+    expect(pickNextRound(causes, true, false)).toBe("handoff");
+  });
+
+  test("all 4 causes, telos.maturity=noesis, AC + seed present → complete", () => {
+    const causes: FourCauses = {
+      telos: { ...telos, maturity: "noesis" },
+      form,
+      material,
+      efficient,
+      ...baseTimestamps,
+    };
+    expect(pickNextRound(causes, true, true)).toBe("complete");
   });
 
   test("acsPresent=true does NOT short-circuit when telos.maturity is dianoia", () => {

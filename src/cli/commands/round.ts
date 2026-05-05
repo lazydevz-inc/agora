@@ -38,11 +38,20 @@ import type { CommandEnvelope } from "../render.js";
 import { runAcCommand } from "./ac.js";
 import { runEfficientCommand } from "./efficient.js";
 import { runFormCommand } from "./form.js";
+import { runHandoffCommand } from "./handoff.js";
 import { runMaterialCommand } from "./material.js";
 import { runMaturityCommand } from "./maturity.js";
 import { runTelosCommand } from "./telos.js";
 
-type RoundTarget = "telos" | "form" | "material" | "efficient" | "maturity" | "ac" | "complete";
+type RoundTarget =
+  | "telos"
+  | "form"
+  | "material"
+  | "efficient"
+  | "maturity"
+  | "ac"
+  | "handoff"
+  | "complete";
 
 export async function runRoundCommand(
   flags: GlobalFlags,
@@ -83,10 +92,11 @@ export async function runRoundCommand(
   }
 
   const causes = await readJsonOrNull<FourCauses>(join(cwd, ".agora", "four_causes.json"));
-  // AC presence is the discriminator for the post-maturity branch.
+  // AC + seed presence discriminate the post-maturity / post-AC branches.
   const acsPresent =
     (await readJsonOrNull<unknown>(join(cwd, ".agora", "acceptance_criteria.json"))) !== null;
-  const target = pickNextRound(causes, acsPresent);
+  const seedPresent = (await readJsonOrNull<unknown>(join(cwd, ".agora", "seed.json"))) !== null;
+  const target = pickNextRound(causes, acsPresent, seedPresent);
 
   if (target === "complete") {
     return ok(buildCompleteEnvelope());
@@ -95,7 +105,11 @@ export async function runRoundCommand(
   return await dispatchTarget(target, flags, positional);
 }
 
-export function pickNextRound(causes: FourCauses | null, acsPresent = false): RoundTarget {
+export function pickNextRound(
+  causes: FourCauses | null,
+  acsPresent = false,
+  seedPresent = false,
+): RoundTarget {
   if (causes === null || causes.telos === undefined) return "telos";
   if (causes.form === undefined) return "form";
   if (causes.material === undefined) return "material";
@@ -106,6 +120,8 @@ export function pickNextRound(causes: FourCauses | null, acsPresent = false): Ro
   if (causes.telos.maturity !== "noesis") return "maturity";
   // Maturity passed. AC capture is next prep step before handoff.
   if (!acsPresent) return "ac";
+  // AC captured. Handoff (Plato DH + seed.json) is next.
+  if (!seedPresent) return "handoff";
   return "complete";
 }
 
@@ -127,6 +143,8 @@ async function dispatchTarget(
       return await runMaturityCommand(flags, positional);
     case "ac":
       return await runAcCommand(flags, positional);
+    case "handoff":
+      return await runHandoffCommand(flags, positional);
   }
 }
 

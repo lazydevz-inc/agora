@@ -95,6 +95,11 @@
     "round": {
       "alignment_complete_msg": "Alignment complete. All 4 causes captured + maturity tagged + acceptance criteria captured. Ready for handoff (Plato Dihairesis + ac_tree generation — pending implementation)."
     },
+    "handoff": {
+      "intro": "Handoff — Plato Dihairesis + seed lock",
+      "dh_starting": "Decomposing {ac_count} acceptance criteria via Plato Dihairesis (recursive binary cuts; defense floor 0.6)...",
+      "dh_summary": "DH complete: {llm_calls} LLM calls, {atomic_leaves} atomic leaves, max depth {max_depth}, {undivided} undivided ACs."
+    },
     "ac": {
       "intro": "Acceptance Criteria capture",
       "context_summary": "Maturity passed. Now capture acceptance criteria — the testable conditions under which the software is 'done'. Free-text input; LLM will split compound items, dedup, normalize.",
