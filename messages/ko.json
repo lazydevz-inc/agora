@@ -36,7 +36,7 @@
     "user": {
       "forbidden_flag_combo": "허용되지 않는 플래그 조합: {detail}",
       "confirmation_required": "사용자 확인 필요: {detail}",
-      "aborted": "사용자가 작업을 중단했습니다."
+      "aborted": "중단: {detail}"
     },
     "state": {
       "corrupt": "{file} state 파일이 손상되었습니다: {detail}",

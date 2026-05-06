@@ -36,7 +36,7 @@
     "user": {
       "forbidden_flag_combo": "Forbidden flag combination: {detail}",
       "confirmation_required": "User confirmation required: {detail}",
-      "aborted": "Aborted by user."
+      "aborted": "Aborted: {detail}"
     },
     "state": {
       "corrupt": "State file at {file} is corrupt: {detail}",

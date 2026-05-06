@@ -227,7 +227,8 @@ async function dispatchBracket(
   const result = await runBracketCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(1);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);

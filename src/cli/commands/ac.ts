@@ -22,6 +22,7 @@
 //   - acceptance_criteria.json already present → user.confirmation-
 //     required (over-AC guard; user removes file or runs handoff)
 
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { intro, log, outro, text } from "@clack/prompts";
@@ -47,9 +48,16 @@ import type { CommandEnvelope } from "../render.js";
 
 export async function runAcCommand(
   flags: GlobalFlags,
-  _positional: readonly string[],
+  positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
+
+  // Stage 6-A.29: --from-file=<path> reads file as the AC list,
+  // skipping the interactive text prompt. LLM still extracts +
+  // normalizes (so callers don't need to pre-format JSON criteria).
+  const argsResult = parseAcArgs(positional);
+  if (!argsResult.ok) return argsResult;
+  const { fromFile } = argsResult.value;
 
   if (!(await hasAgoraDir(cwd))) {
     return err(
@@ -108,8 +116,23 @@ export async function runAcCommand(
     );
   }
 
-  intro(pc.bold(localized("cli.ac.intro")));
-  log.message(localized("cli.ac.context_summary"));
+  // Stage 6-A.29: refuse JSON mode if no --from-file (interactive
+  // text prompt would garble JSON output).
+  if (flags.json && fromFile === null) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail:
+            "agora ac is interactive in TTY mode. For --json, pass --from-file=<path> to read AC list from disk.",
+        },
+      }),
+    );
+  }
+
+  if (!flags.json) {
+    intro(pc.bold(localized("cli.ac.intro")));
+    log.message(localized("cli.ac.context_summary"));
+  }
 
   let runtime: Awaited<ReturnType<typeof selectRuntime>>;
   try {
@@ -122,7 +145,7 @@ export async function runAcCommand(
     );
   }
 
-  const ui = buildClackUi();
+  const ui = fromFile !== null ? buildFileUi(fromFile, cwd) : buildClackUi();
   const acResult = await runAcCapture(
     {
       telos_statement: causes.telos.statement,
@@ -150,11 +173,13 @@ export async function runAcCommand(
   );
   if (!advanced.ok) return advanced;
 
-  outro(
-    pc.green(
-      `✓ ${String(result.criteria.length)} acceptance criteria captured. .agora/acceptance_criteria.json written. Ready for handoff (Plato Dihairesis).`,
-    ),
-  );
+  if (!flags.json) {
+    outro(
+      pc.green(
+        `✓ ${String(result.criteria.length)} acceptance criteria captured. .agora/acceptance_criteria.json written. Ready for handoff (Plato Dihairesis).`,
+      ),
+    );
+  }
 
   return ok(buildEnvelope(result));
 }
@@ -166,6 +191,54 @@ function buildClackUi(): AcCaptureUi {
         localized("cli.ac.q_acs_list", { telos, form }),
         "List ACs (one per line, or comma-separated)",
       ),
+  };
+}
+
+interface AcArgs {
+  readonly fromFile: string | null;
+}
+
+function parseAcArgs(positional: readonly string[]): Result<AcArgs, AgoraErrorThrown> {
+  let fromFile: string | null = null;
+  for (const arg of positional) {
+    if (arg.startsWith("--from-file=")) {
+      fromFile = arg.slice("--from-file=".length);
+      if (fromFile.length === 0) {
+        return err(
+          buildAgoraError("user.forbidden-flag-combo", {
+            context: { detail: "--from-file requires a non-empty path." },
+          }),
+        );
+      }
+      continue;
+    }
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: {
+          detail: `Unknown ac argument: ${arg}. Supported: --from-file=<path>.`,
+        },
+      }),
+    );
+  }
+  return ok({ fromFile });
+}
+
+function buildFileUi(path: string, cwd: string): AcCaptureUi {
+  // Resolve relative paths against cwd so `agora ac --from-file=acs.txt`
+  // works from any directory.
+  const resolved = path.startsWith("/") ? path : join(cwd, path);
+  return {
+    askAcsList: async () => {
+      try {
+        const text = await readFile(resolved, "utf8");
+        return text.trim();
+      } catch (e) {
+        // Surface read failure inline as an empty AC list — runAcCapture's
+        // own validation will reject and produce a clean error envelope.
+        log.warn(`Could not read ${resolved}: ${e instanceof Error ? e.message : String(e)}`);
+        return "";
+      }
+    },
   };
 }
 

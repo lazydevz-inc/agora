@@ -42,6 +42,14 @@ export async function runBracketCommand(
     );
   }
 
+  // Stage 6-A.29: --skip-bracket short-circuits the Husserl interview
+  // by writing a minimal "bracketing skipped" DefendedFrame and
+  // advancing state. Useful for CI/agent flows where the user has
+  // explicitly opted out. Intent is still required (positional).
+  const args = parseBracketArgs(positional);
+  if (!args.ok) return args;
+  const { skip, intentFromArgs } = args.value;
+
   // Phase 0 scan: prefer cached scan.json, else re-run.
   const scanPath = join(cwd, ".agora", "scan.json");
   let scan = await readJsonOrNull<Phase0Output>(scanPath);
@@ -64,7 +72,37 @@ export async function runBracketCommand(
   }
   const state = stateResult.value;
 
-  const intent = positional.length > 0 ? positional.join(" ") : null;
+  if (skip) {
+    if (intentFromArgs.length === 0) {
+      return err(
+        buildAgoraError("user.aborted", {
+          context: {
+            detail:
+              '--skip-bracket requires intent as positional: `agora bracket --skip-bracket "my intent"`.',
+          },
+        }),
+      );
+    }
+    return await skipBracket(cwd, state, intentFromArgs);
+  }
+
+  // Stage 6-A.29: refuse JSON mode for the interactive path. The
+  // Husserl interview involves dynamic LLM-driven questions and
+  // multi-turn defenses — there's no clean way to surface those over
+  // a one-shot JSON envelope. Users in CI/agent contexts must opt in
+  // via --skip-bracket.
+  if (flags.json) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail:
+            'agora bracket is interactive in TTY mode. For --json, pass --skip-bracket "<intent>" to record an opted-out frame.',
+        },
+      }),
+    );
+  }
+
+  const intent = intentFromArgs.length > 0 ? intentFromArgs : null;
   intro(pc.bold(localized("cli.bracket.intro")));
 
   const rawIntent = intent ?? (await askText(localized("cli.bracket.ask_intent"), "I want to..."));
@@ -149,6 +187,71 @@ async function askText(question: string, placeholder: string): Promise<string> {
   const response = await text({ message: question, placeholder });
   if (typeof response !== "string") return "";
   return response;
+}
+
+interface BracketArgs {
+  readonly skip: boolean;
+  readonly intentFromArgs: string;
+}
+
+function parseBracketArgs(positional: readonly string[]): Result<BracketArgs, AgoraErrorThrown> {
+  let skip = false;
+  const intentParts: string[] = [];
+  for (const arg of positional) {
+    if (arg === "--skip-bracket") {
+      skip = true;
+      continue;
+    }
+    if (arg.startsWith("--")) {
+      return err(
+        buildAgoraError("user.forbidden-flag-combo", {
+          context: {
+            detail: `Unknown bracket argument: ${arg}. Supported: --skip-bracket; intent is positional.`,
+          },
+        }),
+      );
+    }
+    intentParts.push(arg);
+  }
+  return ok({ skip, intentFromArgs: intentParts.join(" ") });
+}
+
+async function skipBracket(
+  cwd: string,
+  state: import("../../state/types.js").State,
+  rawIntent: string,
+): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
+  // Build a minimal frame marking that the user opted out. The chosen
+  // form is the raw intent verbatim; defenses are empty placeholders
+  // so downstream consumers can still parse the schema.
+  const skippedDefense = {
+    considered_alternative: "(skipped via --skip-bracket)",
+    defense: "(no defense — user opted out of Husserl interview)",
+    defense_followup_triggered: false,
+  };
+  const frame: import("../../philosophers/husserl.js").DefendedFrame = {
+    raw_intent: rawIntent,
+    chosen_form: rawIntent,
+    brackets_considered: {
+      software_bracket: skippedDefense,
+      form_bracket: skippedDefense,
+      audience_bracket: skippedDefense,
+    },
+    surprising_findings: [],
+    invocation: "explicit_bracket",
+    created_at: new Date().toISOString(),
+  };
+  await writeJsonAtomic(join(cwd, ".agora", "defended_frame.json"), frame);
+  const advanced = await saveState(
+    cwd,
+    {
+      ...state,
+      alignment: { phase: -1, round: state.alignment?.round ?? 0 },
+    },
+    "agora bracket --skip-bracket",
+  );
+  if (!advanced.ok) return advanced;
+  return ok(buildEnvelope(frame));
 }
 
 function buildEnvelope(

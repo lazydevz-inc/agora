@@ -4329,6 +4329,125 @@ Next task: Stage 6-A.29 — likely candidates:
   (d) Gate 2 Playwright functional QA.
   (e) intake.captured + bracket.captured event types.
 
+---
+
+### Stage 6-A.29 — DONE (2026-05-06)
+
+Non-interactive flags for two more dialog sites per Stage 6-A.29 (b),
+extending the agent-driven Agora coverage from 6-A.26:
+
+agora bracket --skip-bracket "<intent>":
+  Writes a minimal "opted-out" DefendedFrame (raw_intent +
+  chosen_form = intent verbatim; skip-marker defenses; empty
+  surprising_findings). Advances state.alignment.phase → -1.
+  Skips Husserl interview entirely. Multi-word intent joins via
+  positional spaces.
+
+agora ac --from-file=<path>:
+  Reads file as the AC list, replaces interactive text prompt.
+  LLM still extracts + normalizes (callers don't need pre-formatted
+  JSON). Path resolved relative to cwd.
+
+JSON refusal gates (both commands):
+  --json without the corresponding non-interactive flag returns
+  user.aborted exit 2 with a hint pointing to the flag. Avoids
+  garbled-JSON-output bug from clack TUI bytes.
+
+Locale catalog refactor:
+  errors.user.aborted message updated en/ko to interpolate {detail}.
+  Previously a hardcoded "Aborted by user." that swallowed context.
+  Now: "Aborted: --skip-bracket requires intent..." surfaces the
+  actual reason in the message field. No existing tests or call
+  sites depended on the literal string.
+
+cli/index.ts: dispatchBracket exit-code mapping updated to honor
+user.* category → exit 2 (was hardcoded exit 1, divergent from all
+other dispatch helpers).
+
+Files:
+- src/cli/commands/bracket.ts: parseBracketArgs (--skip-bracket +
+  positional intent) + skipBracket helper that builds minimal
+  DefendedFrame inline + JSON-mode refusal guard.
+- src/cli/commands/ac.ts: parseAcArgs (--from-file=path) +
+  buildFileUi adapter (replaces buildClackUi when fromFile set) +
+  JSON-mode refusal guard + intro/outro/log gated on !flags.json.
+- src/cli/index.ts: dispatchBracket exit-code mapping fixed.
+- messages/{en,ko}.json: errors.user.aborted +1 placeholder ({detail}).
+
+Tests (2 new files; 42 files / 348 tests, was 40/337):
+- tests/integration/cli-bracket.test.ts (6 tests):
+    Refusal × 4 (no .agora, --skip-bracket no intent, --json no flag,
+      unknown arg).
+    Happy path × 2 (skip-bracket writes frame + advances state,
+      multi-word intent joins).
+- tests/integration/cli-ac.test.ts (5 tests):
+    Refusal × 5 (no .agora, --json no --from-file, --from-file=
+      empty, unknown arg, wrong phase).
+  Note: --from-file happy path requires LLM stub not available via
+  execSync subprocess; covered only by deterministic refusal tests.
+
+DoD: typecheck ✓ lint ✓ test ✓ (42 files / 348 tests, was 40/337)
+     lint:locale ✓ lint:prompts ✓ build ✓.
+
+Surprises encountered + decisions made:
+
+1. **dispatchBracket exit-code bug** — first test run failed with
+   "expected 1 to be 2" for all bracket refusals. Found dispatchBracket
+   was hardcoded `process.exit(1)` on errors, but every other dispatch
+   helper maps user.* → exit 2. Fixed in this slice. Lesson: when
+   adding a new command's dispatch, copy the latest pattern not the
+   first one (bracket was an early dispatch helper).
+
+2. **errors.user.aborted swallowed context.detail** — message_key
+   resolved to a hardcoded "Aborted by user." with no placeholder.
+   Caller's context.detail was being computed but never surfaced in
+   the rendered message. Updated to "Aborted: {detail}". This benefits
+   ALL user.aborted call sites (bracket, ralph, ac, resume, etc.) —
+   error envelopes now show WHY the abort happened.
+
+3. **buildFileUi reuses runAcCapture** — instead of forking a
+   non-interactive AC pipeline, swap the UI adapter: runAcCapture
+   doesn't care if askAcsList comes from clack or from a file. Pure
+   dependency-injection pattern paying off.
+
+4. **--from-file= empty path explicit error** — naive impl would
+   accept --from-file= and try to read empty path → ENOENT. Better:
+   reject at parse time with user.forbidden-flag-combo so the user
+   sees a clear message instead of a filesystem error.
+
+Lessons / observations:
+- **Pattern: command-scoped flag parsers as Result-returning helpers**
+  — the slice 6-A.25/26/29 iterations have stabilized this. Each
+  command needing flags has a parseXArgs(positional) → Result<XArgs,
+  Error> helper. Failure mode is uniform (user.forbidden-flag-combo
+  exit 2). Easy to test, easy to extend.
+- **Catalog-level message_key updates have leverage**: a single
+  one-line locale change improved every user.aborted error envelope
+  across the whole CLI. Worth scanning the catalog periodically for
+  similar information-dropping entries.
+
+Outstanding (intentional defer):
+  intake.ts non-interactive flag (--from-file=path or --inline=text).
+    Intake has a $EDITOR escape path that complicates the design.
+    Defer until $EDITOR-less invocation pattern stabilizes.
+  --from-file happy path test for ac (requires LLM stub).
+  Telos / form / material / efficient non-interactive flags
+    (each calls Aristotle interview prompts). Mid-priority.
+
+Stage 6 status: 29 slices done. **2 more dialog sites unblocked for
+agent contexts.** 16 working commands. 42 test files / 348 tests.
+
+Next task: Stage 6-A.30 — likely candidates:
+  (a) intake.captured + bracket.captured + handoff.completed event
+      types (extend audit log to alignment-side observables).
+  (b) `agora trace --follow` tail mode.
+  (c) 10-prompt batch refactor.
+  (d) Gate 2 Playwright functional QA.
+  (e) Telos / form / material / efficient non-interactive flags.
+  (f) intake.ts --from-file (with $EDITOR escape design).
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)
