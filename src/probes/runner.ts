@@ -7,6 +7,7 @@
 
 import { performance } from "node:perf_hooks";
 
+import { appendEvent } from "../shared/events.js";
 import { spawnExec } from "../shared/spawn.js";
 import type { ProbeCache } from "./cache.js";
 import {
@@ -46,7 +47,9 @@ async function runOne(probe: Probe, opts: ExecuteOptions): Promise<ProbeRun> {
   if (opts.forceRefresh !== true) {
     const cached = opts.cache.get(probe.id);
     if (cached !== undefined) {
-      return { probe, result: cached, from_cache: true };
+      const run = { probe, result: cached, from_cache: true };
+      await emitProbeEvent(opts.cwd, run);
+      return run;
     }
   }
   const ctx = buildContext(opts);
@@ -63,7 +66,9 @@ async function runOne(probe: Probe, opts: ExecuteOptions): Promise<ProbeRun> {
         fix: "Probe hung — check network or run `agora doctor --refresh`.",
         duration_ms,
       };
-      return { probe, result, from_cache: false };
+      const run = { probe, result, from_cache: false };
+      await emitProbeEvent(opts.cwd, run);
+      return run;
     }
     const result: ProbeResult = {
       ok: false,
@@ -71,12 +76,32 @@ async function runOne(probe: Probe, opts: ExecuteOptions): Promise<ProbeRun> {
       fix: "Probe code bug — please report at github.com/lazydevz-inc/agora/issues",
       duration_ms,
     };
-    return { probe, result, from_cache: false };
+    const run = { probe, result, from_cache: false };
+    await emitProbeEvent(opts.cwd, run);
+    return run;
   }
   const duration_ms = performance.now() - start;
   const result: ProbeResult = { ...outcome, duration_ms };
   opts.cache.set(probe.id, result);
-  return { probe, result, from_cache: false };
+  const run = { probe, result, from_cache: false };
+  await emitProbeEvent(opts.cwd, run);
+  return run;
+}
+
+async function emitProbeEvent(cwd: string, run: ProbeRun): Promise<void> {
+  // Stage 6-A.27 — audit log entry per probe completion. Fail-soft;
+  // appendEvent itself swallows .agora/-missing + I/O errors.
+  await appendEvent(cwd, {
+    type: "probe.result",
+    command: process.env["AGORA_COMMAND"] ?? "agora",
+    data: {
+      probe_id: run.probe.id,
+      ok: run.result.ok,
+      duration_ms: run.result.duration_ms,
+      from_cache: run.from_cache,
+      detail: run.result.detail,
+    },
+  });
 }
 
 function timeoutAfter(ms: number, probe_id: string): Promise<never> {

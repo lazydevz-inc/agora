@@ -238,6 +238,8 @@ function summarizeData(e: Event): string {
         : "";
       return positional;
     }
+    case "probe.result":
+      return `probe=${String(d["probe_id"] ?? "?")} ok=${String(d["ok"] ?? "?")} duration_ms=${String(d["duration_ms"] ?? "?")}${d["from_cache"] === true ? " (cached)" : ""}`;
     default:
       return "";
   }

@@ -1,9 +1,14 @@
 // SPEC: docs/infra/probes.md (Stage 4-A.4 R3-A + R5-A).
 
-import { describe, expect, test } from "vitest";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { createLimit, executeProbes, PER_PROBE_TIMEOUT_MS } from "@/probes/runner.js";
 import type { Probe } from "@/probes/types.js";
+import { EventSchema, eventsFilePath } from "@/shared/events.js";
 
 function makeNoOpCache() {
   const map = new Map<string, ReturnType<typeof JSON.parse>>();
@@ -99,6 +104,57 @@ describe("executeProbes", () => {
     },
     PER_PROBE_TIMEOUT_MS + 3000,
   );
+});
+
+describe("executeProbes — probe.result event emission (Stage 6-A.27)", () => {
+  let tmpCwd: string;
+
+  beforeEach(async () => {
+    tmpCwd = await mkdtemp(join(tmpdir(), "agora-probe-events-"));
+    await mkdir(join(tmpCwd, ".agora"), { recursive: true });
+  });
+
+  afterEach(async () => {
+    await rm(tmpCwd, { recursive: true, force: true });
+  });
+
+  test("emits one probe.result event per probe (success + failure)", async () => {
+    const cache = makeNoOpCache() as never;
+    await executeProbes([fakeOk, fakeFail], { cache, cwd: tmpCwd });
+    const text = await readFile(eventsFilePath(tmpCwd), "utf8");
+    const lines = text.split("\n").filter((l) => l.length > 0);
+    expect(lines).toHaveLength(2);
+    const events = lines.map((l) => EventSchema.parse(JSON.parse(l)));
+    expect(events.every((e) => e.type === "probe.result")).toBe(true);
+    const ids = new Set(events.map((e) => e.data["probe_id"]));
+    expect(ids.has("fake-ok")).toBe(true);
+    expect(ids.has("fake-fail")).toBe(true);
+  });
+
+  test("emits with from_cache=true on cache hit", async () => {
+    const cache = makeNoOpCache() as never;
+    await executeProbes([fakeOk], { cache, cwd: tmpCwd });
+    await executeProbes([fakeOk], { cache, cwd: tmpCwd });
+    const text = await readFile(eventsFilePath(tmpCwd), "utf8");
+    const lines = text.split("\n").filter((l) => l.length > 0);
+    expect(lines).toHaveLength(2);
+    const events = lines.map((l) => EventSchema.parse(JSON.parse(l)));
+    expect(events[0]?.data["from_cache"]).toBe(false);
+    expect(events[1]?.data["from_cache"]).toBe(true);
+  });
+
+  test("crash inside probe still emits probe.result with internal_error", async () => {
+    const cache = makeNoOpCache() as never;
+    await executeProbes([fakeThrow], { cache, cwd: tmpCwd });
+    const text = await readFile(eventsFilePath(tmpCwd), "utf8");
+    const events = text
+      .split("\n")
+      .filter((l) => l.length > 0)
+      .map((l) => EventSchema.parse(JSON.parse(l)));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.data["ok"]).toBe(false);
+    expect(String(events[0]?.data["detail"])).toContain("internal_error");
+  });
 });
 
 describe("createLimit", () => {

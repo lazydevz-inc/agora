@@ -20,8 +20,9 @@ import { hasAgoraDir } from "./path.js";
 
 export const EVENTS_FILE_NAME = "events.jsonl";
 
-// 8 high-value event types for the first wire pass (Stage 6-A.23 R4-A).
-// Future slices may extend; new types must update this enum + a producer.
+// Audit-log event types. Producers and consumers both depend on this
+// enum — adding a new type requires updating producers + a viewer
+// summary line (see src/cli/commands/trace.ts summarizeData).
 export const EventTypeSchema = z.enum([
   "state.transition", // saveState detected current_phase change
   "gate_1.result", // ralph Gate 1 (typecheck/lint/test/build) ran
@@ -31,6 +32,7 @@ export const EventTypeSchema = z.enum([
   "cap.warning", // ralph per-leaf or session cap hit
   "llm.call", // any ClaudeRunner.call returned (hit or miss)
   "command.invoked", // CLI dispatch helper entry
+  "probe.result", // Gate 0 probe finished (added Stage 6-A.27)
 ]);
 export type EventType = z.infer<typeof EventTypeSchema>;
 

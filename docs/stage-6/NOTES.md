@@ -4172,6 +4172,87 @@ Next task: Stage 6-A.27 — likely candidates:
   (f) Non-interactive flags for remaining dialog sites (intake,
       ac, bracket).
 
+---
+
+### Stage 6-A.27 — DONE (2026-05-06)
+
+probe.result audit-log event type per Stage 6-A.27 (a). Every Gate 0
+probe completion (success / failure / cache hit / timeout / crash)
+now appends a probe.result entry to .agora/events.jsonl, viewable
+via `agora trace --type=probe.result`.
+
+Files:
+- src/shared/events.ts: EventTypeSchema +1 ("probe.result"). 9 types
+  total now (was 8).
+- src/probes/runner.ts: emitProbeEvent helper called from all 4
+  exit paths in runOne (cache hit, timeout, internal_error, success).
+- src/cli/commands/trace.ts: summarizer +1 case for probe.result
+  (probe=X ok=Y duration_ms=Z [(cached)]).
+
+Tests (extends 2 existing files; total 40 files / 336 tests, was
+40/333, +3):
+  tests/unit/probes/runner.test.ts +3:
+    success + failure → 2 events.
+    cache hit → 2 events with from_cache=true on second.
+    crash → still emits with internal_error detail.
+  tests/unit/shared/events.test.ts: type-list count updated 8 → 9.
+
+DoD verification: typecheck ✓ lint ✓ test ✓ lint:locale ✓
+                  lint:prompts ✓ build ✓.
+
+Surprises encountered + decisions made:
+
+1. **Per-exit-path emit duplication** — runOne has 4 distinct return
+   sites (cache hit, timeout, internal_error, success). Could have
+   wrapped them in a finally-style helper but each path has
+   different ProbeResult construction. Cleanest: explicit emit at
+   each return site. ~6 LOC duplication trades against ~30 LOC of
+   wrapping abstraction.
+
+2. **detail field is required string, not optional** — first attempt
+   used `detail: run.result.detail ?? null`, but ProbeResult.detail
+   is `readonly detail: string` (always present). Removed the
+   defensive nullish-coalesce. Lesson: read the type, don't assume
+   optionality.
+
+3. **probe.result emits per-PROBE, not per-DOCTOR-RUN** — a single
+   `agora doctor` invocation runs 5 probes → 5 probe.result events.
+   Per-run aggregation could be a separate event type
+   (gate_0.summary) but YAGNI: trace can already group via
+   --command=doctor + --since=10s. Defer aggregation.
+
+Lessons / observations:
+- **Audit log surface area now covers Gate 0 + Gate 1 + Gate 5 +
+  Disputatio + state transitions + dialog choices + cap warnings +
+  LLM calls + command invocations + probe results** — all major
+  observable Agora behaviors. Future event types (intake.captured,
+  doctor.gate_0.summary) are nice-to-have, not blocking.
+- **EventTypeSchema is the single point of truth**: producer
+  (probes/runner.ts) + consumer (trace.ts summarizer) both depend on
+  it. Adding a type now requires 3 touches: enum + producer +
+  summarizer. The TypeScript compiler catches missed summarizer
+  cases via exhaustive switch (default branch returns "" — silent
+  but visible).
+
+Outstanding (intentional defer):
+  doctor.gate_0.summary aggregate event (per-run rollup).
+  intake.captured event (Phase 1 intake completion).
+  bracket.captured event (Husserl Phase −1 frame).
+
+Stage 6 status: 27 slices done. **Audit log covers Gate 0 →
+ralph_complete end-to-end.** 16 working commands. 40 test files /
+336 tests.
+
+Next task: Stage 6-A.28 — likely candidates:
+  (a) Sparkline color (status trend low-green / high-red).
+  (b) `agora trace --follow` tail mode.
+  (c) Non-interactive flags for intake / ac / bracket.
+  (d) 10-prompt batch refactor.
+  (e) Gate 2 Playwright functional QA.
+  (f) intake.captured + bracket.captured event types.
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)
