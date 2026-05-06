@@ -200,3 +200,139 @@ describe("agora resume — locale", () => {
     expect(output).toContain("이어서 진행할 작업이 없습니다");
   });
 });
+
+describe("agora resume — ralph_complete non-interactive (Stage 6-A.26)", () => {
+  // Seeds a ralph_complete session with valid ralph_state.json + seed.json
+  // so handleRalphComplete can compute stats without throwing.
+  async function seedRalphComplete(): Promise<void> {
+    await mkdir(join(cwd, ".agora"), { recursive: true });
+    await writeFile(
+      join(cwd, ".agora", "state.json"),
+      JSON.stringify({
+        version: 1,
+        current_phase: "ralph_complete",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      "utf8",
+    );
+    const ts = "2026-05-06T00:00:00.000Z";
+    await writeFile(
+      join(cwd, ".agora", "ralph_state.json"),
+      JSON.stringify({
+        version: 1,
+        current_leaf_id: null,
+        completed_leaves: ["ac_001.1"],
+        per_leaf_attempts: { "ac_001.1": 1 },
+        session_total_attempts: 1,
+        iteration_cap_per_leaf: 10,
+        session_cap_total: 25,
+        gate_5_history: [],
+        disputatio_history: [],
+        z1_directives: [],
+        started_at: ts,
+        updated_at: ts,
+        ac_tree_snapshot: [{ id: "ac_001.1", content: "x", depth: 1, atomic: true, children: [] }],
+      }),
+      "utf8",
+    );
+    await writeFile(
+      join(cwd, ".agora", "seed.json"),
+      JSON.stringify({
+        version: 1,
+        intake: { phase: "Phase 1", text: "x", method: "inline", word_count: 1, captured_at: ts },
+        four_causes: {
+          version: 1,
+          telos: {
+            statement: "x",
+            failure_signal: "x",
+            maturity: "noesis",
+            captured_at: ts,
+          },
+          form: {
+            essential_structure: ["x"],
+            maturity: "dianoia",
+            captured_at: ts,
+          },
+          material: {
+            tech_stack: ["x"],
+            maturity: "pistis",
+            captured_at: ts,
+          },
+          efficient: {
+            who: "x",
+            when: "x",
+            how: "x",
+            maturity: "pistis",
+            captured_at: ts,
+          },
+          created_at: ts,
+          updated_at: ts,
+        },
+        acceptance_criteria: {
+          version: 1,
+          criteria: [{ id: "ac_001", content: "test criterion text" }],
+          captured_at: ts,
+        },
+        ac_tree: [{ id: "ac_001.1", content: "x", depth: 1, atomic: true, children: [] }],
+        sealed_at: ts,
+      }),
+      "utf8",
+    );
+  }
+
+  test("--accept-deferred --json → handler=ralph_complete_dialog action=accept_deferred", async () => {
+    await seedRalphComplete();
+    const { output, status } = run("resume --accept-deferred --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: { data: { handler: string; action: string } };
+    };
+    expect(parsed.result.data.handler).toBe("ralph_complete_dialog");
+    expect(parsed.result.data.action).toBe("accept_deferred");
+  });
+
+  test("--re-align --json → action=re_align + state transitions to in_alignment", async () => {
+    await seedRalphComplete();
+    const { output, status } = run("resume --re-align --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: { data: { action: string } };
+    };
+    expect(parsed.result.data.action).toBe("re_align");
+    // verify state.json now in_alignment
+    const stateAfter = JSON.parse(
+      execSync(`cat ${join(cwd, ".agora", "state.json")}`, { stdio: "pipe" }).toString(),
+    ) as { current_phase: string };
+    expect(stateAfter.current_phase).toBe("in_alignment");
+  });
+
+  test("ralph_complete + --json without preselect → falls through to deferred dispatch", async () => {
+    await seedRalphComplete();
+    const { output, status } = run("resume --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: { data: { handler: string; deferred_reason?: string } };
+    };
+    expect(parsed.result.data.handler).toBe("deferred");
+    expect(parsed.result.data.deferred_reason).toBe(
+      "ralph_complete_json_mode_pending_non_interactive_flags",
+    );
+  });
+
+  test("--accept-deferred + --re-align → user.forbidden-flag-combo exit 2", async () => {
+    await seedRalphComplete();
+    const { output, status } = run("resume --accept-deferred --re-align --json");
+    expect(status).toBe(2);
+    const parsed = JSON.parse(output) as { errors: { code: string }[] };
+    expect(parsed.errors[0]?.code).toBe("user.forbidden-flag-combo");
+  });
+
+  test("unknown resume arg → user.forbidden-flag-combo exit 2", async () => {
+    await seedRalphComplete();
+    const { output, status } = run("resume --bogus --json");
+    expect(status).toBe(2);
+    const parsed = JSON.parse(output) as { errors: { code: string }[] };
+    expect(parsed.errors[0]?.code).toBe("user.forbidden-flag-combo");
+  });
+});

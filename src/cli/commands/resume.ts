@@ -54,10 +54,21 @@ interface DispatchOutcome {
   readonly tui_lines: readonly string[];
 }
 
+// Per Stage 6-A.26: ralph_complete dialog gains 3 non-interactive
+// pre-selection flags. Setting any one short-circuits the clack
+// select to that branch (still validates state). Mutually exclusive;
+// passing more than one returns user.forbidden-flag-combo.
+type RalphCompletePreselect = "accept_deferred" | "re_align" | "view_log" | null;
+
 export async function runResumeCommand(
   flags: GlobalFlags,
+  positional: readonly string[] = [],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
+
+  const preselectResult = parseRalphCompletePreselect(positional);
+  if (!preselectResult.ok) return preselectResult;
+  const preselect = preselectResult.value;
 
   if (!(await hasAgoraDir(cwd))) {
     const outcome = buildNoSessionOutcome();
@@ -75,16 +86,56 @@ export async function runResumeCommand(
     return ok(buildEnvelope(outcome, 1));
   }
 
-  // ralph_complete state has interactive dialog (Stage 2-C.2 R4-A) in
-  // TUI mode. JSON mode falls through to deferred dispatch (envelope-
-  // only; non-interactive driver per Outstanding).
-  if (state.current_phase === "ralph_complete" && !flags.json) {
-    return await handleRalphComplete(cwd, state);
+  // ralph_complete state has interactive dialog (Stage 2-C.2 R4-A).
+  // TUI mode runs the clack select. JSON mode requires a pre-selection
+  // flag (--accept-deferred / --re-align / --view-log) — without one,
+  // falls through to deferred dispatch with informative envelope.
+  if (state.current_phase === "ralph_complete") {
+    if (!flags.json) return await handleRalphComplete(cwd, state, preselect, true);
+    if (preselect !== null) return await handleRalphComplete(cwd, state, preselect, false);
   }
 
   const outcome = dispatch(state);
   if (!flags.json) emitTui(outcome);
   return ok(buildEnvelope(outcome, 0));
+}
+
+function parseRalphCompletePreselect(
+  positional: readonly string[],
+): Result<RalphCompletePreselect, AgoraErrorThrown> {
+  const seen: RalphCompletePreselect[] = [];
+  for (const arg of positional) {
+    if (arg === "--accept-deferred") {
+      seen.push("accept_deferred");
+      continue;
+    }
+    if (arg === "--re-align") {
+      seen.push("re_align");
+      continue;
+    }
+    if (arg === "--view-log") {
+      seen.push("view_log");
+      continue;
+    }
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: {
+          detail: `Unknown resume argument: ${arg}. Supported: --accept-deferred, --re-align, --view-log.`,
+        },
+      }),
+    );
+  }
+  if (seen.length === 0) return ok(null);
+  if (seen.length > 1) {
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: {
+          detail: `Cannot combine non-interactive flags: ${seen.join(", ")}. Choose one.`,
+        },
+      }),
+    );
+  }
+  return ok(seen[0] ?? null);
 }
 
 function dispatch(state: State): DispatchOutcome {
@@ -341,6 +392,8 @@ function getAgoraVersion(): string {
 async function handleRalphComplete(
   cwd: string,
   state: State,
+  preselect: RalphCompletePreselect,
+  tui: boolean,
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   // Load ralph_state.json — must exist if state is ralph_complete.
   const ralphStatePath = join(cwd, ".agora", "ralph_state.json");
@@ -384,42 +437,53 @@ async function handleRalphComplete(
 
   const stats = aggregateRalphStats(ralphState, seed.ac_tree);
 
-  intro(pc.bold(localized("cli.resume.ralph_complete_intro")));
-  log.message(
-    localized("cli.resume.ralph_complete_summary", {
-      completed: String(stats.completed_leaves),
-      total: String(stats.total_leaves),
-      iterations: String(stats.total_iterations),
-    }),
-  );
+  if (tui) {
+    intro(pc.bold(localized("cli.resume.ralph_complete_intro")));
+    log.message(
+      localized("cli.resume.ralph_complete_summary", {
+        completed: String(stats.completed_leaves),
+        total: String(stats.total_leaves),
+        iterations: String(stats.total_iterations),
+      }),
+    );
+  }
 
   // Loop until user picks re_align or accept_deferred.
-  return await dialogLoop(cwd, state, stats);
+  return await dialogLoop(cwd, state, stats, preselect, tui);
 }
 
 async function dialogLoop(
   cwd: string,
   state: State,
   stats: RalphSessionStats,
+  preselect: RalphCompletePreselect,
+  tui: boolean,
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
+  // First iteration: if a non-interactive preselect was passed, use it
+  // verbatim. After view_log we still re-prompt (user wants to see log
+  // and then choose) so don't carry preselect across iterations.
+  let firstIteration = true;
   for (;;) {
-    const choice = await select({
-      message: localized("cli.resume.ralph_complete_dialog_message"),
-      options: [
-        {
-          value: "accept_deferred" as const,
-          label: localized("cli.resume.ralph_complete_option_accept"),
-        },
-        {
-          value: "re_align" as const,
-          label: localized("cli.resume.ralph_complete_option_realign"),
-        },
-        {
-          value: "view_log" as const,
-          label: localized("cli.resume.ralph_complete_option_view"),
-        },
-      ],
-    });
+    const choice =
+      firstIteration && preselect !== null
+        ? preselect
+        : await select({
+            message: localized("cli.resume.ralph_complete_dialog_message"),
+            options: [
+              {
+                value: "accept_deferred" as const,
+                label: localized("cli.resume.ralph_complete_option_accept"),
+              },
+              {
+                value: "re_align" as const,
+                label: localized("cli.resume.ralph_complete_option_realign"),
+              },
+              {
+                value: "view_log" as const,
+                label: localized("cli.resume.ralph_complete_option_view"),
+              },
+            ],
+          });
 
     const choiceLabel =
       typeof choice === "string" ? choice : "cancelled_treated_as_accept_deferred";
@@ -432,8 +496,10 @@ async function dialogLoop(
       },
     });
 
+    firstIteration = false;
+
     if (choice === "view_log") {
-      log.message(`\n${renderStatsTable(stats)}\n`);
+      if (tui) log.message(`\n${renderStatsTable(stats)}\n`);
       continue;
     }
 
@@ -448,14 +514,18 @@ async function dialogLoop(
         "agora resume",
       );
       if (!advanced.ok) return advanced;
-      log.message(localized("cli.resume.ralph_complete_realign_instructions"));
-      outro(pc.magenta(localized("cli.resume.ralph_complete_realign_outro")));
+      if (tui) {
+        log.message(localized("cli.resume.ralph_complete_realign_instructions"));
+        outro(pc.magenta(localized("cli.resume.ralph_complete_realign_outro")));
+      }
       return ok(buildRalphCompleteEnvelope("re_align", stats));
     }
 
     // accept_deferred (or clack cancel — treat cancel as accept).
-    log.message(`\n${renderStatsTable(stats)}\n`);
-    outro(pc.green(localized("cli.resume.ralph_complete_accept_outro")));
+    if (tui) {
+      log.message(`\n${renderStatsTable(stats)}\n`);
+      outro(pc.green(localized("cli.resume.ralph_complete_accept_outro")));
+    }
     return ok(buildRalphCompleteEnvelope("accept_deferred", stats));
   }
 }

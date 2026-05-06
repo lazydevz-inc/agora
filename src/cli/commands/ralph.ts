@@ -56,11 +56,20 @@ import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
 
+// Per Stage 6-A.26: Z2 confirm (drift > 0.6) gains pre-selection
+// flags so CI / agent contexts can run agora ralph without TTY.
+// Mutually exclusive; passing both → user.forbidden-flag-combo.
+type Z2Preselect = "accept" | "decline" | null;
+
 export async function runRalphCommand(
   flags: GlobalFlags,
-  _positional: readonly string[],
+  positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
+
+  const z2Result = parseZ2Preselect(positional);
+  if (!z2Result.ok) return z2Result;
+  const z2Preselect = z2Result.value;
 
   if (!(await hasAgoraDir(cwd))) {
     return err(
@@ -337,8 +346,39 @@ export async function runRalphCommand(
     attemptsBefore,
     gate1,
     gate5,
+    z2Preselect,
     ...(disputatio !== undefined ? { disputatio } : {}),
   });
+}
+
+function parseZ2Preselect(positional: readonly string[]): Result<Z2Preselect, AgoraErrorThrown> {
+  const seen: Z2Preselect[] = [];
+  for (const arg of positional) {
+    if (arg === "--accept-z2") {
+      seen.push("accept");
+      continue;
+    }
+    if (arg === "--decline-z2") {
+      seen.push("decline");
+      continue;
+    }
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: {
+          detail: `Unknown ralph argument: ${arg}. Supported: --accept-z2, --decline-z2.`,
+        },
+      }),
+    );
+  }
+  if (seen.length === 0) return ok(null);
+  if (seen.length > 1) {
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: { detail: `Cannot combine --accept-z2 and --decline-z2. Choose one.` },
+      }),
+    );
+  }
+  return ok(seen[0] ?? null);
 }
 
 interface ApplyGate5OutcomeArgs {
@@ -352,6 +392,7 @@ interface ApplyGate5OutcomeArgs {
   gate1: Gate1Result;
   gate5: Gate5Result;
   disputatio?: DisputatioResult; // present iff Gate 5 was PASS/SOFT_WARN
+  z2Preselect: Z2Preselect; // null → run interactive confirm
 }
 
 async function applyGate5Outcome(
@@ -578,6 +619,8 @@ async function applyGate5Outcome(
   }
 
   // Z2: clack confirm → state in_ralph → in_alignment + reset round.
+  // Pre-selection flag (--accept-z2 / --decline-z2) skips the prompt
+  // for CI / agent contexts (Stage 6-A.26).
   log.error(
     localized("cli.ralph.gate_5_z2", {
       leaf_id: currentLeaf,
@@ -585,11 +628,15 @@ async function applyGate5Outcome(
       rationale: gate5.rationale,
     }),
   );
-  const accepted = await confirm({
-    message: localized("cli.ralph.gate_5_z2_confirm"),
-    initialValue: true,
-  });
-  const z2Confirmed = accepted === true;
+  const z2Confirmed =
+    args.z2Preselect === "accept"
+      ? true
+      : args.z2Preselect === "decline"
+        ? false
+        : (await confirm({
+            message: localized("cli.ralph.gate_5_z2_confirm"),
+            initialValue: true,
+          })) === true;
 
   const updated: RalphState = RalphStateSchema.parse({
     ...ralphState,

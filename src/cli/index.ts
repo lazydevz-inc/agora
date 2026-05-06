@@ -83,7 +83,7 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "resume") {
-    await dispatchResume(flags, mode, useColor);
+    await dispatchResume(flags, positional.slice(1), mode, useColor);
     return;
   }
   if (command === "intake") {
@@ -237,15 +237,17 @@ async function dispatchBracket(
 
 async function dispatchResume(
   flags: GlobalFlags,
+  positional: readonly string[],
   mode: EmitMode,
   useColor: boolean,
 ): Promise<void> {
-  const result = await runResumeCommand(flags);
+  const result = await runResumeCommand(flags, positional);
   if (!result.ok) {
-    // state.corrupt → exit 20 per Stage 3-B.5 R3-A; other categories
-    // fall through emitAgoraError's category mapping.
+    // state.corrupt → exit 20 per Stage 3-B.5 R3-A; user.* → exit 2;
+    // other categories fall through emitAgoraError's mapping.
     emitAgoraError(result.error, mode, useColor);
-    process.exit(result.error.category === "state" ? 20 : 1);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
