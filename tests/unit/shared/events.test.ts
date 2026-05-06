@@ -129,7 +129,7 @@ describe("appendEvent — happy path", () => {
 });
 
 describe("EventSchema", () => {
-  test("accepts all 9 declared event types", () => {
+  test("accepts all 12 declared event types", () => {
     const types = [
       "state.transition",
       "gate_1.result",
@@ -140,6 +140,9 @@ describe("EventSchema", () => {
       "llm.call",
       "command.invoked",
       "probe.result",
+      "intake.captured",
+      "bracket.captured",
+      "handoff.completed",
     ] as const;
     for (const t of types) {
       const r = EventSchema.safeParse({

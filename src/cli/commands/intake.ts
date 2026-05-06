@@ -23,6 +23,7 @@ import type { AgoraErrorThrown } from "../../errors/types.js";
 import { localized } from "../../i18n/index.js";
 import { err, ok, type Result } from "../../result/index.js";
 import { openEditorAndRead } from "../../shared/editor.js";
+import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { ensureAgoraDir, findProjectRoot, hasAgoraDir } from "../../shared/path.js";
 import { loadState } from "../../state/reader.js";
@@ -97,6 +98,15 @@ export async function runIntakeCommand(
   // Persist intake.json.
   await ensureAgoraDir(cwd);
   await writeJsonAtomic(join(cwd, ".agora", "intake.json"), phase1);
+  await appendEvent(cwd, {
+    type: "intake.captured",
+    command: "agora intake",
+    data: {
+      method: phase1.intake_method,
+      word_count: phase1.intake_word_count,
+      truncated: phase1.intake_truncated ?? false,
+    },
+  });
 
   // Advance state: alignment.phase: 0|-1 → 1.
   const advanced = await saveState(

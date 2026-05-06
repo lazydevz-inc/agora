@@ -4446,6 +4446,92 @@ Next task: Stage 6-A.30 — likely candidates:
   (e) Telos / form / material / efficient non-interactive flags.
   (f) intake.ts --from-file (with $EDITOR escape design).
 
+---
+
+### Stage 6-A.30 — DONE (2026-05-06)
+
+Alignment-side audit events per Stage 6-A.30 (a). Adds 3 new event
+types to round out audit log coverage so the Alignment loop is as
+observable as the Ralph loop:
+
+- `intake.captured`: emitted after Phase 1 intake persists. data:
+  {method, word_count, truncated}.
+- `bracket.captured`: emitted after Husserl frame (or skipped frame)
+  persists. data: {raw_intent_chars, brackets_count,
+  surprising_findings_count, skipped}.
+- `handoff.completed`: emitted after seed.json + ac_tree write. data:
+  {ac_tree_root_count, total_atomic_leaves, max_depth}.
+
+Files:
+- src/shared/events.ts: EventTypeSchema +3 (12 types total).
+- src/cli/commands/intake.ts: appendEvent after writeJsonAtomic.
+- src/cli/commands/bracket.ts: appendEvent in BOTH paths (Husserl-
+  driven + skipBracket). skipped: true|false discriminator.
+- src/cli/commands/handoff.ts: appendEvent after seed.json write.
+- src/cli/commands/trace.ts: summarizer +3 cases for new types.
+
+Tests (extends 2 existing files; total 42 files / 349 tests, was
+42/348, +1):
+- tests/unit/shared/events.test.ts: type-list count 9 → 12.
+- tests/integration/cli-bracket.test.ts +1: skipBracket emits
+  bracket.captured event with skipped=true and correct intent_chars.
+
+DoD: typecheck ✓ lint ✓ test ✓ (42 files / 349 tests)
+     lint:locale ✓ lint:prompts ✓ build ✓.
+
+Surprises encountered + decisions made:
+
+1. **DihairesisResult.max_depth → max_depth_reached** — first try
+   typo'd `dh.max_depth`. The schema field is `max_depth_reached`
+   (suffix). Caught by tsc; emitted bracket failed compile. Lesson:
+   when accessing fields on a complex result type, look at the schema
+   or use IDE autocomplete.
+
+2. **Both bracket paths emit, with discriminator** — the slice could
+   have skipped emission for --skip-bracket (since "captured" is
+   misleading when skipped), but the audit log values consistency:
+   every bracket invocation produces an event. The `skipped: true`
+   field discriminates for downstream consumers.
+
+3. **No new tests for intake.captured / handoff.completed events** —
+   both commands' integration tests would require seeding entire
+   alignment session state + LLM stubbing for intake's $EDITOR /
+   handoff's Plato Dihairesis. The single bracket.captured assertion
+   verifies the "wired" state; new event types share the same
+   appendEvent pathway already tested in events.test.ts. Accepted
+   coverage trade.
+
+Lessons / observations:
+- **Audit log is now feature-complete for v1**: Gate 0 (probes) +
+  Gate 1 + Gate 5 + Disputatio + Aristotle (via state.transition) +
+  Husserl (bracket.captured) + Phase 1 (intake.captured) + Plato
+  handoff (handoff.completed) + dialog choices + cap warnings + LLM
+  calls + command invocations = full lifecycle visibility.
+- **Event type taxonomy stable**: 12 types is enough surface to debug
+  most issues. Adding more would dilute (one type per metric ≠
+  observability win). Future event types should map to NEW behaviors,
+  not finer-grained slicing of existing ones.
+
+Outstanding (intentional defer):
+  Telos / form / material / efficient .captured events. Currently the
+    audit log captures these via state.transition (alignment.round
+    bumps). Per-event would be over-instrumentation.
+  Maturity check .pass / .fail event for Plato Y2.
+  AC capture .captured event (similar redundancy concern).
+
+Stage 6 status: 30 slices done. **Audit log feature-complete for v1.**
+16 working commands. 42 test files / 349 tests.
+
+Next task: Stage 6-A.31 — likely candidates:
+  (a) `agora trace --follow` tail mode (interactive watching).
+  (b) 10-prompt batch refactor.
+  (c) Gate 2 Playwright functional QA.
+  (d) Telos / form / material / efficient non-interactive flags
+      (4 flags × 1 schema each → ~4 small slices).
+  (e) intake.ts --from-file with $EDITOR design.
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)

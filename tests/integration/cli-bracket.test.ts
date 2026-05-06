@@ -132,4 +132,18 @@ describe("agora bracket --skip-bracket — happy path", () => {
     };
     expect(parsed.result.data.defended_frame.raw_intent).toBe("build the agora project");
   });
+
+  test("emits bracket.captured event with skipped=true (Stage 6-A.30)", async () => {
+    await seedSession();
+    const { status } = run('bracket --skip-bracket "test intent" --json');
+    expect(status).toBe(0);
+    const eventsText = await readFile(join(cwd, ".agora", "events.jsonl"), "utf8");
+    const lines = eventsText.split("\n").filter((l) => l.length > 0);
+    const bracketEvents = lines
+      .map((l) => JSON.parse(l) as { type: string; data: Record<string, unknown> })
+      .filter((e) => e.type === "bracket.captured");
+    expect(bracketEvents).toHaveLength(1);
+    expect(bracketEvents[0]?.data["skipped"]).toBe(true);
+    expect(bracketEvents[0]?.data["raw_intent_chars"]).toBe(11); // "test intent"
+  });
 });

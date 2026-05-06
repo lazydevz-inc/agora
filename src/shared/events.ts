@@ -33,6 +33,9 @@ export const EventTypeSchema = z.enum([
   "llm.call", // any ClaudeRunner.call returned (hit or miss)
   "command.invoked", // CLI dispatch helper entry
   "probe.result", // Gate 0 probe finished (added Stage 6-A.27)
+  "intake.captured", // Phase 1 intake completed (added Stage 6-A.30)
+  "bracket.captured", // Husserl Phase −1 frame captured (added Stage 6-A.30)
+  "handoff.completed", // Plato handoff sealed seed.json (added Stage 6-A.30)
 ]);
 export type EventType = z.infer<typeof EventTypeSchema>;
 

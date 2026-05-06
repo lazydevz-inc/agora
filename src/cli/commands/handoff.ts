@@ -39,6 +39,7 @@ import { selectRuntime } from "../../llm/selection.js";
 import type { FourCauses } from "../../philosophers/aristotle.js";
 import type { DefendedFrame } from "../../philosophers/husserl.js";
 import { err, ok, type Result } from "../../result/index.js";
+import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
 import { loadState } from "../../state/reader.js";
@@ -214,6 +215,15 @@ export async function runHandoffCommand(
     );
   }
   await writeJsonAtomic(seedPath, seed);
+  await appendEvent(cwd, {
+    type: "handoff.completed",
+    command: "agora handoff",
+    data: {
+      ac_tree_root_count: dh.ac_tree.length,
+      total_atomic_leaves: dh.total_atomic_leaves,
+      max_depth: dh.max_depth_reached,
+    },
+  });
 
   // R4-A: single state transition alignment_complete → ready_for_ralph.
   // alignment.round 6 → 7 (handoff done; Ralph next).

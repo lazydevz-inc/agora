@@ -20,6 +20,7 @@ import { localized } from "../../i18n/index.js";
 import { selectRuntime } from "../../llm/selection.js";
 import { type HusserlUi, runHusserlPhaseMinusOne } from "../../philosophers/husserl.js";
 import { err, ok, type Result } from "../../result/index.js";
+import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
 import { loadState } from "../../state/reader.js";
@@ -165,6 +166,16 @@ export async function runBracketCommand(
 
   // Persist DefendedFrame.
   await writeJsonAtomic(join(cwd, ".agora", "defended_frame.json"), frame);
+  await appendEvent(cwd, {
+    type: "bracket.captured",
+    command: "agora bracket",
+    data: {
+      raw_intent_chars: frame.raw_intent.length,
+      brackets_count: 3,
+      surprising_findings_count: frame.surprising_findings.length,
+      skipped: false,
+    },
+  });
 
   // Advance state: bracket done → alignment.phase: -1 (Husserl complete; Phase 0
   // scan was already done in `agora new`, so next step is Phase 1 intake).
@@ -242,6 +253,16 @@ async function skipBracket(
     created_at: new Date().toISOString(),
   };
   await writeJsonAtomic(join(cwd, ".agora", "defended_frame.json"), frame);
+  await appendEvent(cwd, {
+    type: "bracket.captured",
+    command: "agora bracket --skip-bracket",
+    data: {
+      raw_intent_chars: rawIntent.length,
+      brackets_count: 0,
+      surprising_findings_count: 0,
+      skipped: true,
+    },
+  });
   const advanced = await saveState(
     cwd,
     {

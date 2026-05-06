@@ -240,6 +240,12 @@ function summarizeData(e: Event): string {
     }
     case "probe.result":
       return `probe=${String(d["probe_id"] ?? "?")} ok=${String(d["ok"] ?? "?")} duration_ms=${String(d["duration_ms"] ?? "?")}${d["from_cache"] === true ? " (cached)" : ""}`;
+    case "intake.captured":
+      return `method=${String(d["method"] ?? "?")} words=${String(d["word_count"] ?? "?")}${d["truncated"] === true ? " (truncated)" : ""}`;
+    case "bracket.captured":
+      return `intent_chars=${String(d["raw_intent_chars"] ?? "?")} brackets=${String(d["brackets_count"] ?? "?")}${d["skipped"] === true ? " (skipped)" : ""}`;
+    case "handoff.completed":
+      return `roots=${String(d["ac_tree_root_count"] ?? "?")} leaves=${String(d["total_atomic_leaves"] ?? "?")} depth=${String(d["max_depth"] ?? "?")}`;
     default:
       return "";
   }
