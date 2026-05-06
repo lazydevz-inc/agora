@@ -3952,6 +3952,106 @@ Next task: Stage 6-A.25 — likely candidates:
   (f) Color/intensity for sparkline (low green, high red).
   (g) Probe results → events.jsonl (probe.result event type).
 
+---
+
+### Stage 6-A.25 — DONE (2026-05-06)
+
+`agora trace` audit log viewer per Stage 6-A.25 (a). Reads
+.agora/events.jsonl, applies filters, renders compact table or JSON.
+First consumer of the events.jsonl produced by Stage 6-A.23.
+
+Filter syntax:
+  --type=<event_type>      Filter by EventType. Repeat to OR-match.
+  --since=<duration>       30s, 5m, 2h, 1d.
+  --command=<substring>    Substring match on event.command.
+  --limit=<N>              1..1000, default 50.
+
+Files:
+- src/cli/commands/trace.ts (NEW, ~250 LOC) — runTraceCommand +
+  parseTraceFilters + parseDuration + loadEvents + applyFilters +
+  emitTui + formatEventLine + summarizeData (per-type formatter
+  for all 8 event types) + buildEnvelope.
+- src/cli/index.ts: dispatchTrace + trace registration + help line +
+  COMMAND_INVOKED_SKIP set excluding "agora trace" from emit (avoids
+  self-referential audit pollution).
+- messages/{en,ko}.json: +4 cli.trace.* keys × 2 = 8 strings net new.
+
+Tests (1 new file; 40 files / 328 tests, was 39/313):
+  tests/integration/cli-trace.test.ts (15 tests):
+    Refusal × 1 (no .agora/).
+    Empty/no events × 2 (JSON envelope + TUI).
+    Happy path × 6 (no filter, --type single, --type multi-OR,
+      --command substring, --limit, --since=1h).
+    TUI × 2 (header + summarized data, ko locale).
+    Bad input × 3 (invalid --since, --limit=0, unknown flag).
+    Corrupt × 1 (malformed JSON line counted in parse_failures).
+
+DoD verification:
+  pnpm typecheck ✓
+  pnpm lint     ✓ (24 warnings; +2 vs prior — trace.ts has 1 cognitive
+                    complexity warning + summarize fn). No errors.
+  pnpm test     ✓ 40 files, 328 tests
+  pnpm lint:locale ✓
+  pnpm lint:prompts ✓
+  pnpm build    ✓
+
+Surprises encountered + decisions made:
+
+1. **Self-referential audit pollution** — first test run failed with
+   "expected 0 events, got 1": running `agora trace --json` itself
+   appended a `command.invoked` event before the trace command read
+   the log. Fix: COMMAND_INVOKED_SKIP set in cli/index.ts. Only
+   "agora trace" added (status emit retained — useful audit signal).
+   Lesson: read-only viewers of an audit log must exclude themselves
+   from that log, or they're observer-effect-positive.
+
+2. **Filter parsing inside command, not GlobalFlags** — agora trace
+   has 4 command-specific flags (--type, --since, --command, --limit)
+   that don't generalize. Adding to GlobalFlags would bloat cli/flags
+   for niche use. Instead, trace.ts has a local parseTraceFilters
+   helper that consumes positional[]. This sets the pattern for
+   future command-scoped flags (likely the next non-interactive
+   ergonomics slice — --accept-deferred / --re-align / --no-confirm).
+
+3. **8-type per-event summarizer keeps TUI scannable** — generic
+   JSON.stringify(data) would fill terminal lines and obscure the
+   information density. Custom switch-on-type renders 1-line
+   summaries: `leaf=ac_001.1 drift=0.05 action=PASS` for gate_5,
+   `in_alignment → ready_for_ralph` for state.transition, etc.
+   Mirrors `git log --oneline` ergonomics.
+
+Lessons / observations:
+- **events.jsonl + agora trace = real debugging story**: the audit
+  log was previously write-only. Now you can `agora trace --type=
+  gate_5.result --since=1h` to see drift trend, or `agora trace
+  --command=ralph` to filter to one command's events. Real value.
+- **Command-scoped flag parsing pattern stable**: trace's local
+  parseTraceFilters with `arg.startsWith("--xxx=")` checks scales
+  cleanly. Future non-interactive ergonomics slice should reuse this
+  pattern rather than expanding GlobalFlags.
+
+Outstanding (intentional defer):
+  --until=<duration> as a complement to --since.
+  --grep=<pattern> for substring search inside event.data fields.
+  Color-coded type column (cyan for gate_*, yellow for cap.warning,
+    red for gate_5.result with action=Z2).
+  agora trace --follow (tail -f mode for live audit watching).
+
+Stage 6 status: 25 slices done. **Audit log viewable.** 16 working
+commands. 40 test files / 328 tests.
+
+Next task: Stage 6-A.26 — likely candidates:
+  (a) Non-interactive ergonomics (--accept-deferred / --re-align /
+      --no-confirm-z2 flags across 4 dialog sites: ralph_complete,
+      Z2 confirm, intake editor, ac capture confirms).
+  (b) 10-prompt batch refactor.
+  (c) Gate 2 Playwright functional QA.
+  (d) Probe results → events.jsonl.
+  (e) Sparkline color (status trend low-green / high-red).
+  (f) `agora trace --follow` (tail -f mode).
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 **Seventeenth vertical slice: `agora handoff` — Plato Dihairesis +

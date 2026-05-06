@@ -184,6 +184,12 @@
       "hard_cap_truncated": "입력이 {bytes} 바이트였습니다 — 16 KB로 잘렸습니다. 캡처된 텍스트는 잘린 부분까지입니다.",
       "echo": "확인. {method} 방식으로 {word_count} 단어 캡처. 예상 라운드 (시드 잠금까지): {estimated_rounds}."
     },
+    "trace": {
+      "no_events": ".agora/events.jsonl 에 일치하는 이벤트가 없습니다.",
+      "header": "{count}개 이벤트 표시 — {filters}",
+      "truncated": "(최근 {limit}개로 잘림 — 더 보려면 --limit 증가)",
+      "parse_failures": "events.jsonl의 {count}개 줄이 스키마 검증 실패 (무시됨)."
+    },
     "resume": {
       "no_session": "이어서 진행할 작업이 없습니다.",
       "suggest_new": "현재 디렉토리에 프로젝트 상태가 없습니다. `agora new <name>`으로 시작하거나, `agora doctor`로 환경을 점검하세요.",

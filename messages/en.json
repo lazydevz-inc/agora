@@ -184,6 +184,12 @@
       "hard_cap_truncated": "Input was {bytes} bytes — truncated to 16 KB. The truncated text is what was captured.",
       "echo": "OK. Captured {word_count} words via {method}. Estimated rounds to seed lock: {estimated_rounds}."
     },
+    "trace": {
+      "no_events": "No matching events in .agora/events.jsonl.",
+      "header": "Showing {count} event(s) — {filters}",
+      "truncated": "(truncated to last {limit} entries — increase --limit to see more)",
+      "parse_failures": "{count} line(s) in events.jsonl failed schema validation (skipped)."
+    },
     "resume": {
       "no_session": "Nothing to resume.",
       "suggest_new": "No project state found in this folder. Run `agora new <name>` to start, or `agora doctor` to verify the environment.",

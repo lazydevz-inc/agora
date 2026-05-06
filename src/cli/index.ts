@@ -29,6 +29,7 @@ import { runResumeCommand } from "./commands/resume.js";
 import { runRoundCommand } from "./commands/round.js";
 import { runStatusCommand } from "./commands/status.js";
 import { runTelosCommand } from "./commands/telos.js";
+import { runTraceCommand } from "./commands/trace.js";
 import { runVersionCommand } from "./commands/version.js";
 import { type GlobalFlags, parseArgv } from "./flags.js";
 import { type EmitMode, emit, emitAgoraError } from "./render.js";
@@ -123,6 +124,10 @@ async function main(): Promise<void> {
   }
   if (command === "ralph") {
     await dispatchRalph(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "trace") {
+    await dispatchTrace(flags, positional.slice(1), mode, useColor);
     return;
   }
 
@@ -430,6 +435,24 @@ async function dispatchRalph(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchTrace(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runTraceCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 function printHelp(): void {
   console.log(
     "agora — agent harness where ancient philosophers gather to refine intent into reality.",
@@ -463,6 +486,9 @@ function printHelp(): void {
   console.log(
     "  agora ralph       Run Ralph iteration: pick next leaf + Gate 1 (typecheck/lint/test/build)",
   );
+  console.log(
+    "  agora trace       View .agora/events.jsonl audit log (--type, --since, --command, --limit)",
+  );
   console.log("");
   console.log("Universal flags:");
   console.log("  -h, --help        Show this message");
@@ -481,17 +507,22 @@ function inferEmitMode(argv: readonly string[]): EmitMode {
   return argv.includes("--json") || process.env["AGORA_JSON"] === "1" ? "json" : "tui";
 }
 
+// Commands that are pure read-only observers of .agora/events.jsonl —
+// recording their own invocation would create a self-referential loop
+// (every `agora trace` would polute the very log it reads). Skip emit
+// for these; AGORA_COMMAND env still gets stamped for downstream LLM
+// attribution (which never runs for these read-only commands anyway).
+const COMMAND_INVOKED_SKIP: ReadonlySet<string> = new Set(["agora trace"]);
+
 async function emitCommandInvoked(
   command: string,
   flags: GlobalFlags,
   positional: readonly string[],
 ): Promise<void> {
+  process.env["AGORA_COMMAND"] = command;
+  if (COMMAND_INVOKED_SKIP.has(command)) return;
   // Audit-log entry per Stage 6-A.23 R5-A. Fail-soft: if no .agora/
   // exists (greenfield pre-`agora new`), appendEvent returns false.
-  // AGORA_COMMAND is also exposed for downstream emitters (notably
-  // llm.call inside CachedRunner) that don't otherwise know the
-  // originating CLI command.
-  process.env["AGORA_COMMAND"] = command;
   await appendEvent(findProjectRoot(process.cwd()), {
     type: "command.invoked",
     command,
