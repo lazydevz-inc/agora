@@ -1,5 +1,6 @@
 // SPEC: docs/loops/handoff.md (Stage 2-C.3 R2-A audit log) +
 //       Stage 6-A.25 — `agora trace` viewer over .agora/events.jsonl.
+//       Stage 6-A.32 — `--follow` tail-f mode for live watching.
 //
 // Reads events.jsonl, applies filters (--type, --since, --command,
 // --limit), renders as compact TUI table or JSON envelope (data.events).
@@ -12,6 +13,10 @@
 //   --since=<duration>       Relative window: 30s, 5m, 2h, 1d.
 //   --command=<name>         Filter by event.command (substring match).
 //   --limit=<N>              Cap output to last N matching entries (default 50).
+//   --follow                 Tail mode (TUI only). Prints initial backlog
+//                            (filtered + limited), then polls events.jsonl
+//                            every 250ms and prints new matching events.
+//                            Ctrl-C to exit. Incompatible with --json.
 
 import { readFile } from "node:fs/promises";
 
@@ -34,7 +39,10 @@ interface TraceFilters {
   readonly sinceMs: number | null; // null → no lower bound
   readonly commandSubstring: string | null;
   readonly limit: number;
+  readonly follow: boolean;
 }
+
+const FOLLOW_POLL_MS = 250;
 
 export async function runTraceCommand(
   flags: GlobalFlags,
@@ -54,6 +62,17 @@ export async function runTraceCommand(
   if (!filtersResult.ok) return filtersResult;
   const filters = filtersResult.value;
 
+  if (filters.follow && flags.json) {
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: {
+          detail:
+            "--follow is incompatible with --json (live stream cannot fit in a one-shot envelope).",
+        },
+      }),
+    );
+  }
+
   const loadResult = await loadEvents(cwd);
   if (!loadResult.ok) return loadResult;
   const { events, parseFailures } = loadResult.value;
@@ -63,7 +82,50 @@ export async function runTraceCommand(
   const visible = truncated ? filtered.slice(filtered.length - filters.limit) : filtered;
 
   if (!flags.json) emitTui(visible, filters, parseFailures, truncated);
+
+  if (filters.follow) {
+    // Run the tail loop. Returns when SIGINT received (process exits
+    // via signal handler installed below). The Result<> return is
+    // unreachable in practice — included for type completeness.
+    await followLoop(cwd, filters, visible.length, events.length);
+  }
+
   return ok(buildEnvelope(visible, filters, parseFailures, truncated));
+}
+
+async function followLoop(
+  cwd: string,
+  filters: TraceFilters,
+  initialPrintedCount: number,
+  initialTotalEvents: number,
+): Promise<void> {
+  void initialPrintedCount; // surface unused param (lint)
+  let lastSeenIndex = initialTotalEvents;
+  console.log(pc.dim("(--follow active; press Ctrl-C to exit)"));
+  process.on("SIGINT", () => {
+    console.log("");
+    console.log(pc.dim("trace --follow stopped."));
+    process.exit(0);
+  });
+  // Polling loop with 250ms tick. Re-reads events.jsonl, prints any
+  // new matching entries beyond lastSeenIndex.
+  for (;;) {
+    await sleep(FOLLOW_POLL_MS);
+    const next = await loadEvents(cwd);
+    if (!next.ok) continue;
+    const { events: nextEvents } = next.value;
+    if (nextEvents.length <= lastSeenIndex) continue;
+    const newSlice = nextEvents.slice(lastSeenIndex);
+    lastSeenIndex = nextEvents.length;
+    const newFiltered = applyFilters(newSlice, { ...filters, limit: Number.MAX_SAFE_INTEGER });
+    for (const e of newFiltered) {
+      console.log(formatEventLine(e));
+    }
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function parseTraceFilters(positional: readonly string[]): Result<TraceFilters, AgoraErrorThrown> {
@@ -71,6 +133,7 @@ function parseTraceFilters(positional: readonly string[]): Result<TraceFilters, 
   let sinceMs: number | null = null;
   let commandSubstring: string | null = null;
   let limit = DEFAULT_LIMIT;
+  let follow = false;
 
   for (const arg of positional) {
     if (arg.startsWith("--type=")) {
@@ -105,15 +168,19 @@ function parseTraceFilters(positional: readonly string[]): Result<TraceFilters, 
       limit = n;
       continue;
     }
+    if (arg === "--follow") {
+      follow = true;
+      continue;
+    }
     return err(
       buildAgoraError("user.forbidden-flag-combo", {
         context: {
-          detail: `Unknown trace argument: ${arg}. Supported: --type, --since, --command, --limit.`,
+          detail: `Unknown trace argument: ${arg}. Supported: --type, --since, --command, --limit, --follow.`,
         },
       }),
     );
   }
-  return ok({ types, sinceMs, commandSubstring, limit });
+  return ok({ types, sinceMs, commandSubstring, limit, follow });
 }
 
 function parseDuration(raw: string): number | null {
@@ -257,6 +324,7 @@ function describeFilters(filters: TraceFilters): string {
   if (filters.sinceMs !== null) parts.push(`since=${String(filters.sinceMs / 1_000)}s`);
   if (filters.commandSubstring !== null) parts.push(`command~${filters.commandSubstring}`);
   parts.push(`limit=${String(filters.limit)}`);
+  if (filters.follow) parts.push("follow");
   return parts.join(" · ");
 }
 

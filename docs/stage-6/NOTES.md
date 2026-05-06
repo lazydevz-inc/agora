@@ -4617,6 +4617,97 @@ Next task: Stage 6-A.32 — likely candidates:
   (e) Per-cause --from-json (4 sub-slices).
   (f) handoff --from-seed for full alignment bypass.
 
+---
+
+### Stage 6-A.32 — DONE (2026-05-06)
+
+`agora trace --follow` tail mode per Stage 6-A.32 (a). Live audit
+log watching:
+  agora trace --follow                  All events
+  agora trace --type=gate_5.result --follow   Just Gate 5 spikes
+  agora trace --command=ralph --follow  Just Ralph events
+
+Pattern:
+1. Print initial backlog (filtered + limited, same as non-follow).
+2. Print "(--follow active; press Ctrl-C to exit)" banner.
+3. Poll events.jsonl every 250ms; print new matching entries.
+4. SIGINT → print "trace --follow stopped." + exit 0.
+
+Refusal: --follow + --json → user.forbidden-flag-combo exit 2 (live
+stream cannot fit in a one-shot envelope).
+
+Files:
+- src/cli/commands/trace.ts: TraceFilters +1 boolean (follow). 250ms
+  poll constant. followLoop helper installs SIGINT handler + tracks
+  lastSeenIndex to avoid re-printing initial backlog.
+
+Tests (extends existing): tests/integration/cli-trace.test.ts +2:
+- --follow + --json → user.forbidden-flag-combo with hint.
+- --follow TUI: initial print + "follow" header marker + active
+  banner. Uses execSync timeout=500ms to capture SIGTERM-truncated
+  output before the poll loop blocks indefinitely.
+
+DoD verification: typecheck ✓ lint ✓ test ✓ (43 files / 356 tests,
+                  was 43/354) lint:locale ✓ lint:prompts ✓ build ✓.
+
+Surprises encountered + decisions made:
+
+1. **Testing infinite-loop tail commands** — execSync blocks on
+   stdout pipe until process exits. Without timeout the test would
+   hang. Used execSync `timeout: 500` option which sends SIGTERM
+   after 500ms; capture stdout via the throw's stdout buffer. Lesson:
+   test commands that intentionally don't return need explicit
+   timeout + try/catch to extract pre-kill output.
+
+2. **Process-level SIGINT handler not signal-leaking across tests** —
+   followLoop installs `process.on("SIGINT", ...)`. Because each
+   test runs in a separate tsx subprocess, no test pollution. If
+   followLoop ever moved into a long-lived process, the handler
+   would need explicit `process.removeListener` cleanup.
+
+3. **lastSeenIndex by ARRAY index, not file byte offset** — naive
+   tail -f reads file byte-by-byte from a saved offset. Simpler:
+   re-read the whole file (small in practice — each event is ~200
+   bytes), parse all lines, slice from lastSeenIndex. Trades I/O
+   for code simplicity. For events.jsonl files growing past ~10MB,
+   would need byte-offset tracking; deferred until that's a real
+   concern.
+
+4. **No locale strings for the live banners** — "(--follow active;
+   press Ctrl-C to exit)" + "trace --follow stopped." are pc.dim'd
+   English-only. Could add cli.trace.follow_active /
+   cli.trace.follow_stopped keys but they're so transient + niche
+   that locale parity feels overkill for v1.
+
+Lessons / observations:
+- **Real workflow: terminal A runs `agora ralph`, terminal B runs
+  `agora trace --type=gate_5.result --follow`** — operator sees drift
+  per iteration in real time. Replaces the need for a separate
+  TUI dashboard.
+- **250ms poll is the right tradeoff**: lower (100ms) wastes CPU;
+  higher (1s+) feels laggy when watching ralph iterations. Fast
+  enough that it feels live, slow enough not to spike load.
+
+Outstanding (intentional defer):
+  Locale strings for follow banners (en/ko parity).
+  Byte-offset tracking for huge events.jsonl files.
+  Inotify/fs.watch alternative to polling (Linux/macOS specific;
+    polling is portable + simple).
+  --follow header refresh (clear screen + re-render initial backlog
+    when filters change — not v1).
+
+Stage 6 status: 32 slices done. **Live audit log watching shipped.**
+16 working commands. 43 test files / 356 tests.
+
+Next task: Stage 6-A.33 — likely candidates:
+  (a) intake.ts --from-file (with $EDITOR escape design).
+  (b) 10-prompt batch refactor.
+  (c) Gate 2 Playwright functional QA.
+  (d) Per-cause --from-json (4 sub-slices).
+  (e) handoff --from-seed for full alignment bypass.
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)

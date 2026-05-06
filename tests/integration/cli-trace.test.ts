@@ -245,6 +245,49 @@ describe("agora trace — bad input", () => {
   });
 });
 
+describe("agora trace --follow (Stage 6-A.32)", () => {
+  test("--follow + --json → user.forbidden-flag-combo exit 2", async () => {
+    await mkdir(join(cwd, ".agora"), { recursive: true });
+    const { output, status } = run("trace --follow --json");
+    expect(status).toBe(2);
+    const parsed = JSON.parse(output) as { errors: { code: string; message: string }[] };
+    expect(parsed.errors[0]?.code).toBe("user.forbidden-flag-combo");
+    expect(parsed.errors[0]?.message).toContain("--follow is incompatible with --json");
+  });
+
+  test("describeFilters surfaces follow marker in TUI header", async () => {
+    // Use a 250ms timeout to spawn-and-kill before the poll loop blocks
+    // forever. The initial-backlog print happens synchronously; we just
+    // need to capture it before SIGTERM.
+    await mkdir(join(cwd, ".agora"), { recursive: true });
+    await writeFile(
+      join(cwd, ".agora", "events.jsonl"),
+      `${JSON.stringify({
+        id: "11111111-1111-4111-8111-111111111111",
+        ts: new Date().toISOString(),
+        type: "command.invoked",
+        command: "agora new",
+        data: {},
+      })}\n`,
+      "utf8",
+    );
+    let output = "";
+    try {
+      output = execSync(`tsx ${CLI_ABS} trace --follow`, {
+        stdio: "pipe",
+        cwd,
+        timeout: 500, // SIGTERM after 500ms; initial print + poll-loop entry already happened
+      }).toString();
+    } catch (e) {
+      // execSync throws on SIGTERM; capture stdout up to that point
+      output = ((e as { stdout?: Buffer }).stdout ?? Buffer.from("")).toString();
+    }
+    expect(output).toContain("Showing 1 event(s)");
+    expect(output).toContain("follow");
+    expect(output).toContain("--follow active");
+  });
+});
+
 describe("agora trace — corrupt lines", () => {
   test("malformed JSON line → counted in parse_failures, valid lines surface", async () => {
     await mkdir(join(cwd, ".agora"), { recursive: true });
