@@ -8,6 +8,7 @@
 // alignment.phase = 1. Refuses if .agora/ is missing OR alignment is
 // already past Phase 1 (no over-intake).
 
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { intro, log, outro, text } from "@clack/prompts";
@@ -33,9 +34,17 @@ import type { CommandEnvelope } from "../render.js";
 
 export async function runIntakeCommand(
   flags: GlobalFlags,
-  _positional: readonly string[],
+  positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
+
+  // Stage 6-A.33: --from-file=<path> reads the file as raw_text,
+  // bypassing both clack askInline + $EDITOR. Same caps + UTF-8
+  // truncation apply via runPhase1Intake.
+  const argsResult = parseIntakeArgs(positional);
+  if (!argsResult.ok) return argsResult;
+  const { fromFile } = argsResult.value;
+
   if (!(await hasAgoraDir(cwd))) {
     return err(
       buildAgoraError("user.aborted", {
@@ -77,13 +86,26 @@ export async function runIntakeCommand(
     );
   }
 
+  // Stage 6-A.33: refuse JSON mode when no --from-file (clack TUI
+  // bytes garble JSON output).
+  if (flags.json && fromFile === null) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail:
+            "agora intake is interactive in TTY mode. For --json, pass --from-file=<path> to read intake text from disk.",
+        },
+      }),
+    );
+  }
+
   // Compose locale-aware brownfield/greenfield prompt.
   const promptText = composeIntakePrompt(scan);
   const repromptText = localized("cli.intake.empty_reprompt");
 
-  intro(pc.bold(localized("cli.intake.intro")));
+  if (!flags.json) intro(pc.bold(localized("cli.intake.intro")));
 
-  const ui = buildClackUi(cwd);
+  const ui = fromFile !== null ? buildFileUi(fromFile, cwd, flags.json) : buildClackUi(cwd);
   const intakeResult = await runPhase1Intake(
     {
       promptText,
@@ -119,9 +141,77 @@ export async function runIntakeCommand(
   );
   if (!advanced.ok) return advanced;
 
-  outro(pc.green("✓ Phase 1 intake captured. .agora/intake.json written."));
+  if (!flags.json) {
+    outro(pc.green("✓ Phase 1 intake captured. .agora/intake.json written."));
+  }
 
   return ok(buildEnvelope(phase1));
+}
+
+interface IntakeArgs {
+  readonly fromFile: string | null;
+}
+
+function parseIntakeArgs(positional: readonly string[]): Result<IntakeArgs, AgoraErrorThrown> {
+  let fromFile: string | null = null;
+  for (const arg of positional) {
+    if (arg.startsWith("--from-file=")) {
+      fromFile = arg.slice("--from-file=".length);
+      if (fromFile.length === 0) {
+        return err(
+          buildAgoraError("user.forbidden-flag-combo", {
+            context: { detail: "--from-file requires a non-empty path." },
+          }),
+        );
+      }
+      continue;
+    }
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: {
+          detail: `Unknown intake argument: ${arg}. Supported: --from-file=<path>.`,
+        },
+      }),
+    );
+  }
+  return ok({ fromFile });
+}
+
+function buildFileUi(path: string, cwd: string, json: boolean): IntakeUi {
+  const resolved = path.startsWith("/") ? path : join(cwd, path);
+  return {
+    askInline: async () => {
+      try {
+        return await readFile(resolved, "utf8");
+      } catch (e) {
+        if (!json) {
+          log.warn(`Could not read ${resolved}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+        return ""; // triggers re-prompt path; openEditor below also returns ""
+      }
+    },
+    openEditor: async () => "", // never reached if askInline returned content
+    askReprompt: async () => "", // never reached either
+    displaySoftCap: (byteSize) => {
+      if (!json) log.warn(localized("cli.intake.soft_cap_warning", { bytes: String(byteSize) }));
+    },
+    displayHardCap: (originalByteSize) => {
+      if (!json) {
+        log.warn(localized("cli.intake.hard_cap_truncated", { bytes: String(originalByteSize) }));
+      }
+    },
+    displayEcho: ({ wordCount, method, estimatedRounds }) => {
+      if (!json) {
+        log.success(
+          localized("cli.intake.echo", {
+            word_count: String(wordCount),
+            method,
+            estimated_rounds: estimatedRounds,
+          }),
+        );
+      }
+    },
+  };
 }
 
 function composeIntakePrompt(scan: Phase0Output): string {

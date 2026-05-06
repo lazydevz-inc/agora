@@ -4706,6 +4706,99 @@ Next task: Stage 6-A.33 — likely candidates:
   (d) Per-cause --from-json (4 sub-slices).
   (e) handoff --from-seed for full alignment bypass.
 
+---
+
+### Stage 6-A.33 — DONE (2026-05-06)
+
+`agora intake --from-file=<path>` per Stage 6-A.33 (a). Last
+high-impact non-interactive ergonomics gap closed. The file content
+becomes the raw intake text, replacing both clack askInline + $EDITOR
+escape. Same caps + UTF-8 truncation apply via runPhase1Intake.
+
+Pattern (consistent with bracket / ac):
+- --from-file=<path>: file content used as askInline return.
+  openEditor + askReprompt become no-ops (never reached).
+- --json without --from-file: refuse with hint pointing to flag.
+- !flags.json or fromFile: clack intro/outro/log fire normally.
+- !flags.json + fromFile: clack still fires (UX feedback for TTY
+  users); display callbacks log to stdout.
+- json + fromFile: display callbacks no-op (silent).
+
+Files:
+- src/cli/commands/intake.ts: parseIntakeArgs (--from-file=path) +
+  buildFileUi adapter (askInline reads file, displays gated by
+  json) + JSON-mode refusal guard + intro/outro gated on
+  !flags.json. Underscore-prefixed param promoted to named.
+
+Tests (1 new file): tests/integration/cli-intake.test.ts (8 tests):
+- Refusal × 4: --json no flag, --from-file= empty, unknown arg,
+  alignment.phase >= 1 over-intake guard.
+- Happy path × 3: file → intake.json + state advance, intake.captured
+  event emission, missing-file → re-prompt cascade → user.aborted.
+
+DoD: typecheck ✓ lint ✓ test ✓ (44 files / 363 tests, was 43/356)
+     lint:locale ✓ lint:prompts ✓ build ✓.
+
+Surprises encountered + decisions made:
+
+1. **Phase1Result field is `raw_intake` not `raw_text`** — first test
+   asserted `intake.raw_text` and failed. Schema uses raw_intake.
+   Lesson: read the schema before writing assertions on persisted
+   JSON shape.
+
+2. **Missing file produces clean user.aborted, not crash** — when
+   readFile throws (path doesn't exist), askInline returns "" →
+   orchestrator triggers openEditor (also returns "") → triggers
+   askReprompt (also "") → orchestrator returns user.aborted error.
+   Clean cascade. Could have made readFile failure return an error
+   directly, but the cascade pattern is simpler + already tested.
+
+3. **buildFileUi takes json:boolean for display gating** — without
+   it, the display callbacks would fire log.warn / log.success even
+   in --json mode, garbling output. Threading the flag is cleaner
+   than a global "isJson" check inside each callback.
+
+Lessons / observations:
+- **Non-interactive ergonomics for the alignment loop is now
+  feature-complete for the inputs we have:**
+  bracket: --skip-bracket  |  intake: --from-file  |  ac: --from-file
+  telos/form/material/efficient/maturity: refuse-only (with
+    `four_causes.json` direct-write hint)
+  resume ralph_complete: --accept-deferred / --re-align / --view-log
+  ralph Z2: --accept-z2 / --decline-z2
+  → Agent driving Agora end-to-end is unblocked except for the
+    Aristotle 4-cause interview (which is fundamentally interactive
+    by design — see runbook §4 for why each cause needs probing
+    questions).
+
+Outstanding (intentional defer):
+  Per-cause --from-json (4 sub-slices, larger lift).
+  handoff --from-seed for full alignment-loop bypass.
+  10-prompt batch refactor.
+  Gate 2 Playwright functional QA.
+
+Stage 6 status: 33 slices done. **Non-interactive intake shipped.**
+16 working commands. 44 test files / 363 tests.
+
+Path to v1 daily-use: ALMOST THERE.
+- Alignment loop: ✓ end-to-end (interactive) + ✓ partial non-interactive
+- Ralph loop: ✓ end-to-end + ✓ non-interactive Z2 + ralph_complete
+- Audit log: ✓ feature-complete (12 event types) + ✓ trace viewer + --follow
+- Status: ✓ Ralph trend + ✓ colored sparkline
+- The remaining work is mostly polish (10-prompt refactor, --from-json
+  per cause) or scope expansion (Gate 2 Playwright, handoff --from-seed).
+
+Next task: Stage 6-A.34 — likely candidates (depending on Sang's
+priority):
+  (a) handoff --from-seed=<path> for full alignment bypass (last
+      non-interactive ergonomics gap).
+  (b) 10-prompt batch refactor (cleanup; high LOC delta, no new feature).
+  (c) Gate 2 Playwright functional QA (significant infra commit).
+  (d) Per-cause --from-json (4 sub-slices).
+  (e) Pause and assess v1 daily-use criteria explicitly with Sang.
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)
