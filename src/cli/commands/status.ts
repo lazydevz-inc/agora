@@ -14,6 +14,7 @@ import pc from "picocolors";
 
 import type { AgoraErrorThrown } from "../../errors/types.js";
 import { localized } from "../../i18n/index.js";
+import { GATE_5_THRESHOLDS } from "../../ralph/gate-5.js";
 import { type RalphState, RalphStateSchema } from "../../ralph/state.js";
 import { computeRalphTrend, type RalphTrend } from "../../ralph/trend.js";
 import { ok, type Result } from "../../result/index.js";
@@ -123,9 +124,9 @@ function emitTrendTui(trend: RalphTrend): void {
     console.log(
       localized("cli.status.ralph_trend_gate_5", {
         count: String(trend.gate_5.count),
-        sparkline: trend.gate_5.sparkline,
+        sparkline: colorizeSparkline(trend.gate_5.sparkline, trend.gate_5.drifts),
         last_drift: (trend.gate_5.last_drift ?? 0).toFixed(2),
-        last_action: trend.gate_5.last_action ?? "-",
+        last_action: colorizeAction(trend.gate_5.last_action ?? "-"),
         avg_drift: (trend.gate_5.avg_drift ?? 0).toFixed(2),
       }),
     );
@@ -142,6 +143,38 @@ function emitTrendTui(trend: RalphTrend): void {
         last_verdict: trend.disputatio.last_verdict ?? "-",
       }),
     );
+  }
+}
+
+// Per Stage 6-A.28: color each sparkline char by its drift band so
+// the curve is visually scannable at a glance. PASS=green, SOFT_WARN
+// =yellow, Z1=red, Z2=bold-red. JSON envelope is unaffected (raw
+// numeric drifts available in data.ralph_trend.gate_5.drifts).
+function colorizeSparkline(sparkline: string, drifts: readonly number[]): string {
+  if (sparkline.length === 0) return sparkline;
+  const chars = [...sparkline];
+  return chars.map((c, i) => colorByDrift(c, drifts[i] ?? 0)).join("");
+}
+
+function colorByDrift(char: string, drift: number): string {
+  if (drift < GATE_5_THRESHOLDS.soft_warn) return pc.green(char);
+  if (drift < GATE_5_THRESHOLDS.z1) return pc.yellow(char);
+  if (drift < GATE_5_THRESHOLDS.z2) return pc.red(char);
+  return pc.bold(pc.red(char));
+}
+
+function colorizeAction(action: string): string {
+  switch (action) {
+    case "PASS":
+      return pc.green(action);
+    case "SOFT_WARN":
+      return pc.yellow(action);
+    case "Z1":
+      return pc.red(action);
+    case "Z2":
+      return pc.bold(pc.red(action));
+    default:
+      return action;
   }
 }
 

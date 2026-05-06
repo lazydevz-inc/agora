@@ -4251,6 +4251,86 @@ Next task: Stage 6-A.28 — likely candidates:
   (e) Gate 2 Playwright functional QA.
   (f) intake.captured + bracket.captured event types.
 
+---
+
+### Stage 6-A.28 — DONE (2026-05-06)
+
+Colored sparkline for `agora status` trend display per Stage 6-A.28
+(a). Each sparkline char + last_action label colored by Gate 5
+threshold band:
+- drift < 0.15 → PASS → green
+- 0.15 ≤ drift < 0.30 → SOFT_WARN → yellow
+- 0.30 ≤ drift < 0.60 → Z1 → red
+- drift ≥ 0.60 → Z2 → bold red
+
+Sample (3 entries with drifts [0.05, 0.40, 0.10]):
+  Gate 5 (3): {green ▁}{red ▄}{green ▁}  last 0.10 ({green PASS}) · avg 0.18
+
+Files:
+- src/ralph/trend.ts: Gate5TrendSummary +1 field `drifts: readonly
+  number[]` (per-iteration drift series, parallel to sparkline chars).
+- src/cli/commands/status.ts: colorizeSparkline + colorByDrift +
+  colorizeAction helpers using GATE_5_THRESHOLDS for band boundaries.
+  JSON envelope unchanged (raw drifts available in
+  data.ralph_trend.gate_5.drifts).
+
+Tests (extends 1 existing): tests/unit/ralph/trend.test.ts +1
+asserting drifts array exposed + parallel to sparkline; empty-history
+test extended to assert empty drifts array.
+
+DoD: typecheck ✓ lint ✓ test ✓ (40 files / 337 tests, was 40/336)
+     lint:locale ✓ lint:prompts ✓ build ✓
+     Manual smoke: hexdump confirms `\x1b[32m▁\x1b[39m\x1b[31m▄...`
+     ANSI escape sequences in TUI output. JSON envelope unchanged
+     (raw drifts in data.ralph_trend.gate_5.drifts).
+
+Surprises encountered + decisions made:
+
+1. **Per-char colorization needed parallel array** — sparkline string
+   is just chars; without the underlying drift values, the renderer
+   can't decide which color to apply. Added `drifts: readonly
+   number[]` alongside `sparkline: string`. Could have inverted
+   (renderer recomputes from drifts) but exposing both avoids
+   re-walking the array.
+
+2. **Last-action label also colored** — single PASS/SOFT_WARN/Z1/Z2
+   string label deserves the same color treatment as the sparkline
+   chars. Added colorizeAction. Future: extend to disputatio verdict
+   labels (approved=green, conditional=yellow, rejected=red).
+
+3. **GATE_5_THRESHOLDS imported from ralph/gate-5.ts** — single
+   source of truth. Hardcoding 0.15/0.30/0.60 in status.ts would drift
+   if Gate 5 thresholds ever change.
+
+Lessons / observations:
+- **Color carries 80% of the trend signal at a glance**: the
+  sparkline alone shows "drift went up then down". With color, you
+  immediately see the spike was Z1-territory (red) and the recovery
+  is back to PASS (green). Single visual primitive, multiple data
+  channels.
+- **JSON consumers unaffected**: colors are pure TUI formatting.
+  The drifts array in JSON envelope is the raw data; downstream
+  agent code can apply its own color scheme or thresholds.
+
+Outstanding (intentional defer):
+  Disputatio verdict labels colored (approved=green / conditional=
+    yellow / rejected=red).
+  Action color in ralph_complete dialog's view_log table (would
+    require renderStatsTable in src/ralph/end-state.ts to gain a
+    color helper — currently pure aggregation, no I/O).
+
+Stage 6 status: 28 slices done. **Status trend visually scannable.**
+16 working commands. 40 test files / 337 tests.
+
+Next task: Stage 6-A.29 — likely candidates:
+  (a) `agora trace --follow` tail mode (interactive).
+  (b) Non-interactive flags for intake / ac / bracket.
+  (c) 10-prompt batch refactor.
+  (d) Gate 2 Playwright functional QA.
+  (e) intake.captured + bracket.captured event types.
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)

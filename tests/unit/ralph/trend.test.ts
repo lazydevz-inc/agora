@@ -83,6 +83,12 @@ describe("computeRalphTrend — populated history", () => {
     expect(trend.gate_5.sparkline).toHaveLength(3);
   });
 
+  test("Gate 5 summary exposes drifts array (Stage 6-A.28)", () => {
+    const trend = computeRalphTrend(makeState());
+    expect(trend.gate_5.drifts).toEqual([0.05, 0.2, 0.55]);
+    expect(trend.gate_5.drifts).toHaveLength(trend.gate_5.sparkline.length);
+  });
+
   test("Disputatio summary: count + by_verdict + last_verdict", () => {
     const trend = computeRalphTrend(makeState());
     expect(trend.disputatio.count).toBe(3);
@@ -101,6 +107,7 @@ describe("computeRalphTrend — empty history", () => {
     expect(trend.gate_5.last_drift).toBeNull();
     expect(trend.gate_5.last_action).toBeNull();
     expect(trend.gate_5.sparkline).toBe("");
+    expect(trend.gate_5.drifts).toEqual([]);
     expect(trend.disputatio.count).toBe(0);
     expect(trend.disputatio.last_verdict).toBeNull();
     expect(trend.disputatio.by_verdict.approved).toBe(0);

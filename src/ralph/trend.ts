@@ -16,6 +16,10 @@ export interface Gate5TrendSummary {
   readonly last_drift: number | null;
   readonly last_action: Gate5Result["action"] | null;
   readonly sparkline: string;
+  // Per-iteration drift_score series, ordered oldest → newest. Same
+  // length as sparkline. Renderer can use this to colorize each char
+  // by Gate 5 threshold band (Stage 6-A.28).
+  readonly drifts: readonly number[];
 }
 
 export interface DisputatioTrendSummary {
@@ -54,6 +58,7 @@ function summarizeGate5(history: readonly Gate5Result[]): Gate5TrendSummary {
       last_drift: null,
       last_action: null,
       sparkline: "",
+      drifts: [],
     };
   }
   const drifts = history.map((g) => g.drift_score);
@@ -65,6 +70,7 @@ function summarizeGate5(history: readonly Gate5Result[]): Gate5TrendSummary {
     last_drift: last?.drift_score ?? null,
     last_action: last?.action ?? null,
     sparkline: renderSparkline(drifts),
+    drifts,
   };
 }
 
