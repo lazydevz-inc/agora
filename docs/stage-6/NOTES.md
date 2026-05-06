@@ -4530,6 +4530,95 @@ Next task: Stage 6-A.31 — likely candidates:
       (4 flags × 1 schema each → ~4 small slices).
   (e) intake.ts --from-file with $EDITOR design.
 
+---
+
+### Stage 6-A.31 — DONE (2026-05-06)
+
+Aristotle 4-cause + maturity commands now refuse `--json` mode with a
+clear hint per Stage 6-A.31 (d, scope-reduced). Closes a latent
+garbled-JSON-output bug: previously `agora telos --json` (and form/
+material/efficient/maturity) would invoke clack intro/log/outro
+which writes box-drawing chars + ANSI escapes — JSON consumers got
+unparseable garbage.
+
+Now: clear `user.aborted` exit 2 with hint:
+  "agora <cmd> is interactive (Aristotle interview). --json driver
+  pending; provide pre-built four_causes.json directly to skip."
+
+Future slice: per-cause `--from-json=<path>` to provide pre-built
+TelosClaim/FormClaim/etc. JSON directly, bypassing both prompts and
+LLM extraction. Per-cause state-merge logic (round number 1/2/3/4 +
+existing causes preservation) deserves its own slice.
+
+Files:
+- src/cli/commands/{telos,form,material,efficient,maturity}.ts:
+  +1 JSON-mode refusal block before clack intro per file (~10 LOC ×
+  5 files = 50 LOC).
+
+Tests: tests/integration/cli-aristotle-json-refusal.test.ts (NEW,
+5 tests) seeds prerequisite state for each command at the latest
+reachable point + asserts user.aborted exit 2 + hint mentions
+four_causes.json.
+
+DoD verification: typecheck ✓ lint ✓ test ✓ (43 files / 354 tests,
+                  was 42/349) lint:locale ✓ lint:prompts ✓ build ✓.
+
+Surprises encountered + decisions made:
+
+1. **Maturity test seed required alignmentRound: 4** — the maturity
+   command's reachability check is `alignment.round >= 4` (all 4
+   causes done). Initial fixture used the seed helper's default
+   round=0, so maturity refused with "round 0 < 4" before reaching
+   the JSON gate. Lesson: when testing refusal gates, the test
+   fixture must satisfy ALL prerequisite checks the command runs
+   BEFORE the gate under test.
+
+2. **Scope reduced from --from-json per-cause to refuse-only** —
+   originally planned --from-json=<path> for each cause. State-merge
+   logic per cause + existing four_causes.json preservation +
+   round-number bookkeeping is non-trivial (4 commands × ~80 LOC
+   each = ~320 LOC). Refuse-only is ~50 LOC and fixes the immediate
+   bug. The full design lands as a follow-up slice when there's a
+   concrete agent driver requesting it.
+
+3. **lint warnings dropped 26 → 22** — biome auto-fix during the
+   verify run resolved 4 prior warnings (probably useLiteralKeys
+   from earlier slices). Net reduction without explicit cleanup.
+
+Lessons / observations:
+- **JSON-mode refusal pattern is now consistent across the CLI**:
+  bracket / ac (slice 6-A.29) + telos / form / material / efficient /
+  maturity (this slice) all return user.aborted exit 2 with hint
+  pointing at the non-interactive escape hatch. Resume + ralph have
+  preselect flags. Status / trace / version / doctor / ping / new /
+  intake / round / handoff / round are JSON-safe by design.
+- **The "interactive command + --json = silent corruption" bug is
+  a recurring failure mode**: every interactive command added going
+  forward needs an explicit JSON-mode policy decision (refuse vs
+  preselect vs from-file). Worth a SESSION_HANDOFF callout.
+
+Outstanding (intentional defer):
+  --from-json=<path> per cause (telos/form/material/efficient).
+  intake.ts --from-file (with $EDITOR escape design).
+  handoff.ts --from-seed=<path> for full alignment-loop bypass.
+  10-prompt batch refactor.
+  Gate 2 Playwright functional QA.
+  agora trace --follow tail mode.
+
+Stage 6 status: 31 slices done. **All interactive commands have
+explicit JSON-mode policy.** 16 working commands. 43 test files /
+354 tests.
+
+Next task: Stage 6-A.32 — likely candidates:
+  (a) `agora trace --follow` tail mode.
+  (b) 10-prompt batch refactor (cleanup; no new feature).
+  (c) intake.ts --from-file (largest single non-interactive gap).
+  (d) Gate 2 Playwright functional QA (browser projects).
+  (e) Per-cause --from-json (4 sub-slices).
+  (f) handoff --from-seed for full alignment bypass.
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)

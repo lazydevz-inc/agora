@@ -103,6 +103,21 @@ export async function runMaturityCommand(
     );
   }
 
+  // Stage 6-A.31: refuse --json mode (clack TUI bytes garble JSON).
+  // Maturity is auto-tagging by Plato — not interactive itself, but
+  // shares the clack intro/outro framing. Future slice: drop intro
+  // outro to make this command JSON-safe by default.
+  if (flags.json) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail:
+            "agora maturity uses clack framing for visual feedback. --json driver pending; check four_causes.json directly for maturity tags after running this in TTY.",
+        },
+      }),
+    );
+  }
+
   intro(pc.bold(localized("cli.maturity.intro")));
   log.message(localized("cli.maturity.context_summary"));
 

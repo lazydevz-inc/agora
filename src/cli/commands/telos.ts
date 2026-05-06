@@ -121,6 +121,20 @@ export async function runTelosCommand(
     );
   }
 
+  // Stage 6-A.31: refuse --json mode (clack TUI bytes garble JSON
+  // output). Future slice: --from-json=<path> to provide pre-built
+  // TelosClaim JSON for agent-driven contexts.
+  if (flags.json) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail:
+            "agora telos is interactive (Aristotle interview). --json driver pending; provide pre-built four_causes.json directly to skip this command.",
+        },
+      }),
+    );
+  }
+
   intro(pc.bold(localized("cli.telos.intro")));
   log.message(
     localized("cli.telos.context_summary", { word_count: String(intake.intake_word_count) }),

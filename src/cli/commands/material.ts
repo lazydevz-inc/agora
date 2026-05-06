@@ -106,6 +106,18 @@ export async function runMaterialCommand(
     );
   }
 
+  // Stage 6-A.31: refuse --json mode (clack TUI bytes garble JSON).
+  if (flags.json) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail:
+            "agora material is interactive (Aristotle interview). --json driver pending; provide pre-built four_causes.json directly to skip.",
+        },
+      }),
+    );
+  }
+
   intro(pc.bold(localized("cli.material.intro")));
   log.message(
     localized("cli.material.context_summary", {

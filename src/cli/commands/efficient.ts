@@ -106,6 +106,18 @@ export async function runEfficientCommand(
     );
   }
 
+  // Stage 6-A.31: refuse --json mode (clack TUI bytes garble JSON).
+  if (flags.json) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail:
+            "agora efficient is interactive (Aristotle interview). --json driver pending; provide pre-built four_causes.json directly to skip.",
+        },
+      }),
+    );
+  }
+
   intro(pc.bold(localized("cli.efficient.intro")));
 
   let runtime: Awaited<ReturnType<typeof selectRuntime>>;
