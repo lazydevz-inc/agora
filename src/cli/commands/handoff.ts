@@ -22,6 +22,7 @@
 //   - seed.json already present → user.confirmation-required
 //     (over-handoff guard; user removes file or proceeds to Ralph)
 
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { confirm, intro, log, outro } from "@clack/prompts";
@@ -33,11 +34,12 @@ import { buildAgoraError } from "../../errors/build.js";
 import type { AgoraErrorThrown } from "../../errors/types.js";
 import type { ACNode, DihairesisResult } from "../../handoff/dihairesis.js";
 import { renderTreeForReview, runDihairesis } from "../../handoff/dihairesis.js";
-import { buildSeed, type Seed } from "../../handoff/seed-builder.js";
+import { buildSeed, type Seed, SeedSchema } from "../../handoff/seed-builder.js";
 import { localized } from "../../i18n/index.js";
 import { selectRuntime } from "../../llm/selection.js";
 import type { FourCauses } from "../../philosophers/aristotle.js";
 import type { DefendedFrame } from "../../philosophers/husserl.js";
+import { countAtomicLeaves } from "../../ralph/leaf-selector.js";
 import { err, ok, type Result } from "../../result/index.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
@@ -49,9 +51,19 @@ import type { CommandEnvelope } from "../render.js";
 
 export async function runHandoffCommand(
   flags: GlobalFlags,
-  _positional: readonly string[],
+  positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
+
+  // Stage 6-A.34: --from-seed=<path> bypasses the entire alignment
+  // loop. An agent (or a power user) that already has a complete,
+  // schema-valid seed.json provides it directly; handoff validates +
+  // installs it + promotes state → ready_for_ralph. Skips the
+  // alignment_complete requirement, artifact loading, Dihairesis LLM
+  // call, and user confirm.
+  const argsResult = parseHandoffArgs(positional);
+  if (!argsResult.ok) return argsResult;
+  const { fromSeed } = argsResult.value;
 
   if (!(await hasAgoraDir(cwd))) {
     return err(
@@ -74,17 +86,8 @@ export async function runHandoffCommand(
     );
   }
   const state = stateResult.value;
-  if (state.current_phase !== "alignment_complete") {
-    return err(
-      buildAgoraError("user.aborted", {
-        context: {
-          detail: `Handoff requires alignment_complete state (current=${state.current_phase}). Run \`agora maturity\` until all 4 causes pass.`,
-        },
-      }),
-    );
-  }
 
-  // seed.json already exists → over-handoff guard.
+  // seed.json already exists → over-handoff guard (applies to both paths).
   const seedPath = join(cwd, ".agora", "seed.json");
   const existingSeed = await readJsonOrNull<Seed>(seedPath);
   if (existingSeed !== null) {
@@ -92,6 +95,20 @@ export async function runHandoffCommand(
       buildAgoraError("user.confirmation-required", {
         context: {
           detail: `Seed already locked (.agora/seed.json present). Remove the file to re-handoff, or run \`agora resume\` for Ralph.`,
+        },
+      }),
+    );
+  }
+
+  if (fromSeed !== null) {
+    return await handoffFromSeed(cwd, state, fromSeed, seedPath, flags.json);
+  }
+
+  if (state.current_phase !== "alignment_complete") {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail: `Handoff requires alignment_complete state (current=${state.current_phase}). Run \`agora maturity\` until all 4 causes pass. (Or provide --from-seed=<path> to bypass alignment.)`,
         },
       }),
     );
@@ -245,6 +262,123 @@ export async function runHandoffCommand(
   );
 
   return ok(buildEnvelope(seed, dh));
+}
+
+interface HandoffArgs {
+  readonly fromSeed: string | null;
+}
+
+function parseHandoffArgs(positional: readonly string[]): Result<HandoffArgs, AgoraErrorThrown> {
+  let fromSeed: string | null = null;
+  for (const arg of positional) {
+    if (arg.startsWith("--from-seed=")) {
+      fromSeed = arg.slice("--from-seed=".length);
+      if (fromSeed.length === 0) {
+        return err(
+          buildAgoraError("user.forbidden-flag-combo", {
+            context: { detail: "--from-seed requires a non-empty path." },
+          }),
+        );
+      }
+      continue;
+    }
+    return err(
+      buildAgoraError("user.forbidden-flag-combo", {
+        context: {
+          detail: `Unknown handoff argument: ${arg}. Supported: --from-seed=<path>.`,
+        },
+      }),
+    );
+  }
+  return ok({ fromSeed });
+}
+
+async function handoffFromSeed(
+  cwd: string,
+  state: import("../../state/types.js").State,
+  fromSeedPath: string,
+  seedPath: string,
+  json: boolean,
+): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
+  const resolved = fromSeedPath.startsWith("/") ? fromSeedPath : join(cwd, fromSeedPath);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(resolved, "utf8"));
+  } catch (e) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail: `Could not read/parse --from-seed file ${resolved}: ${e instanceof Error ? e.message : String(e)}`,
+        },
+      }),
+    );
+  }
+  const parsed = SeedSchema.safeParse(raw);
+  if (!parsed.success) {
+    return err(
+      buildAgoraError("user.aborted", {
+        context: {
+          detail: `--from-seed file is not a valid seed.json: ${parsed.error.issues[0]?.message ?? "validation failed"}`,
+        },
+      }),
+    );
+  }
+  const seed = parsed.data;
+  // Re-stamp locked_at to NOW (the provided file's timestamp may be
+  // stale or copied; the lock happens at this command's execution).
+  const lockedSeed: Seed = { ...seed, locked_at: new Date().toISOString() };
+  await writeJsonAtomic(seedPath, lockedSeed);
+
+  const atomicLeaves = countAtomicLeaves(lockedSeed.ac_tree as ACNode[]);
+  await appendEvent(cwd, {
+    type: "handoff.completed",
+    command: "agora handoff --from-seed",
+    data: {
+      ac_tree_root_count: lockedSeed.ac_tree.length,
+      total_atomic_leaves: atomicLeaves,
+      from_seed: true,
+    },
+  });
+
+  const advanced = await saveState(
+    cwd,
+    { ...state, current_phase: "ready_for_ralph", alignment: { phase: 2, round: 7 } },
+    "agora handoff --from-seed",
+  );
+  if (!advanced.ok) return advanced;
+
+  if (!json) {
+    outro(
+      pc.green(
+        `✓ Seed installed from ${resolved}. ${String(atomicLeaves)} atomic leaves across ${String(lockedSeed.ac_tree.length)} ACs. Ready for Ralph.`,
+      ),
+    );
+  }
+
+  return ok({
+    command: "agora handoff",
+    version: getAgoraVersion(),
+    timestamp: new Date().toISOString(),
+    result: {
+      ok: true,
+      data: {
+        seed_locked_at: lockedSeed.locked_at,
+        ac_tree_atomic_leaves: atomicLeaves,
+        ac_tree_root_count: lockedSeed.ac_tree.length,
+        from_seed: true,
+      },
+    },
+    next: [
+      {
+        id: "ralph_pending",
+        description: "Seed installed from file; run agora ralph to start implementation",
+        command: "agora resume",
+      },
+    ],
+    warnings: [],
+    errors: [],
+    exit_code: 0,
+  });
 }
 
 async function askLockConfirm(_tree: readonly ACNode[]): Promise<boolean> {

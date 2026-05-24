@@ -4797,6 +4797,100 @@ priority):
   (d) Per-cause --from-json (4 sub-slices).
   (e) Pause and assess v1 daily-use criteria explicitly with Sang.
 
+---
+
+### Stage 6-A.34 — DONE (2026-05-24)
+
+`agora handoff --from-seed=<path>` per Stage 6-A.34 (a). Full
+alignment-loop bypass: an agent (or power user) that already has a
+complete, schema-valid seed.json provides it directly. handoff
+validates against SeedSchema, installs to .agora/seed.json, promotes
+state → ready_for_ralph, emits handoff.completed. Skips:
+alignment_complete requirement, artifact loading, Plato Dihairesis
+LLM call, mandatory user confirm.
+
+This is the LAST non-interactive ergonomics gap — an agent can now
+drive the entire pipeline: write seed.json → `agora handoff
+--from-seed` → `agora ralph --accept-z2` loop, never touching a TTY
+prompt.
+
+Key behaviors:
+- Over-handoff guard still applies (existing seed.json → refuse).
+- locked_at re-stamped to execution time (provided file's timestamp
+  may be stale/copied; the LOCK happens now).
+- Works from ANY current_phase (the whole point is bypassing
+  alignment) — does NOT require alignment_complete.
+- JSON + TUI both supported (no clack needed for from-seed path).
+
+Files:
+- src/cli/commands/handoff.ts: parseHandoffArgs (--from-seed=path) +
+  handoffFromSeed helper. Over-handoff guard moved ABOVE the from-seed
+  branch + alignment_complete check (so it applies to both paths).
+  alignment_complete error message now mentions --from-seed escape.
+  countAtomicLeaves imported from ralph/leaf-selector (LAYER 2 → cli
+  cross-import OK).
+
+Tests (1 new file): tests/integration/cli-handoff.test.ts (9 tests):
+- Refusal × 6 (no .agora, empty path, unknown arg, nonexistent file,
+  invalid seed JSON, over-handoff guard).
+- Happy path × 3 (installs seed + advances state from in_alignment
+  bypassing alignment_complete, emits handoff.completed with
+  from_seed=true, re-stamps locked_at).
+
+DoD: typecheck ✓ lint ✓ test ✓ (45 files / 372 tests, was 44/363)
+     lint:locale ✓ lint:prompts ✓ build ✓.
+
+Surprises encountered + decisions made:
+
+1. **Seed fixture schema drift caught the test** — first fixture used
+   `acceptance_criteria: { version, captured_at }` but the schema
+   wants `{ criteria, raw_input, created_at }` (no version, no
+   captured_at). The "invalid seed JSON → user.aborted" refusal test
+   ALSO validated this works as a guard — schema validation rejects
+   malformed seeds cleanly. Lesson: when building seed fixtures,
+   cross-check each sub-schema's exact field names (Phase1Result,
+   FourCauses, AcceptanceCriteriaResult, ACNode all differ).
+
+2. **Over-handoff guard moved above the alignment_complete check** —
+   originally the alignment_complete refusal came first, which would
+   block --from-seed (whose entire purpose is to run from non-complete
+   states). Reordered: .agora check → state load → over-handoff guard
+   → from-seed branch → alignment_complete check (interactive path
+   only).
+
+3. **locked_at re-stamp, not passthrough** — the provided seed's
+   locked_at could be from a template or a prior session. The
+   semantic "lock" event is THIS command's execution, so re-stamp to
+   now. Test asserts the on-disk locked_at differs from the fixture's
+   hardcoded value.
+
+Lessons / observations:
+- **Agent-driven Agora is now COMPLETE end-to-end**: an autonomous
+  agent can run `agora new --json` → write seed.json → `agora handoff
+  --from-seed=seed.json --json` → `agora ralph --json` (looping with
+  --accept-z2 on drift spikes) → `agora resume --accept-deferred
+  --json` at ralph_complete. Zero TTY prompts. The Aristotle interview
+  (interactive-only) is bypassed entirely by providing a pre-built
+  seed.
+
+Outstanding (intentional defer):
+  Per-cause --from-json (telos/form/material/efficient) — now lower
+    priority since --from-seed bypasses the whole loop anyway.
+  10-prompt batch refactor.
+  Gate 2 Playwright functional QA.
+
+Stage 6 status: 34 slices done. **Full agent-driven pipeline shipped
+(seed → handoff → ralph, zero TTY).** 16 working commands. 45 test
+files / 372 tests.
+
+Next task: Stage 6-A.35 — likely candidates:
+  (a) 10-prompt batch refactor (cleanup).
+  (b) Gate 2 Playwright functional QA.
+  (c) Pause + assess v1 daily-use explicitly.
+  (d) Per-cause --from-json (now lower priority).
+
+### Stage 6-A.17 — DONE (2026-05-05)
+
 ### Stage 6-A.17 — DONE (2026-05-05)
 
 ### Stage 6-A.17 — DONE (2026-05-05)
