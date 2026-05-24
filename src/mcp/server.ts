@@ -19,7 +19,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-import { mcpAlignStep, mcpDoctor, mcpResume, mcpStatus, mcpTrace } from "./tools.js";
+import { mcpAlignStep, mcpDoctor, mcpRalphStep, mcpResume, mcpStatus, mcpTrace } from "./tools.js";
 
 export function buildAgoraMcpServer(): McpServer {
   const server = new McpServer({ name: "agora", version: getAgoraVersion() });
@@ -97,6 +97,34 @@ export function buildAgoraMcpServer(): McpServer {
       },
     },
     async (args) => mcpAlignStep(args),
+  );
+
+  // ─── Stepped tool: Ralph loop (ADR-0010 Slice D) ───
+  //
+  // Same StepEnvelope contract as agora_align_step. Slice D wires:
+  //   - init (first call when state=ready_for_ralph)
+  //   - per-call Gate 1 (typecheck/lint/test/build) + Gate 2 (Playwright)
+  //   - Gate 5 (LLM drift_score) issued as needs_reasoning
+  //   - Z1/Z2 escalation, Z2 surfaced as needs_user_input confirm
+  // Disputatio (Gate 3+4) lands in Slice E.
+  server.registerTool(
+    "agora_ralph_step",
+    {
+      description:
+        "Advance the Agora Ralph loop one step. Host supplies reasoning + Z2 confirm via subsequent calls; Agora runs deterministic Gates 1/2 in-process and asks the host for Gate 5 reasoning. Returns a StepEnvelope (kind: done | advanced | needs_user_input | needs_reasoning | error). Slice D scope: Gate 1 + Gate 2 + Gate 5; Disputatio lands in Slice E.",
+      inputSchema: {
+        user_answers: z.record(z.string(), z.string()).optional(),
+        llm_responses: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              content: z.union([z.string(), z.record(z.string(), z.unknown())]),
+            }),
+          )
+          .optional(),
+      },
+    },
+    async (args) => mcpRalphStep(args),
   );
 
   return server;

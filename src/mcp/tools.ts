@@ -22,6 +22,7 @@ import type { AgoraErrorThrown } from "../errors/types.js";
 import { type Locale, SUPPORTED_LOCALES } from "../i18n/index.js";
 import type { Result } from "../result/index.js";
 import { runAlignStep } from "./align-step.js";
+import { runRalphStep } from "./ralph-step.js";
 import type { StepEnvelope } from "./step.js";
 
 export interface McpToolResult {
@@ -134,4 +135,8 @@ export function stepEnvelopeToMcp(result: Result<StepEnvelope, AgoraErrorThrown>
 
 export async function mcpAlignStep(rawArgs: unknown): Promise<McpToolResult> {
   return stepEnvelopeToMcp(await runAlignStep(rawArgs));
+}
+
+export async function mcpRalphStep(rawArgs: unknown): Promise<McpToolResult> {
+  return stepEnvelopeToMcp(await runRalphStep(rawArgs));
 }

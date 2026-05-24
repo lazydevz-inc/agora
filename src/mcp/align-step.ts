@@ -12,10 +12,7 @@
 
 import { join } from "node:path";
 
-import type {
-  AcceptanceCriteriaResult,
-  AcceptanceCriterion,
-} from "../alignment/acceptance-criteria.js";
+import type { AcceptanceCriteriaResult } from "../alignment/acceptance-criteria.js";
 import type { Phase0Output } from "../alignment/phase-0-scan.js";
 import { runPhase0Scan } from "../alignment/phase-0-scan.js";
 import type { Phase1Result } from "../alignment/phase-1-intake.js";

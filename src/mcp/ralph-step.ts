@@ -1,0 +1,700 @@
+// SPEC: ADR-0010 (host-reasoning stepped MCP tools) — agora_ralph_step
+//       orchestrator. Slice D scope: ralph init + Gate 1 + Gate 2 +
+//       Gate 5 (LLM) + Z1/Z2 escalation. Disputatio (Gate 3+4) lands
+//       in Slice E.
+//
+// Lifecycle of a single Ralph iteration through the stepped contract:
+//
+//   1) First call (state=ready_for_ralph, no ralph_state.json):
+//        - init ralph_state (DFS leftmost leaf), state → in_ralph
+//        - return advanced "ralph.initialized" — host informs user to
+//          implement, then re-call.
+//   2) Subsequent call (no pending):
+//        - run Gate 1 (typecheck/lint/test/build, deterministic). Fail →
+//          record attempt + return advanced "ralph.gate_1_failed".
+//        - run Gate 2 (Playwright, deterministic; SKIPs if no config).
+//          Fail → record + return advanced "ralph.gate_2_failed".
+//        - Both pass → issue needs_reasoning "ralph.gate_5" with the
+//          drift_score prompt.
+//   3) Call with llm_responses[gate_5]:
+//        - PASS / SOFT_WARN → leaf complete (Slice E folds Disputatio
+//          in here). Advance leaf. All done → state ralph_complete.
+//        - Z1 → record directive + stay on leaf → advanced "ralph.gate_5_z1".
+//        - Z2 → issue needs_user_input "ralph.confirm_z2".
+//   4) Call with user_answers[q_confirm_z2]:
+//        - yes → state in_alignment + reset alignment.round → advanced
+//          "ralph.z2_accepted".
+//        - no  → treat as Z1 → advanced "ralph.z2_declined".
+//
+// LAYER 3 — depends on state, pending, step, ralph/*, handoff/{seed,dh},
+// shared.
+
+import { join } from "node:path";
+
+import { buildAgoraError } from "../errors/build.js";
+import type { AgoraErrorThrown } from "../errors/types.js";
+import type { ACNode } from "../handoff/dihairesis.js";
+import type { Seed } from "../handoff/seed-builder.js";
+import { runGate1 } from "../ralph/gate-1.js";
+import { runGate2 } from "../ralph/gate-2.js";
+import {
+  buildGate5UserPrompt,
+  GATE_5_SYSTEM,
+  Gate5ExtractionResponseSchema,
+  type Gate5Result,
+  Gate5ResultSchema,
+  mapDriftToAction,
+} from "../ralph/gate-5.js";
+import { countAtomicLeaves, selectNextLeaf } from "../ralph/leaf-selector.js";
+import { newRalphState, type RalphState, RalphStateSchema } from "../ralph/state.js";
+import { err, ok, type Result } from "../result/index.js";
+import { getRecentDiff } from "../shared/git-diff.js";
+import { readJsonOrNull, writeJsonAtomic } from "../shared/io.js";
+import { findProjectRoot, hasAgoraDir } from "../shared/path.js";
+import { loadState } from "../state/reader.js";
+import type { State } from "../state/types.js";
+import { saveState } from "../state/writer.js";
+import { clearPending, type McpPending, readPending, writePending } from "./pending.js";
+import {
+  envAdvanced,
+  envError,
+  envNeedsReasoning,
+  envNeedsUserInput,
+  type StepArgs,
+  StepArgsSchema,
+  type StepEnvelope,
+} from "./step.js";
+
+export async function runRalphStep(
+  rawArgs: unknown,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const cwd = findProjectRoot(process.cwd());
+
+  const argsResult = StepArgsSchema.safeParse(rawArgs ?? {});
+  if (!argsResult.success) {
+    return ok(
+      envError(
+        "ralph",
+        "user.forbidden-flag-combo",
+        `agora_ralph_step args invalid: ${argsResult.error.issues[0]?.message ?? "validation failed"}`,
+      ),
+    );
+  }
+  const args = argsResult.data;
+
+  if (!(await hasAgoraDir(cwd))) {
+    return ok(
+      envError(
+        "ralph",
+        "user.aborted",
+        "No Agora session in this directory. Run `agora new <name>` first.",
+      ),
+    );
+  }
+
+  const stateResult = await loadState(cwd);
+  if (!stateResult.ok) return stateResult;
+  if (stateResult.value === null) {
+    return ok(envError("ralph", "state.corrupt", "state.json missing despite .agora/ existing"));
+  }
+  const state = stateResult.value;
+  if (state.current_phase !== "ready_for_ralph" && state.current_phase !== "in_ralph") {
+    return ok(
+      envError(
+        "ralph",
+        "user.aborted",
+        `agora_ralph_step requires state.current_phase in {ready_for_ralph, in_ralph} (current=${state.current_phase}). Lock the seed via agora_align_step handoff first.`,
+      ),
+    );
+  }
+
+  const seed = await readJsonOrNull<Seed>(join(cwd, ".agora", "seed.json"));
+  if (seed === null) {
+    return ok(
+      envError("ralph", "state.corrupt", "seed.json missing despite ready/in_ralph state."),
+    );
+  }
+
+  const ralphStatePath = join(cwd, ".agora", "ralph_state.json");
+  let ralphState: RalphState | null = null;
+  const rawRalph = await readJsonOrNull<unknown>(ralphStatePath);
+  if (rawRalph !== null) {
+    const parsed = RalphStateSchema.safeParse(rawRalph);
+    if (!parsed.success) {
+      return ok(
+        envError(
+          "ralph",
+          "state.corrupt",
+          `ralph_state.json invalid: ${parsed.error.issues[0]?.message ?? "?"}`,
+        ),
+      );
+    }
+    ralphState = parsed.data;
+  }
+
+  const pendingResult = await readPending(cwd);
+  if (!pendingResult.ok) return pendingResult;
+  const pending = pendingResult.value;
+
+  if (pending !== null) {
+    return await dispatchPending(cwd, state, seed, ralphState, pending, args, ralphStatePath);
+  }
+  return await dispatchFresh(cwd, state, seed, ralphState, args, ralphStatePath);
+}
+
+// ─── Pending branch ───
+
+async function dispatchPending(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState | null,
+  pending: McpPending,
+  args: StepArgs,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  if (pending.owner !== "ralph") {
+    return ok(
+      envError(
+        "ralph",
+        "user.aborted",
+        `mcp_pending.json belongs to "${pending.owner}", not ralph. Use agora_${pending.owner}_step.`,
+      ),
+    );
+  }
+  if (ralphState === null) {
+    return ok(envError("ralph", "state.corrupt", "pending exists but ralph_state.json missing"));
+  }
+  const expectMatch = matchesExpects(pending.expects, args);
+  if (!expectMatch.ok) {
+    return ok(envError("ralph", expectMatch.error.code, expectMatch.error.message));
+  }
+  switch (pending.step) {
+    case "ralph.gate_5":
+      return await applyGate5(cwd, state, seed, ralphState, args, ralphStatePath);
+    case "ralph.confirm_z2":
+      return await applyZ2(cwd, state, seed, ralphState, args, ralphStatePath);
+    default:
+      return ok(
+        envError(
+          "ralph",
+          "internal.invariant-violation",
+          `Unknown ralph pending step: ${pending.step}`,
+        ),
+      );
+  }
+}
+
+// ─── Fresh branch ───
+
+async function dispatchFresh(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState | null,
+  args: StepArgs,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  if (args.user_answers !== undefined || args.llm_responses !== undefined) {
+    return ok(
+      envError(
+        "ralph",
+        "user.aborted",
+        "agora_ralph_step received user_answers / llm_responses but no pending step is in flight.",
+      ),
+    );
+  }
+  if (ralphState === null) {
+    return await initRalph(cwd, state, seed, ralphStatePath);
+  }
+  if (ralphState.current_leaf_id === null) {
+    // Reconcile: all leaves done; mark state ralph_complete.
+    const advanced = await saveState(
+      cwd,
+      { ...state, current_phase: "ralph_complete" },
+      "agora_ralph_step",
+    );
+    if (!advanced.ok) return advanced;
+    return ok(
+      envAdvanced(
+        "ralph",
+        "ralph.complete",
+        "All atomic leaves complete. state advanced to ralph_complete.",
+        { completed_count: ralphState.completed_leaves.length },
+      ),
+    );
+  }
+  return await runGatesForLeaf(cwd, state, seed, ralphState, ralphStatePath);
+}
+
+async function initRalph(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const firstLeaf = selectNextLeaf(seed.ac_tree, new Set());
+  if (firstLeaf === null) {
+    return ok(
+      envError(
+        "ralph",
+        "internal.invariant-violation",
+        "seed.ac_tree has no atomic leaves — handoff produced an empty tree.",
+      ),
+    );
+  }
+  const initial = newRalphState({
+    ac_tree: seed.ac_tree as ACNode[],
+    initial_leaf_id: firstLeaf,
+  });
+  await writeJsonAtomic(ralphStatePath, initial);
+  const advanced = await saveState(
+    cwd,
+    { ...state, current_phase: "in_ralph" },
+    "agora_ralph_step",
+  );
+  if (!advanced.ok) return advanced;
+  return ok(
+    envAdvanced(
+      "ralph",
+      "ralph.initialized",
+      `Ralph initialized. Current leaf: ${firstLeaf}. Implement the leaf, then call agora_ralph_step again to run Gates 1 → 2 → 5.`,
+      {
+        current_leaf_id: firstLeaf,
+        total_leaves: countAtomicLeaves(seed.ac_tree as ACNode[]),
+      },
+    ),
+  );
+}
+
+async function runGatesForLeaf(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const leafId = ralphState.current_leaf_id;
+  if (leafId === null) {
+    return ok(
+      envError("ralph", "internal.invariant-violation", "runGatesForLeaf: current_leaf_id null"),
+    );
+  }
+  const attemptsBefore = ralphState.per_leaf_attempts[leafId] ?? 0;
+
+  // Gate 1 (deterministic, sequential)
+  const gate1 = await runGate1({ cwd });
+  if (!gate1.overall_passed) {
+    const newAttempts = attemptsBefore + 1;
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      per_leaf_attempts: { ...ralphState.per_leaf_attempts, [leafId]: newAttempts },
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_1_result: gate1,
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+    void state;
+    return ok(
+      envAdvanced(
+        "ralph",
+        "ralph.gate_1_failed",
+        `Gate 1 failed: ${gate1.commands
+          .filter((c) => !c.passed)
+          .map((c) => c.name)
+          .join(", ")}. Fix the failing sub-command + call agora_ralph_step again.`,
+        {
+          current_leaf_id: leafId,
+          attempts: newAttempts,
+          cap: updated.iteration_cap_per_leaf,
+          failed_commands: gate1.commands.filter((c) => !c.passed).map((c) => c.name),
+        },
+      ),
+    );
+  }
+
+  // Gate 2 (deterministic, Playwright; skips when no config)
+  const gate2 = await runGate2({ cwd });
+  if (!gate2.passed) {
+    const newAttempts = attemptsBefore + 1;
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      per_leaf_attempts: { ...ralphState.per_leaf_attempts, [leafId]: newAttempts },
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_1_result: gate1,
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+    return ok(
+      envAdvanced(
+        "ralph",
+        "ralph.gate_2_failed",
+        "Gate 2 (Playwright) failed. Fix functional tests + call agora_ralph_step again.",
+        {
+          current_leaf_id: leafId,
+          attempts: newAttempts,
+          cap: updated.iteration_cap_per_leaf,
+        },
+      ),
+    );
+  }
+
+  // Gate 5: issue needs_reasoning with the drift_score prompt.
+  const leafContent = findLeafContent(ralphState.ac_tree_snapshot as ACNode[], leafId);
+  const diff = await getRecentDiff(cwd);
+  const promptInput = {
+    leaf_id: leafId,
+    leaf_content: leafContent ?? "(content missing from ac_tree_snapshot)",
+    telos_statement: seed.four_causes.telos?.statement ?? "(telos missing)",
+    telos_failure_signal: seed.four_causes.telos?.failure_signal ?? "(failure_signal missing)",
+    all_acceptance_criteria: seed.acceptance_criteria.criteria,
+    diff: diff.diff,
+    diff_source: diff.source,
+    diff_truncated: diff.truncated,
+  };
+  const userPrompt = buildGate5UserPrompt(promptInput);
+  const pending: McpPending = {
+    version: 1,
+    owner: "ralph",
+    step: "ralph.gate_5",
+    expects: "llm_responses",
+    issued_prompts: [
+      {
+        id: "gate_5",
+        system: GATE_5_SYSTEM,
+        user: userPrompt,
+        expect: "json",
+        schema_hint: "{ drift_score: 0-1, rationale, z1_directive? }",
+      },
+    ],
+    scratch: {
+      leaf_id: leafId,
+      attempts_before: attemptsBefore,
+      gate_1: gate1 as unknown as Record<string, unknown>,
+      diff_source: diff.source,
+      diff_truncated: diff.truncated,
+    },
+    issued_at: new Date().toISOString(),
+  };
+  await writePending(cwd, pending);
+  return ok(
+    envNeedsReasoning("ralph", "ralph.gate_5", [
+      {
+        id: "gate_5",
+        system: GATE_5_SYSTEM,
+        user: userPrompt,
+        expect: "json",
+        schema_hint: "{ drift_score: 0-1, rationale, z1_directive? }",
+      },
+    ]),
+  );
+}
+
+// ─── Gate 5 apply ───
+
+async function applyGate5(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState,
+  args: StepArgs,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const leafId = ralphState.current_leaf_id;
+  if (leafId === null) {
+    return ok(
+      envError("ralph", "internal.invariant-violation", "applyGate5: current_leaf_id null"),
+    );
+  }
+  const responses = args.llm_responses ?? [];
+  const found = responses.find((r) => r.id === "gate_5");
+  if (found === undefined) {
+    return ok(
+      envError("ralph", "llm.invalid-response", 'ralph.gate_5: no llm_response with id="gate_5".'),
+    );
+  }
+  const parsedExtract = parseGate5Response(found.content);
+  if (!parsedExtract.ok) {
+    return ok(envError("ralph", parsedExtract.error.code, parsedExtract.error.message));
+  }
+  const extracted = parsedExtract.value;
+  const action = mapDriftToAction(extracted.drift_score);
+  // Note: diff_source/truncated could be threaded from scratch; for
+  // simplicity Slice D records "error" sentinel — Slice E may revisit.
+  const gate5: Gate5Result = Gate5ResultSchema.parse({
+    leaf_id: leafId,
+    drift_score: extracted.drift_score,
+    action,
+    rationale: extracted.rationale,
+    ...(extracted.z1_directive !== undefined ? { z1_directive: extracted.z1_directive } : {}),
+    diff_source: "head_minus_one_to_head" as const,
+    diff_truncated: false,
+    ran_at: new Date().toISOString(),
+  });
+  const attemptsBefore = ralphState.per_leaf_attempts[leafId] ?? 0;
+  const newAttempts = attemptsBefore + 1;
+
+  if (action === "PASS" || action === "SOFT_WARN") {
+    return await advanceLeaf(cwd, state, seed, ralphState, gate5, ralphStatePath);
+  }
+  if (action === "Z1") {
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      per_leaf_attempts: { ...ralphState.per_leaf_attempts, [leafId]: newAttempts },
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_5_result: gate5,
+      gate_5_history: [...ralphState.gate_5_history, gate5],
+      z1_directives:
+        gate5.z1_directive !== undefined
+          ? [...ralphState.z1_directives, gate5.z1_directive]
+          : ralphState.z1_directives,
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+    await clearPending(cwd);
+    return ok(
+      envAdvanced(
+        "ralph",
+        "ralph.gate_5_z1",
+        `Gate 5 Z1 (drift=${gate5.drift_score.toFixed(2)}): ${gate5.rationale}. Adjust + call agora_ralph_step again.`,
+        {
+          current_leaf_id: leafId,
+          attempts: newAttempts,
+          cap: updated.iteration_cap_per_leaf,
+          z1_directive: gate5.z1_directive ?? null,
+        },
+      ),
+    );
+  }
+  // Z2: issue confirm step.
+  const z2Pending: McpPending = {
+    version: 1,
+    owner: "ralph",
+    step: "ralph.confirm_z2",
+    expects: "user_answers",
+    issued_questions: [
+      {
+        id: "q_confirm_z2",
+        prompt: `Gate 5 escalated to Z2 (drift=${gate5.drift_score.toFixed(2)}). Re-enter the alignment loop to re-align this leaf? Answer "yes" to reset state to in_alignment, or "no" to keep this leaf and treat as Z1.\n\nRationale: ${gate5.rationale}`,
+        hint: 'reply "yes" or "no"',
+      },
+    ],
+    scratch: {
+      leaf_id: leafId,
+      gate_5: gate5 as unknown as Record<string, unknown>,
+      attempts_before: attemptsBefore,
+    },
+    issued_at: new Date().toISOString(),
+  };
+  await writePending(cwd, z2Pending);
+  return ok(
+    envNeedsUserInput("ralph", "ralph.confirm_z2", [
+      {
+        id: "q_confirm_z2",
+        prompt: `Gate 5 escalated to Z2 (drift=${gate5.drift_score.toFixed(2)}). Re-enter the alignment loop to re-align this leaf? Answer "yes" to reset state to in_alignment, or "no" to keep this leaf and treat as Z1.\n\nRationale: ${gate5.rationale}`,
+        hint: 'reply "yes" or "no"',
+      },
+    ]),
+  );
+}
+
+async function advanceLeaf(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState,
+  gate5: Gate5Result,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const leafId = ralphState.current_leaf_id;
+  if (leafId === null) {
+    return ok(
+      envError("ralph", "internal.invariant-violation", "advanceLeaf: current_leaf_id null"),
+    );
+  }
+  const completed = new Set(ralphState.completed_leaves);
+  completed.add(leafId);
+  const nextLeaf = selectNextLeaf(ralphState.ac_tree_snapshot as ACNode[], completed);
+  const updated: RalphState = RalphStateSchema.parse({
+    ...ralphState,
+    current_leaf_id: nextLeaf,
+    completed_leaves: [...completed],
+    session_total_attempts: ralphState.session_total_attempts + 1,
+    last_gate_5_result: gate5,
+    gate_5_history: [...ralphState.gate_5_history, gate5],
+    z1_directives: [], // cleared on leaf completion
+    updated_at: new Date().toISOString(),
+  });
+  await writeJsonAtomic(ralphStatePath, updated);
+  await clearPending(cwd);
+  if (nextLeaf === null) {
+    const advanced = await saveState(
+      cwd,
+      { ...state, current_phase: "ralph_complete" },
+      "agora_ralph_step",
+    );
+    if (!advanced.ok) return advanced;
+    return ok(
+      envAdvanced(
+        "ralph",
+        "ralph.complete",
+        `All atomic leaves complete (drift=${gate5.drift_score.toFixed(2)}). state advanced to ralph_complete.`,
+        { completed_count: completed.size },
+      ),
+    );
+  }
+  return ok(
+    envAdvanced(
+      "ralph",
+      "ralph.leaf_passed",
+      `Leaf complete (drift=${gate5.drift_score.toFixed(2)}). Next leaf: ${nextLeaf}.`,
+      {
+        previous_leaf_id: leafId,
+        current_leaf_id: nextLeaf,
+        completed_count: completed.size,
+        total_leaves: countAtomicLeaves(seed.ac_tree as ACNode[]),
+      },
+    ),
+  );
+}
+
+// ─── Z2 apply ───
+
+async function applyZ2(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState,
+  args: StepArgs,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const raw = (args.user_answers?.q_confirm_z2 ?? "").trim().toLowerCase();
+  const yes = raw === "yes" || raw === "y" || raw === "true";
+  const no = raw === "no" || raw === "n" || raw === "false";
+  if (!yes && !no) {
+    return ok(
+      envError("ralph", "user.aborted", `ralph.confirm_z2: expected "yes" or "no", got "${raw}".`),
+    );
+  }
+  const leafId = ralphState.current_leaf_id;
+  if (leafId === null) {
+    return ok(envError("ralph", "internal.invariant-violation", "applyZ2: current_leaf_id null"));
+  }
+  await clearPending(cwd);
+  const attemptsBefore = ralphState.per_leaf_attempts[leafId] ?? 0;
+  const updated: RalphState = RalphStateSchema.parse({
+    ...ralphState,
+    per_leaf_attempts: { ...ralphState.per_leaf_attempts, [leafId]: attemptsBefore + 1 },
+    session_total_attempts: ralphState.session_total_attempts + 1,
+    updated_at: new Date().toISOString(),
+  });
+  await writeJsonAtomic(ralphStatePath, updated);
+  void seed;
+
+  if (yes) {
+    const advanced = await saveState(
+      cwd,
+      {
+        ...state,
+        current_phase: "in_alignment",
+        alignment: { phase: 2, round: 0 },
+      },
+      "agora_ralph_step",
+    );
+    if (!advanced.ok) return advanced;
+    return ok(
+      envAdvanced(
+        "ralph",
+        "ralph.z2_accepted",
+        "Z2 accepted: state reset to in_alignment with alignment.round=0. Drive agora_align_step to re-align.",
+        { current_leaf_id: leafId },
+      ),
+    );
+  }
+  return ok(
+    envAdvanced(
+      "ralph",
+      "ralph.z2_declined",
+      "Z2 declined: treated as Z1. Adjust + call agora_ralph_step again.",
+      { current_leaf_id: leafId },
+    ),
+  );
+}
+
+// ─── Helpers ───
+
+function parseGate5Response(
+  raw: string | Record<string, unknown>,
+): Result<
+  { drift_score: number; rationale: string; z1_directive?: string | undefined },
+  AgoraErrorThrown
+> {
+  const obj = typeof raw === "string" ? safeJsonParse(raw) : (raw as unknown);
+  if (obj === null || typeof obj !== "object") {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: "ralph.gate_5: content is not a JSON object." },
+      }),
+    );
+  }
+  const parsed = Gate5ExtractionResponseSchema.safeParse(obj);
+  if (!parsed.success) {
+    return err(
+      buildAgoraError("llm.invalid-response", {
+        context: { detail: `ralph.gate_5: ${parsed.error.issues[0]?.message ?? "schema fail"}` },
+      }),
+    );
+  }
+  return ok(parsed.data);
+}
+
+function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function findLeafContent(tree: readonly ACNode[], leafId: string): string | null {
+  for (const node of tree) {
+    if (node.id === leafId) return node.content;
+    const inChild = findLeafContent(node.children, leafId);
+    if (inChild !== null) return inChild;
+  }
+  return null;
+}
+
+function matchesExpects(
+  expects: "user_answers" | "llm_responses",
+  args: StepArgs,
+): Result<true, { code: string; message: string }> {
+  if (expects === "user_answers") {
+    if (args.user_answers === undefined) {
+      return err({
+        code: "user.aborted",
+        message: "Pending step expects user_answers; none provided.",
+      });
+    }
+    if (args.llm_responses !== undefined) {
+      return err({
+        code: "user.forbidden-flag-combo",
+        message: "Pending step expects user_answers; llm_responses should not be sent.",
+      });
+    }
+  } else {
+    if (args.llm_responses === undefined) {
+      return err({
+        code: "user.aborted",
+        message: "Pending step expects llm_responses; none provided.",
+      });
+    }
+    if (args.user_answers !== undefined) {
+      return err({
+        code: "user.forbidden-flag-combo",
+        message: "Pending step expects llm_responses; user_answers should not be sent.",
+      });
+    }
+  }
+  return ok(true);
+}

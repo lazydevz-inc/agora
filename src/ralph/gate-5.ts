@@ -68,7 +68,14 @@ interface ExtractedJudgment {
 
 // ─── Inline prompt ───
 
-const GATE_5_SYSTEM = `You are administering Gate 5 (alignment check) for Ralph. Your task:
+export const Gate5ExtractionResponseSchema = z.object({
+  drift_score: z.number().min(0).max(1),
+  rationale: z.string().min(1),
+  z1_directive: z.string().optional(),
+});
+export type Gate5Extraction = z.infer<typeof Gate5ExtractionResponseSchema>;
+
+export const GATE_5_SYSTEM = `You are administering Gate 5 (alignment check) for Ralph. Your task:
 judge whether the user's actual implementation work (shown as a git
 diff) serves the locked telos for this acceptance-criterion leaf.
 
@@ -110,7 +117,7 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   "z1_directive": "<single sentence hint for next iteration when drift >= 0.30, otherwise omit>"
 }`;
 
-function buildGate5UserPrompt(input: Gate5Input): string {
+export function buildGate5UserPrompt(input: Gate5Input): string {
   const acsRendered = input.all_acceptance_criteria
     .map((ac) => `- ${ac.id}: ${ac.content}`)
     .join("\n");
@@ -210,13 +217,7 @@ async function callForJudgment(
       }),
     );
   }
-  const parsed = z
-    .object({
-      drift_score: z.number().min(0).max(1),
-      rationale: z.string().min(1),
-      z1_directive: z.string().optional(),
-    })
-    .safeParse(content);
+  const parsed = Gate5ExtractionResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {
