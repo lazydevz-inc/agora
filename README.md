@@ -14,6 +14,10 @@
   <a href="#"><img src="https://img.shields.io/badge/runs%20inside-Claude%20Code-8A2BE2" alt="Claude Code"></a>
 </p>
 
+<p align="center">
+  <img src="docs/assets/hero.png" alt="Five philosophers — Husserl, Socrates, Aristotle, Plato, Aquinas — gathered around a developer, inscribing telos on a glowing scroll" width="880">
+</p>
+
 ---
 
 > **Your AI agent doesn't fail at writing code. It fails at understanding what you meant.**
@@ -184,11 +188,55 @@ git clone https://github.com/lazydevz-inc/agora.git
 cd agora
 pnpm install
 pnpm build
+```
 
-# Start a session in any project folder:
+### Option A — Use as a Claude Code plugin (recommended, no extra billing)
+
+This is the path ADR-0009 / ADR-0010 made primary. Reasoning runs in your
+interactive Claude Code session so no Agent-SDK credit pool is drawn.
+
+1. Add agora to your Claude Code MCP config (commonly
+   `~/.config/claude-code/mcp.json` or your editor's MCP settings — check
+   Claude Code docs for your version):
+
+   ```json
+   {
+     "mcpServers": {
+       "agora": {
+         "command": "node",
+         "args": ["/absolute/path/to/agora/dist/cli/index.js", "mcp"]
+       }
+     }
+   }
+   ```
+
+2. Restart Claude Code. The 6 agora tools should appear:
+   - `agora_status` / `agora_doctor` / `agora_resume` / `agora_trace` — read-only
+   - `agora_align_step` / `agora_ralph_step` — stepped (host supplies reasoning)
+
+3. From any project folder with `.agora/` (run `agora new <name>` once first),
+   ask Claude Code: *"call agora_align_step to start the alignment loop."*
+   Claude Code reasons through each step; agora persists state +
+   gate-checks.
+
+**Troubleshooting:**
+- Tools not appearing → check the `command` path resolves (`node /absolute/path/...
+  mcp` should print nothing and hang on stdio).
+- Stuck on a step → `agora trace` shows the event log; delete
+  `.agora/mcp_pending.json` to abort the in-flight step.
+- Wrong owner error → another loop's pending is in flight; finish it or
+  delete `.agora/mcp_pending.json`.
+
+### Option B — Use as a standalone CLI (Mode 2 fallback)
+
+```bash
 pnpm dev new my-feature      # auto-detects brownfield/greenfield
 pnpm dev resume              # Agora tells you the next step, every time
 ```
+
+> ⚠️ From 2026-06-15 this path draws Anthropic's metered Agent-SDK credit
+> pool ($20–$200/mo). Suppress the per-run reminder with
+> `AGORA_NO_COST_WARNING=1` or switch to Option A.
 
 You mostly just run `agora` and follow what it suggests next — recommended options
 for speed, free input always available, and every question shows *why it's being
