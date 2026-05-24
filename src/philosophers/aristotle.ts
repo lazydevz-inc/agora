@@ -323,14 +323,16 @@ export interface AristotleFormUi {
   askFeatureListRefinement(args: { detected: string; reason: string }): Promise<string>;
 }
 
-interface ExtractedForm {
-  essential_structure: string;
-  irreducible_parts: string[];
-  feature_list_warning: boolean;
-  feature_list_reason?: string | undefined;
-}
+// Exported for ADR-0010 stepped path (`src/mcp/steps/form.ts`).
+export const FormExtractionResponseSchema = z.object({
+  essential_structure: z.string().min(1),
+  irreducible_parts: z.array(z.string().min(1)).min(1),
+  feature_list_warning: z.boolean(),
+  feature_list_reason: z.string().optional(),
+});
+export type ExtractedForm = z.infer<typeof FormExtractionResponseSchema>;
 
-const ARISTOTLE_FORM_SYSTEM = `You are Aristotle extracting the FORM (essential structure / what-shape-
+export const ARISTOTLE_FORM_SYSTEM = `You are Aristotle extracting the FORM (essential structure / what-shape-
 it-takes) from a user's raw answers, AFTER telos is settled.
 
 Hard rules:
@@ -353,7 +355,7 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   "feature_list_reason": "<reason string when feature_list_warning=true, else omit>"
 }`;
 
-function buildFormUserPrompt(
+export function buildFormUserPrompt(
   input: AristotleFormInput,
   raw: {
     essentialStructure: string;
@@ -486,14 +488,7 @@ async function callForFormExtraction(
       }),
     );
   }
-  const parsed = z
-    .object({
-      essential_structure: z.string().min(1),
-      irreducible_parts: z.array(z.string().min(1)).min(1),
-      feature_list_warning: z.boolean(),
-      feature_list_reason: z.string().optional(),
-    })
-    .safeParse(content);
+  const parsed = FormExtractionResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {
@@ -536,13 +531,14 @@ export interface AristotleMaterialUi {
   askInfrastructure(): Promise<string>;
 }
 
-interface ExtractedMaterial {
-  tech_stack: string[];
-  data_shape: string;
-  infrastructure: string;
-}
+export const MaterialExtractionResponseSchema = z.object({
+  tech_stack: z.array(z.string().min(1)).min(1).max(20),
+  data_shape: z.string().min(1),
+  infrastructure: z.string().min(1),
+});
+export type ExtractedMaterial = z.infer<typeof MaterialExtractionResponseSchema>;
 
-const ARISTOTLE_MATERIAL_SYSTEM = `You are Aristotle extracting the MATERIAL cause (what-it's-made-of)
+export const ARISTOTLE_MATERIAL_SYSTEM = `You are Aristotle extracting the MATERIAL cause (what-it's-made-of)
 from a user's raw answers, AFTER telos and form are settled.
 
 Hard rules:
@@ -568,7 +564,7 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   "infrastructure": "<one-paragraph description>"
 }`;
 
-function buildMaterialUserPrompt(
+export function buildMaterialUserPrompt(
   input: AristotleMaterialInput,
   raw: {
     stackConfirmation: string;
@@ -690,13 +686,7 @@ async function callForMaterialExtraction(
       }),
     );
   }
-  const parsed = z
-    .object({
-      tech_stack: z.array(z.string().min(1)).min(1).max(20),
-      data_shape: z.string().min(1),
-      infrastructure: z.string().min(1),
-    })
-    .safeParse(content);
+  const parsed = MaterialExtractionResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {
@@ -731,13 +721,14 @@ export interface AristotleEfficientUi {
   askHow(): Promise<string>;
 }
 
-interface ExtractedEfficient {
-  who: string;
-  when: string;
-  how: string;
-}
+export const EfficientExtractionResponseSchema = z.object({
+  who: z.string().min(1),
+  when: z.string().min(1),
+  how: z.string().min(1),
+});
+export type ExtractedEfficient = z.infer<typeof EfficientExtractionResponseSchema>;
 
-const ARISTOTLE_EFFICIENT_SYSTEM = `You are Aristotle extracting the EFFICIENT cause (who / when / how-process)
+export const ARISTOTLE_EFFICIENT_SYSTEM = `You are Aristotle extracting the EFFICIENT cause (who / when / how-process)
 from a user's raw answers. Lightest of the four causes — keep extraction
 faithful + brief.
 
@@ -762,7 +753,7 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   "how": "<one sentence>"
 }`;
 
-function buildEfficientUserPrompt(
+export function buildEfficientUserPrompt(
   input: AristotleEfficientInput,
   raw: {
     who: string;
@@ -868,13 +859,7 @@ async function callForEfficientExtraction(
       }),
     );
   }
-  const parsed = z
-    .object({
-      who: z.string().min(1),
-      when: z.string().min(1),
-      how: z.string().min(1),
-    })
-    .safeParse(content);
+  const parsed = EfficientExtractionResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {

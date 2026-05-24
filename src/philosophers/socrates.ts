@@ -153,9 +153,20 @@ const SYCOPHANTIC_PATTERNS = [
   "what you're really saying is",
 ];
 
+// Exported for the ADR-0010 stepped path (`src/mcp/steps/socrates.ts`):
+// host reasons about the case-construction LLM call, then submits the
+// parsed object which is validated against this schema.
+export const ConstructedCaseResponseSchema = z.object({
+  case: z.string().min(1),
+  grounding: GroundingSchema,
+  grounding_ref: z.string().optional(),
+  quoted_prior_id: z.string().optional(),
+  question: z.string().min(1),
+});
+
 // ─── Inline prompt (replace with prompt-library lookup in future slice) ───
 
-const SOCRATES_SYSTEM = `You are conducting Socrates's elenchus on a single load-bearing claim.
+export const SOCRATES_SYSTEM = `You are conducting Socrates's elenchus on a single load-bearing claim.
 Construct ONE concrete case the claim implies, to be presented to the user.
 
 Hard rules:
@@ -192,7 +203,10 @@ interface ConstructedCase {
   question: string;
 }
 
-function buildUserPrompt(input: SocratesInput, demandCwdGrounding: boolean): string {
+export function buildSocratesUserPrompt(
+  input: SocratesInput,
+  demandCwdGrounding: boolean,
+): string {
   const c = input.claim;
   const files = input.cwd_signal.detected_files.slice(0, 5);
   const priors = input.prior_round_history
@@ -334,7 +348,7 @@ async function constructCase(
 ): Promise<Result<ConstructedCase, AgoraErrorThrown>> {
   const response = await runner.call({
     system: SOCRATES_SYSTEM,
-    prompt: buildUserPrompt(input, demandCwdGrounding),
+    prompt: buildSocratesUserPrompt(input, demandCwdGrounding),
     format: "json",
     timeout_ms: 60_000,
   });

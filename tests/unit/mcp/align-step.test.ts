@@ -238,7 +238,7 @@ describe("runAlignStep — noun-phrase refinement loop", () => {
 });
 
 describe("runAlignStep — terminal & error cases", () => {
-  test("telos already captured → done envelope", async () => {
+  test("telos captured but form pending → opens form.questions", async () => {
     await seedSession();
     await writeJsonAtomic(join(cwd, ".agora", "four_causes.json"), {
       telos: {
@@ -250,6 +250,52 @@ describe("runAlignStep — terminal & error cases", () => {
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+    });
+    const r = await runAlignStep({});
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.kind).toBe("needs_user_input");
+    if (r.value.kind !== "needs_user_input") return;
+    expect(r.value.step).toBe("form.questions");
+  });
+
+  test("all 4 causes + elenchus.json present → done envelope", async () => {
+    await seedSession();
+    const now = new Date().toISOString();
+    await writeJsonAtomic(join(cwd, ".agora", "four_causes.json"), {
+      telos: {
+        statement: "x",
+        served_good: "y",
+        failure_signal: "z",
+        maturity: "dianoia",
+        noun_phrase_refinement_triggered: false,
+      },
+      form: {
+        essential_structure: "s",
+        irreducible_parts: ["p"],
+        feature_list_warning_triggered: false,
+        maturity: "dianoia",
+      },
+      material: {
+        tech_stack: ["TypeScript"],
+        data_shape: "json",
+        infrastructure: "node",
+        brownfield_auto_filled: false,
+        maturity: "pistis",
+      },
+      efficient: {
+        who: "solo",
+        when: "evenings",
+        how: "vitest",
+        maturity: "pistis",
+      },
+      created_at: now,
+      updated_at: now,
+    });
+    await writeJsonAtomic(join(cwd, ".agora", "elenchus.json"), {
+      version: 1,
+      elenched: [],
+      created_at: now,
     });
     const r = await runAlignStep({});
     expect(r.ok).toBe(true);

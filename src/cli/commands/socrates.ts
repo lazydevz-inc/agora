@@ -50,7 +50,7 @@ interface Phase0Scan {
   detected_patterns?: string[];
 }
 
-interface ElenchusFile {
+export interface ElenchusFile {
   version: 1;
   elenched: ElenchedClaim[];
   created_at: string;
