@@ -220,7 +220,10 @@ Phase 2 (반복): 다철학자 라운드 (Aristotle 구조 + Socrates 검증 + P
 
 Mode 1(주력)은 nested LLM 낭비 + 추가 과금을 모두 방지. Agora는 *구조 + 의미 +
 게이트 검증*만 제공하고, 추론이 필요하면 호스트 Claude Code 세션이 수행.
-⚠️ MCP 플러그인 레이어(`src/mcp/`)는 아직 미구현 — 현재는 Mode 2로 동작.
+**ADR-0010 Slices A-E (2026-05-24)**: MCP 플러그인 레이어(`src/mcp/`) 구현됨 —
+`agora_align_step`/`agora_ralph_step` 두 stepped tool이 alignment + Ralph
+loop 전체를 호스트-추론 방식으로 노출. Mode 2(subprocess)는 Mode 3 미사용
+시에만 fallback.
 
 ---
 
@@ -434,4 +437,4 @@ UX expertise-aware split:
 ---
 
 **Last Updated**: 2026-05-24
-**Version**: 0.0.1-alpha.0 (Stage 6 active — 34 vertical slices done: alignment loop end-to-end + Ralph Gate 1/3/4/5 + audit log + `agora trace` + non-interactive/agent-driven mode. 🚧 미구현: Socrates 모듈, Gate 2 (Playwright), MCP 플러그인 모드 — ADR-0009)
+**Version**: 0.0.1-alpha.0 (Stage 6 active — 34 vertical slices done: alignment loop end-to-end + Ralph Gate 1/3/4/5 + audit log + `agora trace` + non-interactive/agent-driven mode. **ADR-0010 Slices A-E shipped**: `agora_align_step` + `agora_ralph_step` MCP tools drive the alignment + Ralph loops via host-supplied reasoning — Mode 3 (MCP plugin) is now load-bearing. 🚧 남은 작업: Mode 2 (subprocess) cost-warning UX, prompt-library refactor of stepped-path inline prompts.)

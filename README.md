@@ -163,12 +163,14 @@ polished lie — here's exactly what works today.
 | Non-interactive / agent-driven mode (JSON, no TTY prompts) | ✅ working |
 | Socrates (Elenchus case-probing) — `agora socrates`, auto-routed by `agora round` | ✅ working |
 | Gate 2 (functional QA via Playwright) — detection-gated, shells out to your project's Playwright | ✅ working |
-| **In-Claude-Code plugin (MCP) mode** | ✅ foundation working (`agora mcp` exposes read-only tools — status/doctor/resume/trace — over MCP stdio, zero LLM calls) · 🚧 LLM-bearing orchestration tools (run a round / Ralph iteration via host reasoning) pending |
+| **In-Claude-Code plugin (MCP) mode** | ✅ working end-to-end (ADR-0010 Slices A-E): read-only tools (status/doctor/resume/trace) **plus** stepped `agora_align_step` + `agora_ralph_step` that drive the alignment + Ralph loops via host-supplied reasoning — Agora makes zero LLM calls in this path |
 | Published to npm | 🚧 not yet |
 
-> **Note on architecture:** today Agora invokes Claude as a subprocess. We are
-> migrating to an in-Claude-Code plugin model (above) so that all reasoning happens
-> inside your interactive session. This is the project's near-term priority.
+> **Note on architecture:** the in-Claude-Code plugin model (above) is now the
+> primary path — all reasoning happens inside your interactive Claude Code session
+> via the stepped MCP tools. Standalone CLI (subprocess) mode remains supported
+> for non-plugin users but draws Anthropic's metered Agent-SDK credit pool from
+> 2026-06-15 (see ADR-0009 / ADR-0010).
 
 ---
 

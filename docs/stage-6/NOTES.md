@@ -43,6 +43,26 @@ agora ralph     (6-A.18) — Ralph foundation: orchestrator + Gate 1 (typecheck/
                 (6-A.22) — ralph_complete dialog (Stage 2-C.2 R4-A): re_align / accept_deferred / view_log
 ```
 
+**MCP plugin tools (ADR-0010, 2026-05-24)** — stepped tools where the
+host Claude Code session supplies all reasoning. Agora makes zero LLM
+calls in this path. These ship in addition to the read-only MCP tools
+(`agora_status`, `agora_doctor`, `agora_resume`, `agora_trace`) from
+the ADR-0009 foundation.
+
+```
+agora_align_step  (ADR-0010 A) — telos round (4-step state machine)
+                  (ADR-0010 B) — + form / material / efficient / socrates
+                  (ADR-0010 C) — + maturity / ac / handoff (alignment
+                                 loop end-to-end through stepped tools)
+agora_ralph_step  (ADR-0010 D) — Ralph init + Gate 1 (typecheck/lint/
+                                 test/build) + Gate 2 (Playwright) +
+                                 Gate 5 (LLM drift_score) + Z1/Z2
+                  (ADR-0010 E) — + Aquinas Disputatio (Videtur in
+                                 parallel × N critics → Sed contra →
+                                 Respondeo → Ad singula, F-Aquinas-4
+                                 enforced)
+```
+
 **To find the next slice's starting context**: scroll to the bottom of
 this file. Last "### Stage 6-A.N — DONE" entry has lessons + outstanding
 items + "Next task:" line.
