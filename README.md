@@ -163,7 +163,7 @@ polished lie — here's exactly what works today.
 | Non-interactive / agent-driven mode (JSON, no TTY prompts) | ✅ working |
 | Socrates (Elenchus case-probing) — `agora socrates`, auto-routed by `agora round` | ✅ working |
 | **Gate 2** (functional QA via Playwright) | 🚧 planned |
-| **In-Claude-Code plugin (MCP) mode** | 🚧 in progress — today Agora runs as a standalone CLI that drives Claude Code as a subprocess |
+| **In-Claude-Code plugin (MCP) mode** | ✅ foundation working (`agora mcp` exposes read-only tools — status/doctor/resume/trace — over MCP stdio, zero LLM calls) · 🚧 LLM-bearing orchestration tools (run a round / Ralph iteration via host reasoning) pending |
 | Published to npm | 🚧 not yet |
 
 > **Note on architecture:** today Agora invokes Claude as a subprocess. We are

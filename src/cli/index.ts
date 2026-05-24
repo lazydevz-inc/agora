@@ -135,6 +135,14 @@ async function main(): Promise<void> {
     await dispatchTrace(flags, positional.slice(1), mode, useColor);
     return;
   }
+  if (command === "mcp") {
+    // Launch the MCP server (ADR-0009 primary mode). Does NOT return —
+    // server.connect keeps the process alive on stdio. No emit()/exit
+    // here; stdout belongs to the MCP protocol.
+    const { startAgoraMcpServer } = await import("../mcp/server.js");
+    await startAgoraMcpServer();
+    return;
+  }
 
   // No command + no --version: print version-style summary for now.
   // (Stage 3-B.7 default command lands in a later slice.)
@@ -515,6 +523,9 @@ function printHelp(): void {
   );
   console.log(
     "  agora trace       View .agora/events.jsonl audit log (--type, --since, --command, --limit)",
+  );
+  console.log(
+    "  agora mcp         Run as an MCP server inside Claude Code (read-only tools; zero LLM calls)",
   );
   console.log("");
   console.log("Universal flags:");
