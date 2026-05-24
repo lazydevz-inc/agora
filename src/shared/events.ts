@@ -26,6 +26,7 @@ export const EVENTS_FILE_NAME = "events.jsonl";
 export const EventTypeSchema = z.enum([
   "state.transition", // saveState detected current_phase change
   "gate_1.result", // ralph Gate 1 (typecheck/lint/test/build) ran
+  "gate_2.result", // ralph Gate 2 (Playwright functional QA) ran (added 6-A.36)
   "gate_5.result", // ralph Gate 5 (alignment drift) ran
   "disputatio.verdict", // Aquinas Disputatio respondeo verdict
   "dialog.choice", // user picked a clack option (e.g., ralph_complete dialog)

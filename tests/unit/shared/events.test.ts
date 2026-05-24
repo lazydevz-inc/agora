@@ -129,10 +129,11 @@ describe("appendEvent — happy path", () => {
 });
 
 describe("EventSchema", () => {
-  test("accepts all 12 declared event types", () => {
+  test("accepts all 13 declared event types", () => {
     const types = [
       "state.transition",
       "gate_1.result",
+      "gate_2.result",
       "gate_5.result",
       "disputatio.verdict",
       "dialog.choice",

@@ -109,6 +109,8 @@
       "implement_then_rerun": "Implement the current leaf (write code, fix tests), then re-run `agora ralph` to verify Gate 1.",
       "gate_1_running": "Running Gate 1 for leaf {leaf_id} (attempt {attempt})...",
       "gate_1_passed": "Gate 1 passed for leaf {leaf_id} ({duration_s}s).",
+      "gate_2_passed": "Gate 2 (functional QA) passed for leaf {leaf_id}.",
+      "gate_2_failed": "Gate 2 (functional QA) failed for leaf {leaf_id} (attempt {attempts}). Fix the failing Playwright tests.",
       "gate_1_failed": "Gate 1 failed for leaf {leaf_id} (attempt {attempts}/{cap}). Failed sub-commands: {failed}.",
       "next_leaf_pending": "Next leaf: {next_leaf_id} ({completed_count}/{total_leaves} done).",
       "all_complete": "All leaves complete. Phase advanced to ralph_complete.",

@@ -289,6 +289,8 @@ function summarizeData(e: Event): string {
       return `${e.prev_state_phase ?? "(none)"} → ${e.new_state_phase ?? "?"}`;
     case "gate_1.result":
       return `leaf=${String(d["leaf_id"] ?? "?")} passed=${String(d["overall_passed"] ?? "?")}`;
+    case "gate_2.result":
+      return `leaf=${String(d["leaf_id"] ?? "?")} ${d["skipped"] === true ? "skipped (no playwright config)" : `passed=${String(d["passed"] ?? "?")}`}`;
     case "gate_5.result":
       return `leaf=${String(d["leaf_id"] ?? "?")} drift=${String(d["drift_score"] ?? "?")} action=${String(d["action"] ?? "?")}`;
     case "disputatio.verdict":

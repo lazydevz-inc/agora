@@ -92,7 +92,7 @@ A locked **Seed** is the handoff between them.
 │  Each iteration must pass the gates:                               │
 │    Gate 0  Pre-flight infra   — CLIs authed, deps reachable        │
 │    Gate 1  Deterministic      — lint, typecheck, build, test       │
-│    Gate 2  Functional QA      — Playwright tests green     (🚧)     │
+│    Gate 2  Functional QA      — your project's Playwright tests    │
 │    Gate 3  UI/UX quality      — Aquinas Disputatio                 │
 │    Gate 4  Technical quality  — Aquinas Disputatio                 │
 │    Gate 5  Alignment check    — output ↔ Seed telos   ◀ inviolable │
@@ -103,7 +103,7 @@ A locked **Seed** is the handoff between them.
 
 > The Alignment loop refuses to terminate until intent is settled. The Ralph loop
 > refuses to ship until *every* gate passes — including the alignment gate, the one
-> that can never be waived. *(🚧 = on the roadmap; see [Status](#status).)*
+> that can never be waived.
 
 ### What it feels like in practice
 
@@ -162,7 +162,7 @@ polished lie — here's exactly what works today.
 | Status dashboard with drift trend + sparkline | ✅ working |
 | Non-interactive / agent-driven mode (JSON, no TTY prompts) | ✅ working |
 | Socrates (Elenchus case-probing) — `agora socrates`, auto-routed by `agora round` | ✅ working |
-| **Gate 2** (functional QA via Playwright) | 🚧 planned |
+| Gate 2 (functional QA via Playwright) — detection-gated, shells out to your project's Playwright | ✅ working |
 | **In-Claude-Code plugin (MCP) mode** | ✅ foundation working (`agora mcp` exposes read-only tools — status/doctor/resume/trace — over MCP stdio, zero LLM calls) · 🚧 LLM-bearing orchestration tools (run a round / Ralph iteration via host reasoning) pending |
 | Published to npm | 🚧 not yet |
 

@@ -109,6 +109,8 @@
       "implement_then_rerun": "현재 leaf를 구현 (코드 작성, 테스트 fix) 후 `agora ralph` 재실행으로 Gate 1 검증.",
       "gate_1_running": "Leaf {leaf_id}에 Gate 1 실행 중 (시도 {attempt})...",
       "gate_1_passed": "Leaf {leaf_id} Gate 1 통과 ({duration_s}s).",
+      "gate_2_passed": "Leaf {leaf_id} Gate 2 (기능 QA) 통과.",
+      "gate_2_failed": "Leaf {leaf_id} Gate 2 (기능 QA) 실패 (시도 {attempts}). Playwright 테스트를 고치세요.",
       "gate_1_failed": "Leaf {leaf_id} Gate 1 실패 (시도 {attempts}/{cap}). 실패한 sub-command: {failed}.",
       "next_leaf_pending": "다음 leaf: {next_leaf_id} ({completed_count}/{total_leaves} 완료).",
       "all_complete": "모든 leaf 완료. Phase가 ralph_complete로 전이됨.",

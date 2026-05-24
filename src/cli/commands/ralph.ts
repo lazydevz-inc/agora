@@ -38,6 +38,7 @@ import { localized } from "../../i18n/index.js";
 import { selectRuntime } from "../../llm/selection.js";
 import { type DisputatioResult, runDisputatio } from "../../ralph/disputatio.js";
 import { runGate1 } from "../../ralph/gate-1.js";
+import { runGate2 } from "../../ralph/gate-2.js";
 import { type Gate5Result, runGate5 } from "../../ralph/gate-5.js";
 import { countAtomicLeaves, selectNextLeaf } from "../../ralph/leaf-selector.js";
 import {
@@ -239,13 +240,62 @@ export async function runRalphCommand(
     return await emitGate1Failure(cwd, currentLeaf, newAttempts, updated, gate1);
   }
 
-  // Gate 1 passed → Gate 5 alignment check.
+  // Gate 1 passed → Gate 2 functional QA (project's Playwright, if any).
   log.success(
     localized("cli.ralph.gate_1_passed", {
       leaf_id: currentLeaf,
       duration_s: (gate1.total_duration_ms / 1000).toFixed(1),
     }),
   );
+
+  const gate2 = await runGate2({ cwd });
+  await appendEvent(cwd, {
+    type: "gate_2.result",
+    command: "agora ralph",
+    data: {
+      leaf_id: currentLeaf,
+      skipped: gate2.skipped,
+      passed: gate2.passed,
+      detected_config: gate2.detected_config,
+      duration_ms: gate2.duration_ms,
+    },
+  });
+  if (!gate2.passed) {
+    const newAttempts = attemptsBefore + 1;
+    const updated: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      per_leaf_attempts: { ...ralphState.per_leaf_attempts, [currentLeaf]: newAttempts },
+      session_total_attempts: ralphState.session_total_attempts + 1,
+      last_gate_1_result: gate1,
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, updated);
+    log.error(
+      localized("cli.ralph.gate_2_failed", {
+        leaf_id: currentLeaf,
+        attempts: String(newAttempts),
+      }),
+    );
+    emitCapWarnings(updated, currentLeaf, newAttempts);
+    await emitCapWarningEvents(cwd, updated, currentLeaf, newAttempts);
+    outro(
+      pc.yellow("Gate 2 (functional QA) failed. Fix Playwright tests, then re-run `agora ralph`."),
+    );
+    return ok(
+      buildEnvelope({
+        action: "gate_2_failed",
+        current_leaf_id: currentLeaf,
+        attempts: newAttempts,
+        cap: updated.iteration_cap_per_leaf,
+        failed_commands: ["playwright"],
+        last_gate_1_result: gate1,
+      }),
+    );
+  }
+  if (!gate2.skipped) {
+    log.success(localized("cli.ralph.gate_2_passed", { leaf_id: currentLeaf }));
+  }
+
   log.message(localized("cli.ralph.gate_5_running", { leaf_id: currentLeaf }));
 
   const leafContent = findLeafContent(ralphState.ac_tree_snapshot as ACNode[], currentLeaf);
@@ -765,6 +815,7 @@ interface RalphEnvelopeData {
     | "initialized"
     | "leaf_passed"
     | "gate_1_failed"
+    | "gate_2_failed"
     | "gate_5_z1"
     | "gate_5_z2_accepted"
     | "gate_5_z2_declined"
@@ -863,11 +914,13 @@ function buildEnvelope(data: RalphEnvelopeData): CommandEnvelope {
                 description:
                   data.action === "gate_1_failed"
                     ? "Fix the failed sub-command, then re-run agora ralph"
-                    : data.action === "gate_5_z1" || data.action === "gate_5_z2_declined"
-                      ? "Adjust per Gate 5 directive, then re-run agora ralph"
-                      : data.action === "disputatio_rejected"
-                        ? "Address Aquinas concedo rulings, then re-run agora ralph"
-                        : "Implement the next leaf, then re-run agora ralph",
+                    : data.action === "gate_2_failed"
+                      ? "Fix the failing Playwright tests, then re-run agora ralph"
+                      : data.action === "gate_5_z1" || data.action === "gate_5_z2_declined"
+                        ? "Adjust per Gate 5 directive, then re-run agora ralph"
+                        : data.action === "disputatio_rejected"
+                          ? "Address Aquinas concedo rulings, then re-run agora ralph"
+                          : "Implement the next leaf, then re-run agora ralph",
                 command: "agora ralph",
               },
             ],
