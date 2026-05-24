@@ -99,18 +99,22 @@ export interface AristotleUi {
   askNounPhraseRefinement(args: { detected: string; reason: string }): Promise<string>;
 }
 
-interface ExtractedTelos {
-  statement: string;
-  served_good: string;
-  failure_signal: string;
-  success_signal?: string | undefined;
-  noun_phrase_telos: boolean;
-  noun_phrase_reason?: string | undefined;
-}
+// Exported for ADR-0010 stepped-tool reuse (`src/mcp/steps/telos.ts`):
+// the MCP path builds the same prompt and parses the same JSON shape,
+// then hands the parsed extraction back through `applyTelosExtract`.
+export const TelosExtractionResponseSchema = z.object({
+  statement: z.string().min(1),
+  served_good: z.string().min(1),
+  failure_signal: z.string().min(1),
+  success_signal: z.string().optional(),
+  noun_phrase_telos: z.boolean(),
+  noun_phrase_reason: z.string().optional(),
+});
+export type ExtractedTelos = z.infer<typeof TelosExtractionResponseSchema>;
 
 // ─── Inline prompt (replace with prompt-library lookup in future slice) ───
 
-const ARISTOTLE_TELOS_SYSTEM = `You are Aristotle extracting the TELOS (final cause) from a user's
+export const ARISTOTLE_TELOS_SYSTEM = `You are Aristotle extracting the TELOS (final cause) from a user's
 raw answers to three telos questions. The telos is the most load-bearing
 claim in the alignment seed — without it, every other cause is mere
 description.
@@ -141,7 +145,7 @@ Return EXACTLY this JSON shape, with no extra keys, no commentary outside JSON:
   "noun_phrase_reason": "<reason string when noun_phrase_telos=true, otherwise omit>"
 }`;
 
-function buildTelosUserPrompt(
+export function buildTelosUserPrompt(
   input: AristotleTelosInput,
   raw: {
     whyExists: string;
@@ -286,16 +290,7 @@ async function callForExtraction(
       }),
     );
   }
-  const parsed = z
-    .object({
-      statement: z.string().min(1),
-      served_good: z.string().min(1),
-      failure_signal: z.string().min(1),
-      success_signal: z.string().optional(),
-      noun_phrase_telos: z.boolean(),
-      noun_phrase_reason: z.string().optional(),
-    })
-    .safeParse(content);
+  const parsed = TelosExtractionResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {

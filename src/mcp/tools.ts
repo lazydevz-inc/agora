@@ -21,6 +21,8 @@ import type { CommandEnvelope } from "../cli/render.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
 import { type Locale, SUPPORTED_LOCALES } from "../i18n/index.js";
 import type { Result } from "../result/index.js";
+import { runAlignStep } from "./align-step.js";
+import type { StepEnvelope } from "./step.js";
 
 export interface McpToolResult {
   // Index signature required for structural compatibility with the MCP
@@ -99,4 +101,37 @@ export async function mcpTrace(args: TraceToolArgs): Promise<McpToolResult> {
   if (args.command !== undefined) positional.push(`--command=${args.command}`);
   if (args.limit !== undefined) positional.push(`--limit=${String(args.limit)}`);
   return envelopeToMcp(await runTraceCommand(mcpFlags(), positional));
+}
+
+// ─── Stepped tools (ADR-0010) ───
+//
+// Stepped tools return a `StepEnvelope` rather than a `CommandEnvelope`.
+// kind:"error" envelopes are *valid responses* (the host can correct and
+// retry), so we don't set MCP `isError` for them — only for genuine
+// tool-level failures where we couldn't even produce an envelope
+// (e.g. corrupt state file).
+
+export function stepEnvelopeToMcp(result: Result<StepEnvelope, AgoraErrorThrown>): McpToolResult {
+  if (!result.ok) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            { ok: false, error: { code: result.error.code, message: result.error.message } },
+            null,
+            2,
+          ),
+        },
+      ],
+      isError: true,
+    };
+  }
+  return {
+    content: [{ type: "text", text: JSON.stringify(result.value, null, 2) }],
+  };
+}
+
+export async function mcpAlignStep(rawArgs: unknown): Promise<McpToolResult> {
+  return stepEnvelopeToMcp(await runAlignStep(rawArgs));
 }

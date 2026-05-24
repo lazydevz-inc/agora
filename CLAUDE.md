@@ -415,6 +415,7 @@ UX expertise-aware split:
 | 0007 | License Choice: MIT (Provisional), Public Release Deferred | Accepted (partially supersedes ADR-0002) |
 | 0008 | Ralph: Sequential Default with Parallel-Ready Architecture | Accepted |
 | 0009 | Claude Code Plugin (MCP) as Primary Mode | Accepted (re-ranks ADR-0005; June-15 billing pivot) |
+| 0010 | Host-Reasoning Stepped MCP Tools (Align + Ralph) | Accepted (implements ADR-0009 §"Implementation notes" #2) |
 
 ---
 

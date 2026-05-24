@@ -1,20 +1,25 @@
-// SPEC: ADR-0009 (Claude Code plugin / MCP as primary mode).
+// SPEC: ADR-0009 (Claude Code plugin / MCP as primary mode) +
+//       ADR-0010 (host-reasoning stepped MCP tools).
 //
-// MCP server bootstrap. Registers Agora's read-only tools so a host
-// Claude Code session can drive alignment/Ralph state inspection without
-// Agora making any LLM call (the host reasons). Connects over stdio.
+// MCP server bootstrap. Registers Agora's tools so a host Claude Code
+// session can drive alignment/Ralph state inspection AND the alignment
+// loop itself without Agora making any LLM call (the host reasons).
+// Connects over stdio.
 //
-// This is the FOUNDATION: status / doctor / resume / trace (all
-// deterministic, LLM-free). The LLM-bearing orchestration tools (running
-// a Phase 2 round, a Ralph iteration) land in follow-up slices — those
-// require the host-reasoning callback contract described in ADR-0009 §
-// "Implementation notes".
+// Tool surface:
+//   - Read-only (ADR-0009 foundation):
+//       agora_status / agora_doctor / agora_resume / agora_trace
+//   - Stepped (ADR-0010):
+//       agora_align_step — Slice A handles telos; subsequent slices
+//                          extend to form / material / efficient /
+//                          socrates / maturity / ac / handoff.
+//       agora_ralph_step — lands in slices D/E.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-import { mcpDoctor, mcpResume, mcpStatus, mcpTrace } from "./tools.js";
+import { mcpAlignStep, mcpDoctor, mcpResume, mcpStatus, mcpTrace } from "./tools.js";
 
 export function buildAgoraMcpServer(): McpServer {
   const server = new McpServer({ name: "agora", version: getAgoraVersion() });
@@ -59,6 +64,39 @@ export function buildAgoraMcpServer(): McpServer {
       },
     },
     async (args) => mcpTrace(args),
+  );
+
+  // ─── Stepped tool: alignment loop (ADR-0010) ───
+  //
+  // Call with no args to advance the loop. The tool returns one of:
+  //   - {kind:"advanced"}        → deterministic step ran; call again
+  //   - {kind:"needs_user_input"} → ask the user the listed questions,
+  //                                 call again with user_answers
+  //   - {kind:"needs_reasoning"}  → reason about each prompt, call again
+  //                                 with llm_responses
+  //   - {kind:"done"}             → loop complete (for this slice scope)
+  //   - {kind:"error"}            → recoverable; correct + retry
+  //
+  // Slice A: telos round only. Subsequent slices extend to the rest of
+  // Phase 2 + handoff.
+  server.registerTool(
+    "agora_align_step",
+    {
+      description:
+        "Advance the Agora Alignment Loop one step. Host supplies reasoning + user answers via subsequent calls; Agora makes no LLM call. Returns a StepEnvelope (kind: done | advanced | needs_user_input | needs_reasoning | error). Slice A scope: Aristotle telos.",
+      inputSchema: {
+        user_answers: z.record(z.string(), z.string()).optional(),
+        llm_responses: z
+          .array(
+            z.object({
+              id: z.string().min(1),
+              content: z.union([z.string(), z.record(z.string(), z.unknown())]),
+            }),
+          )
+          .optional(),
+      },
+    },
+    async (args) => mcpAlignStep(args),
   );
 
   return server;
