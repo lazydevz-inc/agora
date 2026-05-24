@@ -67,54 +67,63 @@ a real decision at a specific point in the workflow:
 
 Agora runs two loops back to back. The first makes sure you're building the **right
 thing**. The second makes sure you build it **right** — and that it **stays** right.
-
-### Loop 1 — Alignment (Human-AI Alignment, "HAA")
-
-> Goal: drive the gap between *what you said* and *what you meant* to ~0% **before
-> any code is written.**
+A locked **Seed** is the handoff between them.
 
 ```
-You: "I want a settings page."          ← vague is fine; that's the point
-  │
-  ├─ Husserl (optional)   strip assumptions: "a *page*, or settings *persistence*?"
-  ├─ Auto-scan            detect brownfield/greenfield, ingest existing docs
-  ├─ Aristotle 4 Causes   WHY does this exist (telos)?  ← the primary axis
-  │                       WHAT is its essential structure (form)?
-  │                       WITH WHAT stack (material)?  BY WHOM/HOW (efficient)?
-  ├─ Socrates             probe each answer with concrete cases to surface gaps
-  ├─ Plato (maturity)     is each answer well-thought-out? too shallow → loop back
-  └─ Plato (Dihairesis)   split the goal into small, atomic, verifiable pieces
-  │
-  ▼
-🔒 Seed locked  (.agora/seed.json) — an unambiguous, machine-readable spec
+┌──────────────────────────────────────────────────────────────────┐
+│  Alignment Loop  (Human-AI Alignment, "HAA")                       │
+│  Goal: drive expected ↔ actual gap to ~0% BEFORE any code          │
+│                                                                    │
+│  Phase −1  Husserl Epoché   — bracket assumed frames (optional)    │
+│  Phase  0  Auto-scan        — brownfield detect, ingest MD context │
+│  Phase  1  Open intake      — receive all the context you can give │
+│  Phase  2  Iterative rounds — Aristotle structures (4 causes),     │
+│            Socrates tests, Plato measures maturity                 │
+│  Terminate — user assent + structural validation + Plato Dihairesis│
+│              splits the goal into atomic, verifiable pieces        │
+└──────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼  🔒 locked Seed (.agora/seed.json)
+                           │
+┌──────────────────────────────────────────────────────────────────┐
+│  Ralph Loop  (verification-gated implementation)                   │
+│  Goal: satisfy the Seed AND stay aligned, every iteration          │
+│                                                                    │
+│  Each iteration must pass the gates:                               │
+│    Gate 0  Pre-flight infra   — CLIs authed, deps reachable        │
+│    Gate 1  Deterministic      — lint, typecheck, build, test       │
+│    Gate 2  Functional QA      — Playwright tests green     (🚧)     │
+│    Gate 3  UI/UX quality      — Aquinas Disputatio                 │
+│    Gate 4  Technical quality  — Aquinas Disputatio                 │
+│    Gate 5  Alignment check    — output ↔ Seed telos   ◀ inviolable │
+│                                                                    │
+│  Loop continues until all gates pass AND you are satisfied.        │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### Loop 2 — Ralph (verification-gated implementation)
+> The Alignment loop refuses to terminate until intent is settled. The Ralph loop
+> refuses to ship until *every* gate passes — including the alignment gate, the one
+> that can never be waived. *(🚧 = on the roadmap; see [Status](#status).)*
 
-> Goal: satisfy the Seed **and** stay aligned at every step.
+### What it feels like in practice
 
 ```
-Pick the next atomic piece
-  │
-  ▼
-Claude Code implements it      ← the host AI writes the code; Agora orchestrates
-  │
-  ▼
-Run the gates:
-  Gate 1  Deterministic   — does it typecheck / lint / test / build?
-  Gate 5  Alignment       — does the output still match the original telos?  ◀ inviolable
-  Gate 3+4 Quality        — Aquinas Disputatio: "is this actually good?", ruled point-by-point
-  │
-  ├─ all pass → mark piece done → next piece
-  └─ fail     → fix + retry, with explicit drift correction
-  │
-  ▼
-Repeat until every piece is done and every gate passes.
-```
+You: "I want a settings page."                    ← vague is fine; that's the point
 
-**The key idea:** the Alignment loop refuses to terminate until intent is settled.
-The Ralph loop refuses to ship until *every* gate passes — including the alignment
-gate, which is the one that can never be waived.
+[Husserl]   "A *page* — or do you actually want settings to *persist* per user?"
+[Aristotle] "Why does this exist?"  → telos: users want to customize defaults
+            "What's its essential structure?"  → form
+            "Which stack?"  → material        "Who/when/how?"  → efficient
+[Plato]     "That telos is still shallow — what *good* does customization serve?"
+            → loops back until each answer is mature enough
+[Plato]     splits it into atomic pieces:  ac_001  ac_002  ac_003 …
+
+🔒 Seed locked.  Now Ralph takes over:
+
+  ▸ implement ac_001  →  Gate 1 ✓  Gate 5 ✓ (drift 0.04)  Gate 3+4 ✓  →  done
+  ▸ implement ac_002  →  Gate 1 ✓  Gate 5 ✗ (drift 0.41!) →  fix + retry
+  ▸ …until every piece passes every gate.
+```
 
 ---
 
