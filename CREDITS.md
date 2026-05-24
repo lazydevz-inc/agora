@@ -33,10 +33,10 @@ To prevent confusion: Agora is a clean reimplementation in TypeScript, not a por
 
 - Ouroboros's Python codebase (Agora is TypeScript on Node 22+)
 - Ouroboros's 21-agent system (Agora has 5 philosopher modules)
-- Ouroboros's 15+ subcommand CLI (Agora caps at 7)
+- Ouroboros's 15+ subcommand CLI (Agora is a single guided `agora` flow — you rarely think about subcommands)
 - Ouroboros's global-only configuration model (Agora is per-folder primary)
 - Ouroboros's vote-based consensus (Agora uses Aquinas Disputatio)
-- Ouroboros's Claude Agent SDK integration (Agora uses `claude --print` subprocess to honor Max subscription, see ADR-0005)
+- Ouroboros's Claude Agent SDK integration (Agora runs inside Claude Code so the host session honors the user's subscription with no extra billing — see ADR-0005 + ADR-0009)
 
 ### Where Agora diverges sharply from Ouroboros
 
@@ -45,7 +45,7 @@ To prevent confusion: Agora is a clean reimplementation in TypeScript, not a por
 3. **Five focused philosopher modules** instead of 21 generic agents
 4. **Telos (final cause)** as the primary axis of evaluation
 5. **TypeScript stack** for unified CLI / TUI / future GUI codebase
-6. **`claude --print` subprocess** so Max subscription users are not double-billed
+6. **Runs as a plugin inside Claude Code** (the host session does the reasoning; Agora makes zero LLM calls) so subscription users are not double-billed — see ADR-0009
 
 We thank Q00 for releasing under MIT, which made this exploration possible.
 
@@ -55,12 +55,11 @@ Production dependencies are intentionally minimal. Listed here are the runtime d
 
 | Package | Role |
 |---------|------|
-| `commander` | Battle-tested CLI argument parsing |
 | `@clack/prompts` | Modern, beautiful interactive prompts |
 | `picocolors` | Tiny terminal color library |
+| `zod` | Runtime schema validation (state, seed, config, events) |
 
 Development tools (TypeScript, vitest, biome, tsx) are listed in `devDependencies`.
 
-Stage 4 will add (subject to ADR justification):
-- `@anthropic-ai/claude-agent-sdk` — fallback path when no Claude Code CLI is present
-- `@modelcontextprotocol/sdk` — MCP server export for in-Claude-Code use
+Planned (subject to ADR justification):
+- `@modelcontextprotocol/sdk` — MCP server so Agora runs as a plugin inside Claude Code (ADR-0009, the primary mode going forward)

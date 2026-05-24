@@ -1,6 +1,6 @@
 # ADR-0005 — Claude Integration via `claude --print` Subprocess (Not Agent SDK)
 
-> **Status**: Accepted (supersedes the T2 recommendation in `docs/stage-1/notes.md`)
+> **Status**: Accepted, **amended by ADR-0009** (2026-05-24) — the 3-mode architecture + `ClaudeRunner` interface stand, but the primary/fallback *ordering* below is re-ranked: the in-Claude-Code MCP plugin (Mode 3) is now primary; `claude --print` (Mode 1/2) is demoted to a warned fallback because Anthropic moves it to a metered credit pool on 2026-06-15. Read ADR-0009 alongside this.
 > **Date**: 2026-04-27
 > **Decided by**: Sang Rhee
 > **Discussed with**: Claude

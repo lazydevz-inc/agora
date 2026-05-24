@@ -131,7 +131,7 @@ Claude Code(또는 다른 AI 코딩 에이전트) 위에 올라가는 spec-first
 
 | 영역 | Ouroboros | Agora |
 |------|-----------|-------|
-| CLI | 15+ 서브커맨드 | 단일 진입점 `agora` + 자동 흐름 안내 (≤7 서브커맨드 hard cap) |
+| CLI | 15+ 서브커맨드 | 단일 진입점 `agora` + 자동 흐름 안내 (대부분 `agora` 하나로 다음 단계 안내; 세부 단계는 `agora round`/`resume`가 자동 라우팅) |
 | 설정 | global-only | per-project 기본 + global fallback |
 | Brownfield/Greenfield | 사용자가 명시 | 자동 감지 |
 | 인터뷰 UX | 자유 입력만 | 추천 옵션 + 자유 입력 (전문성 인식 분기) |
@@ -200,23 +200,27 @@ Phase 2 (반복): 다철학자 라운드 (Aristotle 구조 + Socrates 검증 + P
 
 ---
 
-## Claude 인증 + 3 I/O 모드 (ADR-0005)
+## Claude 인증 + 3 I/O 모드 (ADR-0005 → **ADR-0009 재정렬**)
 
-**Claude Agent SDK는 Max 구독 사용 못 함**. 따라서:
+**핵심 포지셔닝: Agora = Claude Code의 Spring (프레임워크).** Java/JVM이 코드를
+실행하듯 Claude Code가 코드를 짜고, Spring이 구조·생명주기를 잡듯 Agora가 정렬
+방법 + 게이트 + 루프를 지휘한다. **Agora 자신은 LLM을 호출하지 않는다** (주력
+모드 기준).
 
-- **1차 (primary)**: `claude --print --output-format json` subprocess → Max 구독 사용
-- **2차 (fallback)**: Claude Agent SDK + `ANTHROPIC_API_KEY` (Claude Code 미설치 환경)
-- **시작 시 자동 감지** → 안전한 경로 선택
+**왜 바뀌었나 (ADR-0009)**: 2026-06-15부터 Anthropic이 `claude -p`(=`claude
+--print`) + Agent SDK 구독 사용분을 **별도 종량 크레딧 풀($20~$200/월, API 요율)**
+로 분리. 즉 ADR-0005가 주력으로 삼았던 subprocess 경로가 비용 폭탄이 됨. 그래서
+**호스트 Claude Code 세션이 추론을 담당하는 MCP 플러그인(Mode 3)을 주력으로 승격.**
 
-Agora는 3가지 I/O 모드를 지원:
+| 우선순위 | Mode | LLM 호출 | 과금 |
+|------|------|---------|------|
+| **1 (주력)** | **MCP 플러그인 (Claude Code 내부)** | 호스트 세션이 추론; Agora는 0회 | 인터랙티브 구독 풀 (추가 과금 X) |
+| 2 (레거시/standalone) | `claude --print` subprocess | Agora가 `claude -p` 호출 | **종량 크레딧 풀** (2026-06-15~) — 비용 경고 표시 |
+| 3 (사장) | Agent SDK + `ANTHROPIC_API_KEY` | 직접 API | API 과금 |
 
-| Mode | Trigger | I/O | LLM 호출 |
-|------|---------|-----|---------|
-| 1. Interactive TUI | 터미널에서 `agora` | `@clack/prompts` | `claude --print` (Max) |
-| 2. JSON / Scripted | Claude Code Bash, CI | stdin/stdout JSON | `claude --print` (필요 시만) |
-| 3. MCP Server | Claude Code 안에서 호출 | MCP protocol | **없음** (호스트 세션이 LLM) |
-
-Mode 3는 nested LLM 낭비 방지. Mode 2/3에서는 Agora 자체가 LLM 호출하지 않고 *구조 + 의미 + 게이트 검증*만 제공.
+Mode 1(주력)은 nested LLM 낭비 + 추가 과금을 모두 방지. Agora는 *구조 + 의미 +
+게이트 검증*만 제공하고, 추론이 필요하면 호스트 Claude Code 세션이 수행.
+⚠️ MCP 플러그인 레이어(`src/mcp/`)는 아직 미구현 — 현재는 Mode 2로 동작.
 
 ---
 
@@ -227,7 +231,7 @@ Mode 3는 nested LLM 낭비 방지. Mode 2/3에서는 Agora 자체가 LLM 호출
 | Language | TypeScript | ≥ 5.9 strict | `tsconfig.json` 참조 |
 | Runtime | Node.js | ≥ 22 LTS | `engines.node` |
 | Package manager | pnpm | 10 | `packageManager` 필드 |
-| CLI framework | commander | 14 | 검증된 표준 |
+| CLI 파싱 | (직접 구현) | — | `src/cli/flags.ts` 수동 argv 파싱. commander는 의존성에서 제거됨 (미사용) |
 | Interactive UI | @clack/prompts | 0.11 | 모던, 미니멀 |
 | Colors | picocolors | 1 | tiny |
 | Dev runtime | tsx | 4 | 즉시 TypeScript 실행 |
@@ -305,7 +309,7 @@ agora/
 
 - **진입점은 `agora` 단 하나**. 사용자는 다른 명령어를 외울 필요 없음
 - **자동 다음 단계 안내**: 매 명령 후 "다음에 할 수 있는 것" 자동 제안
-- **서브커맨드 ≤ 7개**: hard cap (현재 예상: `agora`, `new`, `resume`, `seed`, `ralph`, `status`, `doctor`)
+- **핵심 명령어는 소수 + 안내형 흐름**: 사용자는 주로 `agora`/`new`/`resume`/`status`/`ralph`/`handoff`/`doctor`만 쓰고, Phase 2 세부 단계(telos/form/material/efficient/maturity/ac/bracket/intake)는 `agora round`·`agora resume`가 자동으로 다음 걸 골라줌. (Stage 6 기준 17개 명령이 wired 됐지만 대부분 자동 라우팅 대상 — "≤7 hard cap"이라는 초기 표현은 폐기; 원칙은 "외울 필요 없는 안내형 UX")
 - **모든 옵션은 reasonable default** — 플래그 없이 그냥 동작해야 함
 - **AI 에이전트 친화**: 모든 명령은 `--json` 출력 모드 지원
 - **비대화형(non-interactive) 모드**: CI/CD에서 사용 가능
@@ -406,10 +410,11 @@ UX expertise-aware split:
 | 0002 | Project Location and Visibility | Accepted |
 | 0003 | Meta Dogfooding: Build Agora the Agora Way | Accepted |
 | 0004 | Development Stages | Accepted |
-| 0005 | Claude Integration via Subprocess (not Agent SDK) | Accepted |
+| 0005 | Claude Integration via Subprocess (not Agent SDK) | Accepted, **amended by ADR-0009** |
 | 0006 | Pre-Ralph Infrastructure Gate (Gate 0) | Accepted |
 | 0007 | License Choice: MIT (Provisional), Public Release Deferred | Accepted (partially supersedes ADR-0002) |
 | 0008 | Ralph: Sequential Default with Parallel-Ready Architecture | Accepted |
+| 0009 | Claude Code Plugin (MCP) as Primary Mode | Accepted (re-ranks ADR-0005; June-15 billing pivot) |
 
 ---
 
@@ -427,5 +432,5 @@ UX expertise-aware split:
 
 ---
 
-**Last Updated**: 2026-05-04
-**Version**: 0.0.1-alpha.0 (Stage 5 closed, Stage 6 active — implementation begins)
+**Last Updated**: 2026-05-24
+**Version**: 0.0.1-alpha.0 (Stage 6 active — 34 vertical slices done: alignment loop end-to-end + Ralph Gate 1/3/4/5 + audit log + `agora trace` + non-interactive/agent-driven mode. 🚧 미구현: Socrates 모듈, Gate 2 (Playwright), MCP 플러그인 모드 — ADR-0009)
