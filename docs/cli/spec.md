@@ -3344,8 +3344,8 @@ subcommand's exit (per delegation).
 
 ### Output consumed by
 
-- **Stage 6 implementation**: implements as default route in commander/citty
-  CLI library (`when no subcommand, run agora-default-handler`).
+- **Stage 6 implementation**: handled by `src/cli/entry.ts` default route
+  in the hand-rolled argv parser (`when no subcommand, run agora-default-handler`).
 - **AI agents**: parse JSON output to know "what should I run next?"
   for this project at this moment.
 - **Sang's daily use**: the canonical entry point — `agora<Enter>` is the

@@ -636,7 +636,7 @@ This SPEC adds `src/prompts/` to the module-graph LAYER 0. Update
 Rule [SPEC] (Accepted 2026-05-03, R2-A)" Layer 0 entry:
 
 ```
-LAYER 0 (no deps within src/, only stdlib + zod/commander/clack/picocolors):
+LAYER 0 (no deps within src/, only stdlib + zod/clack/picocolors):
   shared/            (path / io / fingerprint helpers)
   result/            (Result<T, E>)
   errors/types.ts    (AgoraError type only)

@@ -1,6 +1,6 @@
 # ADR-0005 — Claude Integration via `claude --print` Subprocess (Not Agent SDK)
 
-> **Status**: Accepted, **amended by ADR-0009** (2026-05-24) — the 3-mode architecture + `ClaudeRunner` interface stand, but the primary/fallback *ordering* below is re-ranked: the in-Claude-Code MCP plugin (Mode 3) is now primary; `claude --print` (Mode 1/2) is demoted to a warned fallback because Anthropic moves it to a metered credit pool on 2026-06-15. Read ADR-0009 alongside this.
+> **Status**: Accepted, **amended by ADR-0009** (2026-05-24, re-ranks Mode 3 as primary) and **implemented by ADR-0010** (2026-05-24, host-reasoning stepped MCP tools `agora_align_step` + `agora_ralph_step`). The 3-mode architecture + `ClaudeRunner` interface below stand; `claude --print` (Mode 1/2) is the warned fallback (Anthropic moves it to a metered credit pool 2026-06-15) and is no longer the default path. Read ADR-0009 + ADR-0010 alongside this.
 > **Date**: 2026-04-27
 > **Decided by**: Sang Rhee
 > **Discussed with**: Claude
