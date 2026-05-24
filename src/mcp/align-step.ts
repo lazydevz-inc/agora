@@ -12,11 +12,17 @@
 
 import { join } from "node:path";
 
+import type {
+  AcceptanceCriteriaResult,
+  AcceptanceCriterion,
+} from "../alignment/acceptance-criteria.js";
 import type { Phase0Output } from "../alignment/phase-0-scan.js";
 import { runPhase0Scan } from "../alignment/phase-0-scan.js";
 import type { Phase1Result } from "../alignment/phase-1-intake.js";
 import type { ElenchusFile } from "../cli/commands/socrates.js";
+import { buildAgoraError } from "../errors/build.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
+import { buildSeed } from "../handoff/seed-builder.js";
 import type {
   EfficientClaim,
   FormClaim,
@@ -25,6 +31,7 @@ import type {
 } from "../philosophers/aristotle.js";
 import { FourCausesSchema } from "../philosophers/aristotle.js";
 import type { DefendedFrame } from "../philosophers/husserl.js";
+import type { PlatoDLPerCauseOutput, PlatoMaturityResult } from "../philosophers/plato.js";
 import type { ElenchedClaim, SocratesClaim } from "../philosophers/socrates.js";
 import { err, ok, type Result } from "../result/index.js";
 import { readJsonOrNull, writeJsonAtomic } from "../shared/io.js";
@@ -41,9 +48,12 @@ import {
   StepArgsSchema,
   type StepEnvelope,
 } from "./step.js";
+import { type AcStepOutcome, advanceAc, beginAc } from "./steps/ac.js";
 import { advanceEfficient, beginEfficient, type EfficientStepOutcome } from "./steps/efficient.js";
 import { advanceForm, beginForm, type FormStepOutcome } from "./steps/form.js";
+import { advanceHandoff, beginHandoff, type HandoffStepOutcome } from "./steps/handoff.js";
 import { advanceMaterial, beginMaterial, type MaterialStepOutcome } from "./steps/material.js";
+import { advanceMaturity, beginMaturity, type MaturityStepOutcome } from "./steps/maturity.js";
 import { advanceSocrates, beginSocrates, type SocratesStepOutcome } from "./steps/socrates.js";
 import { advanceTelos, beginTelos, type TelosStepOutcome } from "./steps/telos.js";
 
@@ -124,6 +134,12 @@ async function dispatchPending(
       return await applyEfficientOutcome(cwd, state, advanceEfficient(pending, args));
     case "socrates":
       return await applySocratesOutcome(cwd, state, advanceSocrates(pending, args));
+    case "maturity":
+      return await applyMaturityOutcome(cwd, state, advanceMaturity(pending, args));
+    case "ac":
+      return await applyAcOutcome(cwd, state, advanceAc(pending, args));
+    case "handoff":
+      return await applyHandoffOutcome(cwd, state, advanceHandoff(pending, args));
     default:
       return ok(
         envError("align", "internal.invariant-violation", `Unknown pending step prefix: ${prefix}`),
@@ -133,7 +149,16 @@ async function dispatchPending(
 
 // ─── Branch: no pending — pick next target ───
 
-type AlignTarget = "telos" | "form" | "material" | "efficient" | "socrates" | "done";
+type AlignTarget =
+  | "telos"
+  | "form"
+  | "material"
+  | "efficient"
+  | "socrates"
+  | "maturity"
+  | "ac"
+  | "handoff"
+  | "done";
 
 async function dispatchFresh(
   cwd: string,
@@ -151,12 +176,15 @@ async function dispatchFresh(
   }
   const causes = await readJsonOrNull<FourCauses>(causesPath(cwd));
   const elenchus = await readJsonOrNull<ElenchusFile>(elenchusPath(cwd));
-  const target = pickAlignTarget(causes, elenchus);
+  const maturity = await readJsonOrNull<PlatoMaturityResult>(maturityPath(cwd));
+  const acs = await readJsonOrNull<AcceptanceCriteriaResult>(acsPath(cwd));
+  const seedExists = (await readJsonOrNull<unknown>(seedPath(cwd))) !== null;
+  const target = pickAlignTarget(causes, elenchus, maturity, acs, seedExists);
   if (target === "done") {
     return ok(
       envDone(
         "align",
-        "All Slice B causes captured (telos + form + material + efficient + socrates). Next: maturity / ac / handoff land in Slice C of ADR-0010.",
+        "Alignment complete. seed.json is locked; state.current_phase advances to ready_for_ralph. Run agora_ralph_step (lands in Slice D of ADR-0010) to enter the Ralph loop.",
       ),
     );
   }
@@ -166,12 +194,18 @@ async function dispatchFresh(
 export function pickAlignTarget(
   causes: FourCauses | null,
   elenchus: ElenchusFile | null,
+  maturity: PlatoMaturityResult | null,
+  acs: AcceptanceCriteriaResult | null,
+  seedExists: boolean,
 ): AlignTarget {
   if (causes === null || causes.telos === undefined) return "telos";
   if (causes.form === undefined) return "form";
   if (causes.material === undefined) return "material";
   if (causes.efficient === undefined) return "efficient";
   if (elenchus === null) return "socrates";
+  if (maturity === null || !maturity.all_passed) return "maturity";
+  if (acs === null) return "ac";
+  if (!seedExists) return "handoff";
   return "done";
 }
 
@@ -191,6 +225,12 @@ async function beginAlignTarget(
       return await beginEfficientRound(cwd, state);
     case "socrates":
       return await beginSocratesRound(cwd, state);
+    case "maturity":
+      return await beginMaturityRound(cwd, state);
+    case "ac":
+      return await beginAcRound(cwd, state);
+    case "handoff":
+      return await beginHandoffRound(cwd, state);
   }
 }
 
@@ -528,6 +568,299 @@ function addCause<K extends "form" | "material" | "efficient">(
   };
 }
 
+// ─── Maturity: 4-cause Noesis test ───
+
+async function beginMaturityRound(
+  cwd: string,
+  state: State,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const causes = await readJsonOrNull<FourCauses>(causesPath(cwd));
+  if (
+    causes?.telos === undefined ||
+    causes.form === undefined ||
+    causes.material === undefined ||
+    causes.efficient === undefined
+  ) {
+    return ok(envError("align", "state.corrupt", "maturity needs all 4 causes captured"));
+  }
+  const outcome = beginMaturity({
+    causes: [
+      { field_path: "telos", claim_content: causes.telos.statement },
+      { field_path: "form", claim_content: causes.form.essential_structure },
+      { field_path: "material", claim_content: causes.material.tech_stack.join(", ") },
+      {
+        field_path: "efficient",
+        claim_content: `${causes.efficient.who}; ${causes.efficient.when}; ${causes.efficient.how}`,
+      },
+    ],
+  });
+  return await applyMaturityOutcome(cwd, state, outcome);
+}
+
+async function applyMaturityOutcome(
+  cwd: string,
+  state: State,
+  outcome: MaturityStepOutcome,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  switch (outcome.type) {
+    case "issue":
+      await writePending(cwd, outcome.pending);
+      return ok(outcome.envelope);
+    case "complete":
+      return await persistMaturity(cwd, state, outcome.result);
+    case "error":
+      return ok(outcome.envelope);
+  }
+}
+
+async function persistMaturity(
+  cwd: string,
+  state: State,
+  result: PlatoMaturityResult,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  await writeJsonAtomic(maturityPath(cwd), result);
+  // Fold tagged maturity back into four_causes.
+  const causes = await readJsonOrNull<FourCauses>(causesPath(cwd));
+  if (causes !== null) {
+    const updated = applyMaturityToCauses(causes, result.per_cause);
+    await writeJsonAtomic(
+      causesPath(cwd),
+      FourCausesSchema.parse({ ...updated, updated_at: new Date().toISOString() }),
+    );
+  }
+  await clearPending(cwd);
+  if (!result.all_passed) {
+    return ok(
+      envAdvanced(
+        "align",
+        "maturity.failed",
+        `Maturity failed: ${result.failing_causes.join(", ")}. Edit four_causes.json (e.g. drop the failing cause + re-run agora_align_step) to refine + retry.`,
+        { phase: 2, round: 4, failing_causes: result.failing_causes },
+      ),
+    );
+  }
+  // All passed → advance state to alignment_complete.
+  const advanced = await saveState(
+    cwd,
+    { ...state, current_phase: "alignment_complete", alignment: { phase: 2, round: 4 } },
+    "agora_align_step",
+  );
+  if (!advanced.ok) return advanced;
+  return ok(
+    envAdvanced(
+      "align",
+      "maturity.complete",
+      "All 4 causes passed Plato's Divided Line. state advanced to alignment_complete.",
+      { phase: 2, round: 4 },
+    ),
+  );
+}
+
+function applyMaturityToCauses(
+  causes: FourCauses,
+  perCause: readonly PlatoDLPerCauseOutput[],
+): Omit<FourCauses, "created_at" | "updated_at"> & { created_at: string } {
+  let next: FourCauses = { ...causes };
+  for (const pc of perCause) {
+    if (pc.field_path === "telos" && next.telos !== undefined) {
+      next = { ...next, telos: { ...next.telos, maturity: pc.tagged_maturity } };
+    } else if (pc.field_path === "form" && next.form !== undefined) {
+      next = { ...next, form: { ...next.form, maturity: pc.tagged_maturity } };
+    } else if (pc.field_path === "material" && next.material !== undefined) {
+      next = { ...next, material: { ...next.material, maturity: pc.tagged_maturity } };
+    } else if (pc.field_path === "efficient" && next.efficient !== undefined) {
+      next = { ...next, efficient: { ...next.efficient, maturity: pc.tagged_maturity } };
+    }
+  }
+  return next;
+}
+
+// ─── Acceptance Criteria ───
+
+async function beginAcRound(
+  cwd: string,
+  state: State,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const causes = await readJsonOrNull<FourCauses>(causesPath(cwd));
+  if (causes?.telos === undefined || causes.form === undefined) {
+    return ok(envError("align", "state.corrupt", "ac needs settled telos + form"));
+  }
+  const outcome = beginAc({
+    telos_statement: causes.telos.statement,
+    form_essential_structure: causes.form.essential_structure,
+  });
+  return await applyAcOutcome(cwd, state, outcome);
+}
+
+async function applyAcOutcome(
+  cwd: string,
+  state: State,
+  outcome: AcStepOutcome,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  switch (outcome.type) {
+    case "issue":
+      await writePending(cwd, outcome.pending);
+      return ok(outcome.envelope);
+    case "complete":
+      await writeJsonAtomic(acsPath(cwd), outcome.result);
+      await clearPending(cwd);
+      void state;
+      return ok(
+        envAdvanced(
+          "align",
+          "ac.complete",
+          `Acceptance criteria captured (${String(outcome.result.criteria.length)} criteria). .agora/acceptance_criteria.json written.`,
+        ),
+      );
+    case "error":
+      return ok(outcome.envelope);
+  }
+}
+
+// ─── Handoff: Dihairesis + user confirm + seed lock ───
+
+async function beginHandoffRound(
+  cwd: string,
+  state: State,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  if (state.current_phase !== "alignment_complete") {
+    return ok(
+      envError(
+        "align",
+        "user.aborted",
+        `handoff requires state.current_phase=alignment_complete (got ${state.current_phase}). Run maturity first.`,
+      ),
+    );
+  }
+  const causes = await readJsonOrNull<FourCauses>(causesPath(cwd));
+  const acs = await readJsonOrNull<AcceptanceCriteriaResult>(acsPath(cwd));
+  if (causes?.telos === undefined || acs === null) {
+    return ok(envError("align", "state.corrupt", "handoff needs telos + acceptance_criteria.json"));
+  }
+  const outcome = beginHandoff({
+    telos_statement: causes.telos.statement,
+    acceptance_criteria: acs.criteria,
+  });
+  return await applyHandoffOutcome(cwd, state, outcome);
+}
+
+async function applyHandoffOutcome(
+  cwd: string,
+  state: State,
+  outcome: HandoffStepOutcome,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  switch (outcome.type) {
+    case "issue":
+      await writePending(cwd, outcome.pending);
+      return ok(outcome.envelope);
+    case "complete":
+      return await persistHandoff(cwd, state, outcome.data);
+    case "error":
+      return ok(outcome.envelope);
+  }
+}
+
+async function persistHandoff(
+  cwd: string,
+  state: State,
+  data: {
+    ac_tree: import("../handoff/dihairesis.js").ACNode[];
+    undivided_acs: string[];
+    max_depth_reached: number;
+    total_llm_calls: number;
+    user_confirmed: boolean;
+  },
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  // Always write ac_tree.json (audit trail, parallel to handoff cli).
+  const acTreeRecord = {
+    ac_tree: data.ac_tree,
+    undivided_acs: data.undivided_acs,
+    max_depth_reached: data.max_depth_reached,
+    total_atomic_leaves: countAtomicLeaves(data.ac_tree),
+    total_llm_calls: data.total_llm_calls,
+    created_at: new Date().toISOString(),
+  };
+  await writeJsonAtomic(acTreePath(cwd), acTreeRecord);
+
+  await clearPending(cwd);
+
+  if (!data.user_confirmed) {
+    return ok(
+      envAdvanced(
+        "align",
+        "handoff.declined",
+        "User declined to lock seed; ac_tree.json preserved for review. Re-run agora_align_step to retry handoff.",
+      ),
+    );
+  }
+
+  // Confirmed: assemble seed.json and advance state.
+  const sources = await readSeedSources(cwd);
+  if (!sources.ok) return sources;
+  const seed = buildSeed({
+    defended_frame: sources.value.defended_frame,
+    intake: sources.value.intake,
+    four_causes: sources.value.four_causes,
+    acceptance_criteria: sources.value.acceptance_criteria,
+    ac_tree: data.ac_tree,
+  });
+  await writeJsonAtomic(seedPath(cwd), seed);
+  const advanced = await saveState(
+    cwd,
+    { ...state, current_phase: "ready_for_ralph" },
+    "agora_align_step",
+  );
+  if (!advanced.ok) return advanced;
+  return ok(
+    envAdvanced(
+      "align",
+      "handoff.complete",
+      `seed.json locked (${String(seed.ac_tree.length)} root AC(s), ${String(acTreeRecord.total_atomic_leaves)} atomic leaves). state advanced to ready_for_ralph.`,
+      { phase: "ready_for_ralph" as const },
+    ),
+  );
+}
+
+interface SeedSources {
+  defended_frame: DefendedFrame | null;
+  intake: Phase1Result;
+  four_causes: FourCauses;
+  acceptance_criteria: AcceptanceCriteriaResult;
+}
+
+async function readSeedSources(cwd: string): Promise<Result<SeedSources, AgoraErrorThrown>> {
+  const intake = await readJsonOrNull<Phase1Result>(join(cwd, ".agora", "intake.json"));
+  const causes = await readJsonOrNull<FourCauses>(causesPath(cwd));
+  const acs = await readJsonOrNull<AcceptanceCriteriaResult>(acsPath(cwd));
+  if (intake === null || causes === null || acs === null) {
+    return err(
+      buildAgoraError("state.corrupt", {
+        context: {
+          detail: "handoff: missing intake / four_causes / acceptance_criteria for seed assembly",
+        },
+      }),
+    );
+  }
+  const defendedFrame = await readJsonOrNull<DefendedFrame>(
+    join(cwd, ".agora", "defended_frame.json"),
+  );
+  return ok({
+    defended_frame: defendedFrame,
+    intake,
+    four_causes: causes,
+    acceptance_criteria: acs,
+  });
+}
+
+function countAtomicLeaves(tree: readonly import("../handoff/dihairesis.js").ACNode[]): number {
+  let count = 0;
+  for (const node of tree) {
+    if (node.atomic) count += 1;
+    count += countAtomicLeaves(node.children);
+  }
+  return count;
+}
+
 // ─── Path + scan helpers ───
 
 function causesPath(cwd: string): string {
@@ -536,6 +869,22 @@ function causesPath(cwd: string): string {
 
 function elenchusPath(cwd: string): string {
   return join(cwd, ".agora", "elenchus.json");
+}
+
+function maturityPath(cwd: string): string {
+  return join(cwd, ".agora", "maturity.json");
+}
+
+function acsPath(cwd: string): string {
+  return join(cwd, ".agora", "acceptance_criteria.json");
+}
+
+function seedPath(cwd: string): string {
+  return join(cwd, ".agora", "seed.json");
+}
+
+function acTreePath(cwd: string): string {
+  return join(cwd, ".agora", "ac_tree.json");
 }
 
 async function ensureScan(cwd: string): Promise<Phase0Output> {

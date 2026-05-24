@@ -87,14 +87,18 @@ export interface PlatoUi {
   }): Promise<string>;
 }
 
-interface ExtractedDLTag {
-  tagged_maturity: Maturity;
-  rejected_alternatives: RejectedAlternative[];
-}
+// Exported for the ADR-0010 stepped path (`src/mcp/steps/maturity.ts`):
+// host reasons about the DL extraction, then submits the parsed object
+// for orchestrator-side validation.
+export const PlatoDLExtractionResponseSchema = z.object({
+  tagged_maturity: MaturitySchema,
+  rejected_alternatives: z.array(RejectedAlternativeSchema).default([]),
+});
+export type ExtractedDLTag = z.infer<typeof PlatoDLExtractionResponseSchema>;
 
 // ─── Inline prompt (replace with prompt-library lookup in future slice) ───
 
-const PLATO_DL_SYSTEM = `You are administering Plato's Noesis test on a single claim. Maturity
+export const PLATO_DL_SYSTEM = `You are administering Plato's Noesis test on a single claim. Maturity
 tagging is the gate that prevents Pistis-level claims from being declared
 "settled" and entering Ralph (where they would drift catastrophically per
 the 0.9^10 math).
@@ -122,7 +126,7 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   ]
 }`;
 
-function buildDLUserPrompt(input: PlatoNoesisTestInput, userResponse: string): string {
+export function buildDLUserPrompt(input: PlatoNoesisTestInput, userResponse: string): string {
   return `Claim being measured:
 - field_path: ${input.field_path}
 - content: "${input.claim_content}"
@@ -253,12 +257,7 @@ async function callForDLTag(
       }),
     );
   }
-  const parsed = z
-    .object({
-      tagged_maturity: MaturitySchema,
-      rejected_alternatives: z.array(RejectedAlternativeSchema).default([]),
-    })
-    .safeParse(content);
+  const parsed = PlatoDLExtractionResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {
@@ -268,3 +267,7 @@ async function callForDLTag(
   }
   return ok(parsed.data);
 }
+
+// Re-export the per-maturity order so the stepped path can compute
+// "passed" identically.
+export { MATURITY_ORDER };

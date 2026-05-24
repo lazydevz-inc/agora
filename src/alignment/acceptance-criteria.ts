@@ -48,13 +48,18 @@ export interface AcCaptureUi {
   askAcsList(args: { telos: string; form: string }): Promise<string>;
 }
 
-interface ExtractedAcs {
-  criteria: { content: string }[];
-}
+// Exported for the ADR-0010 stepped path (`src/mcp/steps/ac.ts`).
+export const AcExtractionResponseSchema = z.object({
+  criteria: z
+    .array(z.object({ content: z.string().min(5) }))
+    .min(1)
+    .max(50),
+});
+export type ExtractedAcs = z.infer<typeof AcExtractionResponseSchema>;
 
 // ─── Inline prompt (replace with prompt-library lookup in future slice) ───
 
-const AC_EXTRACT_SYSTEM = `You are extracting an acceptance-criteria list from a user's free-text
+export const AC_EXTRACT_SYSTEM = `You are extracting an acceptance-criteria list from a user's free-text
 input. The user has already settled telos + form via Aristotle and passed
 maturity tagging via Plato. They now list the conditions under which the
 software will be considered "done" — the acceptance criteria.
@@ -79,7 +84,7 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   ]
 }`;
 
-function buildAcUserPrompt(input: AcCaptureInput, rawInput: string): string {
+export function buildAcUserPrompt(input: AcCaptureInput, rawInput: string): string {
   return `Settled telos.statement: "${input.telos_statement}"
 Settled form.essential_structure: "${input.form_essential_structure}"
 
@@ -174,14 +179,7 @@ async function callForAcExtraction(
       }),
     );
   }
-  const parsed = z
-    .object({
-      criteria: z
-        .array(z.object({ content: z.string().min(5) }))
-        .min(1)
-        .max(50),
-    })
-    .safeParse(content);
+  const parsed = AcExtractionResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {

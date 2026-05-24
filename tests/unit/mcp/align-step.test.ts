@@ -259,7 +259,7 @@ describe("runAlignStep — terminal & error cases", () => {
     expect(r.value.step).toBe("form.questions");
   });
 
-  test("all 4 causes + elenchus.json present → done envelope", async () => {
+  test("all 4 causes + elenchus.json present → opens maturity.ask", async () => {
     await seedSession();
     const now = new Date().toISOString();
     await writeJsonAtomic(join(cwd, ".agora", "four_causes.json"), {
@@ -300,7 +300,9 @@ describe("runAlignStep — terminal & error cases", () => {
     const r = await runAlignStep({});
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value.kind).toBe("done");
+    expect(r.value.kind).toBe("needs_user_input");
+    if (r.value.kind !== "needs_user_input") return;
+    expect(r.value.step).toBe("maturity.ask");
   });
 
   test("pending expects user_answers; sending llm_responses → error", async () => {

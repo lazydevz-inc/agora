@@ -79,7 +79,11 @@ export interface DihairesisInput {
 }
 
 // LLM-side decision shape per single decompose call.
-const DhCallResponseSchema = z.object({
+// Exported for the ADR-0010 stepped path (`src/mcp/steps/handoff.ts`):
+// each DH node decompose is one LLM call there; the host returns a
+// JSON object matching this shape, and the orchestrator builds the tree
+// incrementally.
+export const DhDecomposeResponseSchema = z.object({
   binary: z.string().min(1),
   alternatives_considered: z.array(z.string()).default([]),
   defense: z.string().min(1),
@@ -93,11 +97,11 @@ const DhCallResponseSchema = z.object({
     )
     .default([]),
 });
-type DhCallResponse = z.infer<typeof DhCallResponseSchema>;
+export type DhDecomposeResponse = z.infer<typeof DhDecomposeResponseSchema>;
 
 // ─── Inline prompt (replace with prompt-library lookup in future slice) ───
 
-const PLATO_DH_SYSTEM = `You are decomposing an acceptance criterion into a tree of children using
+export const PLATO_DH_SYSTEM = `You are decomposing an acceptance criterion into a tree of children using
 Dihairesis (natural-joint division). The justification IS the work product.
 
 Hard rules:
@@ -129,7 +133,11 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   ]
 }`;
 
-function buildDhUserPrompt(node: ACNode, telosStatement: string, maxDepth: number): string {
+export function buildDhUserPrompt(
+  node: ACNode,
+  telosStatement: string,
+  maxDepth: number,
+): string {
   return `Acceptance criterion to decompose:
 - id: ${node.id}
 - content: "${node.content}"
@@ -268,7 +276,7 @@ async function callDhDecompose(
   node: ACNode,
   telosStatement: string,
   runner: ClaudeRunner,
-): Promise<Result<DhCallResponse, AgoraErrorThrown>> {
+): Promise<Result<DhDecomposeResponse, AgoraErrorThrown>> {
   const response = await runner.call({
     system: PLATO_DH_SYSTEM,
     prompt: buildDhUserPrompt(node, telosStatement, MAX_DH_DEPTH),
@@ -290,7 +298,7 @@ async function callDhDecompose(
       }),
     );
   }
-  const parsed = DhCallResponseSchema.safeParse(content);
+  const parsed = DhDecomposeResponseSchema.safeParse(content);
   if (!parsed.success) {
     return err(
       buildAgoraError("llm.invalid-response", {
