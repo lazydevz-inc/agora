@@ -142,6 +142,11 @@
       "context_summary": "Asking the Noesis test on each cause. Required floors: telos=noesis (rejected_alternatives required) / form=dianoia / material=pistis / efficient=pistis. All 4 must pass to unlock Y2 termination.",
       "q_noesis_test": "[{field_path}] required floor: {required_floor}\n\nClaim: \"{claim_content}\"\n\nNoesis test: What alternative did you consider for this claim, and why did you reject it?"
     },
+    "socrates": {
+      "intro": "Socrates Elenchus — case-probing your load-bearing claims (telos + form)",
+      "refined": "Refined the {cause} claim from your re-articulation.",
+      "done": "Elenchus complete: {probed} claim(s) probed, {aporia} aporia reached. Run `agora round` for maturity tagging."
+    },
     "efficient": {
       "intro": "Aristotle efficient round — Phase 2, round 4 (final Aristotle cause)",
       "q_who": "Who is involved? (solo / team of N / specific roles)",

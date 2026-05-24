@@ -161,7 +161,7 @@ polished lie — here's exactly what works today.
 | Audit log + `agora trace` viewer (`--follow` tail mode) | ✅ working |
 | Status dashboard with drift trend + sparkline | ✅ working |
 | Non-interactive / agent-driven mode (JSON, no TTY prompts) | ✅ working |
-| **Socrates** (Elenchus case-probing) | ✅ module + tests done · 🚧 wiring into the Phase 2 round flow pending |
+| Socrates (Elenchus case-probing) — `agora socrates`, auto-routed by `agora round` | ✅ working |
 | **Gate 2** (functional QA via Playwright) | 🚧 planned |
 | **In-Claude-Code plugin (MCP) mode** | 🚧 in progress — today Agora runs as a standalone CLI that drives Claude Code as a subprocess |
 | Published to npm | 🚧 not yet |

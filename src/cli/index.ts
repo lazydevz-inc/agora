@@ -27,6 +27,7 @@ import { runPingCommand } from "./commands/ping.js";
 import { runRalphCommand } from "./commands/ralph.js";
 import { runResumeCommand } from "./commands/resume.js";
 import { runRoundCommand } from "./commands/round.js";
+import { runSocratesCommand } from "./commands/socrates.js";
 import { runStatusCommand } from "./commands/status.js";
 import { runTelosCommand } from "./commands/telos.js";
 import { runTraceCommand } from "./commands/trace.js";
@@ -108,6 +109,10 @@ async function main(): Promise<void> {
   }
   if (command === "efficient") {
     await dispatchEfficient(flags, positional.slice(1), mode, useColor);
+    return;
+  }
+  if (command === "socrates") {
+    await dispatchSocrates(flags, positional.slice(1), mode, useColor);
     return;
   }
   if (command === "maturity") {
@@ -366,6 +371,24 @@ async function dispatchEfficient(
   process.exit(result.value.exit_code);
 }
 
+async function dispatchSocrates(
+  flags: GlobalFlags,
+  positional: readonly string[],
+  mode: EmitMode,
+  useColor: boolean,
+): Promise<void> {
+  const result = await runSocratesCommand(flags, positional);
+  if (!result.ok) {
+    emitAgoraError(result.error, mode, useColor);
+    const cat = result.error.category;
+    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+  }
+  if (mode === "json") {
+    emit(result.value, mode, useColor);
+  }
+  process.exit(result.value.exit_code);
+}
+
 async function dispatchMaturity(
   flags: GlobalFlags,
   positional: readonly string[],
@@ -480,6 +503,7 @@ function printHelp(): void {
   console.log("    agora form         Force Aristotle form round");
   console.log("    agora material     Force Aristotle material round");
   console.log("    agora efficient    Force Aristotle efficient round");
+  console.log("    agora socrates     Force Socrates elenchus (case-probe load-bearing claims)");
   console.log("    agora maturity     Force Plato Divided Line maturity tagging");
   console.log("    agora ac           Capture acceptance criteria (after maturity-pass)");
   console.log(

@@ -142,6 +142,11 @@
       "context_summary": "각 cause에 Noesis 테스트 진행. 필요 floor: telos=noesis (rejected_alternatives 필요) / form=dianoia / material=pistis / efficient=pistis. 4개 모두 통과해야 Y2 termination 가능.",
       "q_noesis_test": "[{field_path}] 필요 floor: {required_floor}\n\n주장: \"{claim_content}\"\n\nNoesis 테스트: 이 주장에 대해 어떤 대안을 고려했고, 왜 거부했나요?"
     },
+    "socrates": {
+      "intro": "Socrates Elenchus — load-bearing 주장(telos + form)을 케이스로 검증",
+      "refined": "{cause} 주장을 재articulate 내용으로 다듬었습니다.",
+      "done": "Elenchus 완료: {probed}개 주장 검증, aporia {aporia}회. `agora round`로 maturity tagging 진행."
+    },
     "efficient": {
       "intro": "Aristotle efficient 라운드 — Phase 2, round 4 (마지막 Aristotle cause)",
       "q_who": "누가 참여하나요? (혼자 / N명 팀 / 특정 역할)",

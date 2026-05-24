@@ -41,6 +41,7 @@ import { runFormCommand } from "./form.js";
 import { runHandoffCommand } from "./handoff.js";
 import { runMaterialCommand } from "./material.js";
 import { runMaturityCommand } from "./maturity.js";
+import { runSocratesCommand } from "./socrates.js";
 import { runTelosCommand } from "./telos.js";
 
 type RoundTarget =
@@ -48,6 +49,7 @@ type RoundTarget =
   | "form"
   | "material"
   | "efficient"
+  | "socrates"
   | "maturity"
   | "ac"
   | "handoff"
@@ -92,11 +94,13 @@ export async function runRoundCommand(
   }
 
   const causes = await readJsonOrNull<FourCauses>(join(cwd, ".agora", "four_causes.json"));
-  // AC + seed presence discriminate the post-maturity / post-AC branches.
+  // elenchus + AC + seed presence discriminate the post-cause branches.
+  const elenchusPresent =
+    (await readJsonOrNull<unknown>(join(cwd, ".agora", "elenchus.json"))) !== null;
   const acsPresent =
     (await readJsonOrNull<unknown>(join(cwd, ".agora", "acceptance_criteria.json"))) !== null;
   const seedPresent = (await readJsonOrNull<unknown>(join(cwd, ".agora", "seed.json"))) !== null;
-  const target = pickNextRound(causes, acsPresent, seedPresent);
+  const target = pickNextRound(causes, acsPresent, seedPresent, elenchusPresent);
 
   if (target === "complete") {
     return ok(buildCompleteEnvelope());
@@ -109,14 +113,19 @@ export function pickNextRound(
   causes: FourCauses | null,
   acsPresent = false,
   seedPresent = false,
+  elenchusPresent = false,
 ): RoundTarget {
   if (causes === null || causes.telos === undefined) return "telos";
   if (causes.form === undefined) return "form";
   if (causes.material === undefined) return "material";
   if (causes.efficient === undefined) return "efficient";
-  // All 4 captured. Maturity has not been re-tagged yet if every claim's
-  // maturity is still its Aristotle-default. Heuristic: if telos.maturity
-  // === "noesis", Plato has run successfully on telos.
+  // All 4 captured. Socrates elenchus runs next (case-probe load-bearing
+  // claims toward aporia) — discriminated by elenchus.json presence so it
+  // sits between efficient and maturity without disturbing round numbers.
+  if (!elenchusPresent) return "socrates";
+  // All 4 captured + elenchus done. Maturity has not been re-tagged yet if
+  // telos.maturity is still its Aristotle-default. Heuristic: noesis means
+  // Plato has run successfully on telos.
   if (causes.telos.maturity !== "noesis") return "maturity";
   // Maturity passed. AC capture is next prep step before handoff.
   if (!acsPresent) return "ac";
@@ -139,6 +148,8 @@ async function dispatchTarget(
       return await runMaterialCommand(flags, positional);
     case "efficient":
       return await runEfficientCommand(flags, positional);
+    case "socrates":
+      return await runSocratesCommand(flags, positional);
     case "maturity":
       return await runMaturityCommand(flags, positional);
     case "ac":

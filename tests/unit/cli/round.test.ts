@@ -66,12 +66,18 @@ describe("pickNextRound", () => {
     expect(pickNextRound(causes)).toBe("efficient");
   });
 
-  test("all 4 causes, telos.maturity=dianoia (Plato hasn't run) → maturity", () => {
+  test("all 4 causes, elenchus NOT present → socrates (Stage 6-A.35)", () => {
     const causes: FourCauses = { telos, form, material, efficient, ...baseTimestamps };
-    expect(pickNextRound(causes)).toBe("maturity");
+    // elenchusPresent defaults false → Socrates runs before maturity.
+    expect(pickNextRound(causes)).toBe("socrates");
   });
 
-  test("all 4 causes, telos.maturity=noesis, AC NOT present → ac", () => {
+  test("all 4 causes, elenchus present, telos.maturity=dianoia → maturity", () => {
+    const causes: FourCauses = { telos, form, material, efficient, ...baseTimestamps };
+    expect(pickNextRound(causes, false, false, true)).toBe("maturity");
+  });
+
+  test("all 4 causes, elenchus present, telos.maturity=noesis, AC NOT present → ac", () => {
     const causes: FourCauses = {
       telos: { ...telos, maturity: "noesis" },
       form,
@@ -79,10 +85,10 @@ describe("pickNextRound", () => {
       efficient,
       ...baseTimestamps,
     };
-    expect(pickNextRound(causes, false, false)).toBe("ac");
+    expect(pickNextRound(causes, false, false, true)).toBe("ac");
   });
 
-  test("all 4 causes, telos.maturity=noesis, AC present, seed NOT present → handoff", () => {
+  test("all 4 causes, elenchus present, telos.maturity=noesis, AC present, seed NOT present → handoff", () => {
     const causes: FourCauses = {
       telos: { ...telos, maturity: "noesis" },
       form,
@@ -90,10 +96,10 @@ describe("pickNextRound", () => {
       efficient,
       ...baseTimestamps,
     };
-    expect(pickNextRound(causes, true, false)).toBe("handoff");
+    expect(pickNextRound(causes, true, false, true)).toBe("handoff");
   });
 
-  test("all 4 causes, telos.maturity=noesis, AC + seed present → complete", () => {
+  test("all 4 causes, elenchus present, telos.maturity=noesis, AC + seed present → complete", () => {
     const causes: FourCauses = {
       telos: { ...telos, maturity: "noesis" },
       form,
@@ -101,17 +107,17 @@ describe("pickNextRound", () => {
       efficient,
       ...baseTimestamps,
     };
-    expect(pickNextRound(causes, true, true)).toBe("complete");
+    expect(pickNextRound(causes, true, true, true)).toBe("complete");
   });
 
-  test("acsPresent=true does NOT short-circuit when telos.maturity is dianoia", () => {
+  test("elenchus present + acsPresent=true does NOT short-circuit when telos.maturity is dianoia", () => {
     // AC capture should never run before maturity passes; pickNextRound
     // returns maturity (not ac/complete) regardless of acsPresent flag.
     const causes: FourCauses = { telos, form, material, efficient, ...baseTimestamps };
-    expect(pickNextRound(causes, true)).toBe("maturity");
+    expect(pickNextRound(causes, true, false, true)).toBe("maturity");
   });
 
-  test("all 4 causes, telos.maturity=pistis (failed maturity) → maturity (re-run)", () => {
+  test("all 4 causes, elenchus present, telos.maturity=pistis (failed maturity) → maturity (re-run)", () => {
     const causes: FourCauses = {
       telos: { ...telos, maturity: "pistis" },
       form,
@@ -119,6 +125,6 @@ describe("pickNextRound", () => {
       efficient,
       ...baseTimestamps,
     };
-    expect(pickNextRound(causes)).toBe("maturity");
+    expect(pickNextRound(causes, false, false, true)).toBe("maturity");
   });
 });
