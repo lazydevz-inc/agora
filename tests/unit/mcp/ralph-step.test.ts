@@ -215,7 +215,7 @@ describe("runRalphStep — init (first call)", () => {
 // ─── Gate 5 apply (seeded pending) ───
 
 describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
-  test('PASS (drift<0.15) → leaf advance + state ralph_complete (single-leaf tree)', async () => {
+  test('PASS (drift<0.15) → kickoff Disputatio (needs_reasoning disputatio.videtur)', async () => {
     await seedInRalphWithPendingGate5();
     const r = await runRalphStep({
       llm_responses: [
@@ -225,18 +225,15 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
         },
       ],
     });
-    if (!r.ok || r.value.kind !== "advanced") {
-      throw new Error(`expected advanced, got ${r.ok ? r.value.kind : "err"}`);
+    expect(r.ok).toBe(true);
+    if (!r.ok || r.value.kind !== "needs_reasoning") {
+      throw new Error(`expected needs_reasoning, got ${r.ok ? r.value.kind : "err"}`);
     }
-    expect(r.value.step).toBe("ralph.complete");
-
-    const state = JSON.parse(await readFile(join(cwd, ".agora", "state.json"), "utf8")) as {
-      current_phase: string;
-    };
-    expect(state.current_phase).toBe("ralph_complete");
+    expect(r.value.step).toBe("disputatio.videtur");
+    expect(r.value.prompts.length).toBeGreaterThan(0);
   });
 
-  test('SOFT_WARN (0.15-0.30) → leaf advance + state ralph_complete', async () => {
+  test('SOFT_WARN (0.15-0.30) → kickoff Disputatio', async () => {
     await seedInRalphWithPendingGate5();
     const r = await runRalphStep({
       llm_responses: [
@@ -246,8 +243,10 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
         },
       ],
     });
-    if (!r.ok || r.value.kind !== "advanced") throw new Error("expected advanced");
-    expect(r.value.step).toBe("ralph.complete");
+    if (!r.ok || r.value.kind !== "needs_reasoning") {
+      throw new Error("expected needs_reasoning disputatio.videtur");
+    }
+    expect(r.value.step).toBe("disputatio.videtur");
   });
 
   test('Z1 (0.30-0.60) → stay on leaf + record directive', async () => {
@@ -285,6 +284,133 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
     });
     if (!r.ok || r.value.kind !== "needs_user_input") throw new Error("expected confirm_z2");
     expect(r.value.step).toBe("ralph.confirm_z2");
+  });
+});
+
+// ─── Disputatio chain end-to-end ───
+
+describe("runRalphStep — Disputatio chain (Slice E)", () => {
+  test('PASS → videtur (1 critic, 0 objections) → sed_contra → respondeo approved → leaf complete', async () => {
+    await seedInRalphWithPendingGate5();
+    // PASS triggers Disputatio kickoff.
+    const v = await runRalphStep({
+      llm_responses: [
+        { id: "gate_5", content: { drift_score: 0.1, rationale: "well-aligned" } },
+      ],
+    });
+    if (!v.ok || v.value.kind !== "needs_reasoning") throw new Error("expected videtur");
+    expect(v.value.step).toBe("disputatio.videtur");
+    // All 3 starter critics are always-trigger; expect a prompt per critic.
+    expect(v.value.prompts).toHaveLength(3);
+    expect(v.value.prompts.map((p) => p.id).sort()).toEqual([
+      "tech-error-handling",
+      "tech-solid",
+      "universal-telos-alignment",
+    ]);
+
+    const sc = await runRalphStep({
+      llm_responses: [
+        { id: "universal-telos-alignment", content: { objections: [] } },
+        { id: "tech-solid", content: { objections: [] } },
+        { id: "tech-error-handling", content: { objections: [] } },
+      ],
+    });
+    if (!sc.ok || sc.value.kind !== "needs_reasoning") throw new Error("expected sed_contra");
+    expect(sc.value.step).toBe("disputatio.sed_contra");
+
+    const re = await runRalphStep({
+      llm_responses: [
+        { id: "sed_contra", content: { sed_contra: "Despite no objections, the change is sound." } },
+      ],
+    });
+    if (!re.ok || re.value.kind !== "needs_reasoning") throw new Error("expected respondeo");
+    expect(re.value.step).toBe("disputatio.respondeo");
+
+    // verdict=approved + 0 objections → skip ad_singula → leaf complete
+    const done = await runRalphStep({
+      llm_responses: [
+        {
+          id: "respondeo",
+          content: {
+            verdict: "approved",
+            reasoning: "Independent: the change serves telos directly.",
+          },
+        },
+      ],
+    });
+    if (!done.ok || done.value.kind !== "advanced") {
+      throw new Error(`expected advanced, got ${done.ok ? done.value.kind : "err"}`);
+    }
+    expect(done.value.step).toBe("ralph.complete");
+    const state = JSON.parse(await readFile(join(cwd, ".agora", "state.json"), "utf8")) as {
+      current_phase: string;
+    };
+    expect(state.current_phase).toBe("ralph_complete");
+  });
+
+  test('verdict=rejected + objections → ad_singula → stayOnLeafAfterReject', async () => {
+    await seedInRalphWithPendingGate5();
+    await runRalphStep({
+      llm_responses: [{ id: "gate_5", content: { drift_score: 0.1, rationale: "ok" } }],
+    });
+    // videtur: 3 critics (only universal raises an objection).
+    await runRalphStep({
+      llm_responses: [
+        {
+          id: "universal-telos-alignment",
+          content: {
+            objections: [
+              {
+                id: "obj_1",
+                claim: "leaf does not serve telos",
+                evidence: "diff adds unrelated module",
+                severity: "critical",
+              },
+            ],
+          },
+        },
+        { id: "tech-solid", content: { objections: [] } },
+        { id: "tech-error-handling", content: { objections: [] } },
+      ],
+    });
+    await runRalphStep({
+      llm_responses: [{ id: "sed_contra", content: { sed_contra: "case for despite" } }],
+    });
+    await runRalphStep({
+      llm_responses: [
+        {
+          id: "respondeo",
+          content: { verdict: "rejected", reasoning: "Independent: telos not served." },
+        },
+      ],
+    });
+    const rejected = await runRalphStep({
+      llm_responses: [
+        {
+          id: "ad_singula",
+          content: {
+            rulings: [
+              {
+                objection_id: "obj_1",
+                ruling: "concedo",
+                action_or_reason: "remove unrelated module + refocus on telos",
+              },
+            ],
+          },
+        },
+      ],
+    });
+    if (!rejected.ok || rejected.value.kind !== "advanced") {
+      throw new Error(`expected advanced, got ${rejected.ok ? rejected.value.kind : "err"}`);
+    }
+    expect(rejected.value.step).toBe("ralph.disputatio_rejected");
+    const ralphState = JSON.parse(
+      await readFile(join(cwd, ".agora", "ralph_state.json"), "utf8"),
+    ) as { z1_directives: string[]; current_leaf_id: string };
+    expect(ralphState.current_leaf_id).toBe("ac_001"); // stays
+    expect(ralphState.z1_directives).toContain(
+      "remove unrelated module + refocus on telos",
+    );
   });
 });
 

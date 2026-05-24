@@ -91,8 +91,11 @@ export type DisputatioResult = z.infer<typeof DisputatioResultSchema>;
 
 // ─── Per-critic LLM response shape (passthrough to allow critic-
 //     specific extras like `principle` or `concern`). ───
-
-const CriticResponseSchema = z.object({
+//
+// Exported for ADR-0010 Slice E (`src/mcp/steps/disputatio.ts`): the
+// stepped path validates each critic response with the same schema
+// before stamping critic_id onto each objection.
+export const CriticResponseSchema = z.object({
   objections: z.array(
     z
       .object({
@@ -106,9 +109,13 @@ const CriticResponseSchema = z.object({
   no_objections_reason: z.string().optional(),
 });
 
-// ─── Aquinas-side inline prompts (replace via prompt-library refactor) ───
+export const SedContraResponseSchema = z.object({ sed_contra: z.string().min(1) });
+export const AdSingulaResponseSchema = z.object({ rulings: z.array(AdSingulaRulingSchema) });
 
-const SED_CONTRA_SYSTEM = `You are Aquinas conducting Sed contra. Synthesize a SINGLE counter-
+// ─── Aquinas-side inline prompts (replace via prompt-library refactor) ───
+// Exported for the ADR-0010 Slice E stepped path.
+
+export const SED_CONTRA_SYSTEM = `You are Aquinas conducting Sed contra. Synthesize a SINGLE counter-
 position to all the objections raised in Videtur — make the strongest
 case FOR the implementation despite the objections.
 
@@ -126,7 +133,7 @@ Return EXACTLY this JSON shape, no extra keys:
   "sed_contra": "<single paragraph counter-position>"
 }`;
 
-const RESPONDEO_SYSTEM = `You are Aquinas conducting Respondeo. Produce YOUR OWN analysis +
+export const RESPONDEO_SYSTEM = `You are Aquinas conducting Respondeo. Produce YOUR OWN analysis +
 verdict. NOT a synthesis of Videtur. NOT a summary of Sed contra. Your
 independent position on whether this implementation should advance.
 
@@ -153,7 +160,7 @@ Return EXACTLY this JSON shape, no extra keys:
   "reasoning": "<2-4 paragraphs starting with INDEPENDENT first paragraph>"
 }`;
 
-const AD_SINGULA_SYSTEM = `You are Aquinas producing Ad singula — a SEPARATE ruling for EACH
+export const AD_SINGULA_SYSTEM = `You are Aquinas producing Ad singula — a SEPARATE ruling for EACH
 objection. No silent skipping (F-Aquinas-4).
 
 Hard rules:
@@ -506,7 +513,7 @@ entries.`;
   return ok(parsed.data.rulings);
 }
 
-function renderObjections(objections: readonly Objection[]): string {
+export function renderObjections(objections: readonly Objection[]): string {
   return objections
     .map(
       (o) =>

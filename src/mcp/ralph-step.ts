@@ -31,10 +31,12 @@
 
 import { join } from "node:path";
 
+import { selectCritics } from "../critics/registry.js";
 import { buildAgoraError } from "../errors/build.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
 import type { ACNode } from "../handoff/dihairesis.js";
 import type { Seed } from "../handoff/seed-builder.js";
+import type { DisputatioResult } from "../ralph/disputatio.js";
 import { runGate1 } from "../ralph/gate-1.js";
 import { runGate2 } from "../ralph/gate-2.js";
 import {
@@ -64,6 +66,11 @@ import {
   StepArgsSchema,
   type StepEnvelope,
 } from "./step.js";
+import {
+  advanceDisputatio,
+  beginDisputatio,
+  type DisputatioStepOutcome,
+} from "./steps/disputatio.js";
 
 export async function runRalphStep(
   rawArgs: unknown,
@@ -174,6 +181,18 @@ async function dispatchPending(
       return await applyGate5(cwd, state, seed, ralphState, args, ralphStatePath);
     case "ralph.confirm_z2":
       return await applyZ2(cwd, state, seed, ralphState, args, ralphStatePath);
+    case "disputatio.videtur":
+    case "disputatio.sed_contra":
+    case "disputatio.respondeo":
+    case "disputatio.ad_singula":
+      return await applyDisputatioOutcome(
+        cwd,
+        state,
+        seed,
+        ralphState,
+        advanceDisputatio(pending, args),
+        ralphStatePath,
+      );
     default:
       return ok(
         envError(
@@ -435,7 +454,17 @@ async function applyGate5(
   const newAttempts = attemptsBefore + 1;
 
   if (action === "PASS" || action === "SOFT_WARN") {
-    return await advanceLeaf(cwd, state, seed, ralphState, gate5, ralphStatePath);
+    // Update ralph_state with Gate 5 result + history before kicking
+    // off Disputatio so the post-Disputatio advanceLeaf has the latest
+    // gate trail.
+    const withGate5: RalphState = RalphStateSchema.parse({
+      ...ralphState,
+      last_gate_5_result: gate5,
+      gate_5_history: [...ralphState.gate_5_history, gate5],
+      updated_at: new Date().toISOString(),
+    });
+    await writeJsonAtomic(ralphStatePath, withGate5);
+    return await kickoffDisputatio(cwd, state, seed, withGate5, ralphStatePath);
   }
   if (action === "Z1") {
     const updated: RalphState = RalphStateSchema.parse({
@@ -505,6 +534,7 @@ async function advanceLeaf(
   ralphState: RalphState,
   gate5: Gate5Result,
   ralphStatePath: string,
+  disputatio?: DisputatioResult,
 ): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
   const leafId = ralphState.current_leaf_id;
   if (leafId === null) {
@@ -521,12 +551,24 @@ async function advanceLeaf(
     completed_leaves: [...completed],
     session_total_attempts: ralphState.session_total_attempts + 1,
     last_gate_5_result: gate5,
-    gate_5_history: [...ralphState.gate_5_history, gate5],
+    // gate_5_history was already appended in applyGate5 (kickoff path);
+    // dedup here so we don't push the same Gate5Result twice.
+    gate_5_history: ralphState.gate_5_history.includes(gate5)
+      ? ralphState.gate_5_history
+      : [...ralphState.gate_5_history, gate5],
+    ...(disputatio !== undefined
+      ? {
+          last_disputatio_result: disputatio,
+          disputatio_history: [...ralphState.disputatio_history, disputatio],
+        }
+      : {}),
     z1_directives: [], // cleared on leaf completion
     updated_at: new Date().toISOString(),
   });
   await writeJsonAtomic(ralphStatePath, updated);
   await clearPending(cwd);
+  const driftStr = gate5.drift_score.toFixed(2);
+  const verdictTag = disputatio !== undefined ? `, verdict=${disputatio.respondeo.verdict}` : "";
   if (nextLeaf === null) {
     const advanced = await saveState(
       cwd,
@@ -538,7 +580,7 @@ async function advanceLeaf(
       envAdvanced(
         "ralph",
         "ralph.complete",
-        `All atomic leaves complete (drift=${gate5.drift_score.toFixed(2)}). state advanced to ralph_complete.`,
+        `All atomic leaves complete (drift=${driftStr}${verdictTag}). state advanced to ralph_complete.`,
         { completed_count: completed.size },
       ),
     );
@@ -547,12 +589,153 @@ async function advanceLeaf(
     envAdvanced(
       "ralph",
       "ralph.leaf_passed",
-      `Leaf complete (drift=${gate5.drift_score.toFixed(2)}). Next leaf: ${nextLeaf}.`,
+      `Leaf complete (drift=${driftStr}${verdictTag}). Next leaf: ${nextLeaf}.`,
       {
         previous_leaf_id: leafId,
         current_leaf_id: nextLeaf,
         completed_count: completed.size,
         total_leaves: countAtomicLeaves(seed.ac_tree as ACNode[]),
+        ...(disputatio !== undefined ? { disputatio_verdict: disputatio.respondeo.verdict } : {}),
+      },
+    ),
+  );
+}
+
+// ─── Disputatio kickoff + persistence ───
+
+async function kickoffDisputatio(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const leafId = ralphState.current_leaf_id;
+  if (leafId === null) {
+    return ok(envError("ralph", "internal.invariant-violation", "kickoffDisputatio: leaf null"));
+  }
+  const leafContent =
+    findLeafContent(ralphState.ac_tree_snapshot as ACNode[], leafId) ??
+    "(content missing from ac_tree_snapshot)";
+  const completedSummary =
+    ralphState.completed_leaves.length === 0
+      ? "(none — first leaf)"
+      : ralphState.completed_leaves.map((id) => `- ${id}`).join("\n");
+  const diff = await getRecentDiff(cwd);
+  const ctx = { leaf_content: leafContent, changed_files: [] as string[] };
+  const critics = selectCritics(ctx);
+  // Fallback: if no critics matched (shouldn't happen — universal critic
+  // is always-trigger), advance leaf directly using last Gate 5.
+  if (critics.length === 0 && ralphState.last_gate_5_result !== undefined) {
+    return await advanceLeaf(
+      cwd,
+      state,
+      seed,
+      ralphState,
+      ralphState.last_gate_5_result,
+      ralphStatePath,
+    );
+  }
+  const outcome = beginDisputatio({
+    leaf_id: leafId,
+    leaf_content: leafContent,
+    telos_statement: seed.four_causes.telos?.statement ?? "(telos missing)",
+    telos_failure_signal: seed.four_causes.telos?.failure_signal ?? "(failure_signal missing)",
+    all_acceptance_criteria: seed.acceptance_criteria.criteria,
+    completed_leaves_summary: completedSummary,
+    diff: diff.diff,
+    diff_source: diff.source,
+    critics,
+  });
+  void ctx;
+  return await applyDisputatioOutcome(cwd, state, seed, ralphState, outcome, ralphStatePath);
+}
+
+async function applyDisputatioOutcome(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState,
+  outcome: DisputatioStepOutcome,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  switch (outcome.type) {
+    case "issue":
+      await writePending(cwd, outcome.pending);
+      return ok(outcome.envelope);
+    case "complete":
+      return await applyDisputatioVerdict(
+        cwd,
+        state,
+        seed,
+        ralphState,
+        outcome.result,
+        ralphStatePath,
+      );
+    case "error":
+      return ok(outcome.envelope);
+  }
+}
+
+async function applyDisputatioVerdict(
+  cwd: string,
+  state: State,
+  seed: Seed,
+  ralphState: RalphState,
+  disputatio: DisputatioResult,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const lastGate5 = ralphState.last_gate_5_result;
+  if (lastGate5 === undefined) {
+    return ok(
+      envError(
+        "ralph",
+        "internal.invariant-violation",
+        "Disputatio verdict apply: last_gate_5_result missing",
+      ),
+    );
+  }
+  if (disputatio.respondeo.verdict === "rejected") {
+    return await stayOnLeafAfterReject(cwd, ralphState, disputatio, ralphStatePath);
+  }
+  return await advanceLeaf(cwd, state, seed, ralphState, lastGate5, ralphStatePath, disputatio);
+}
+
+async function stayOnLeafAfterReject(
+  cwd: string,
+  ralphState: RalphState,
+  disputatio: DisputatioResult,
+  ralphStatePath: string,
+): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
+  const leafId = ralphState.current_leaf_id;
+  if (leafId === null) {
+    return ok(
+      envError("ralph", "internal.invariant-violation", "stayOnLeafAfterReject: leaf null"),
+    );
+  }
+  const attemptsBefore = ralphState.per_leaf_attempts[leafId] ?? 0;
+  const newAttempts = attemptsBefore + 1;
+  const updated: RalphState = RalphStateSchema.parse({
+    ...ralphState,
+    per_leaf_attempts: { ...ralphState.per_leaf_attempts, [leafId]: newAttempts },
+    session_total_attempts: ralphState.session_total_attempts + 1,
+    last_disputatio_result: disputatio,
+    disputatio_history: [...ralphState.disputatio_history, disputatio],
+    z1_directives: [...ralphState.z1_directives, ...disputatio.action_items],
+    updated_at: new Date().toISOString(),
+  });
+  await writeJsonAtomic(ralphStatePath, updated);
+  await clearPending(cwd);
+  return ok(
+    envAdvanced(
+      "ralph",
+      "ralph.disputatio_rejected",
+      `Aquinas rejected (${String(disputatio.all_objections_count)} objections, ${String(disputatio.critical_objections_count)} critical). Address concedo rulings + call agora_ralph_step again.`,
+      {
+        current_leaf_id: leafId,
+        attempts: newAttempts,
+        cap: updated.iteration_cap_per_leaf,
+        action_items: disputatio.action_items,
       },
     ),
   );
