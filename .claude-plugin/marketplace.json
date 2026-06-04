@@ -1,0 +1,33 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "agora",
+  "description": "The alignment layer between human intent and AI execution",
+  "owner": {
+    "name": "lazydevz",
+    "email": "sang@lazydevz.com"
+  },
+  "plugins": [
+    {
+      "name": "agora",
+      "description": "Five philosophers refine your intent into a verifiable Seed, then a gate-checked loop builds it — all reasoning runs inside your Claude Code session (zero extra billing).",
+      "version": "0.0.1-alpha.0",
+      "author": {
+        "name": "Sang Rhee",
+        "url": "https://sangrhee.com"
+      },
+      "source": "./",
+      "category": "development",
+      "homepage": "https://github.com/lazydevz-inc/agora",
+      "repository": "https://github.com/lazydevz-inc/agora",
+      "license": "MIT",
+      "keywords": [
+        "alignment",
+        "spec-first",
+        "philosophy",
+        "verification",
+        "ralph-loop",
+        "claude-code"
+      ]
+    }
+  ]
+}
