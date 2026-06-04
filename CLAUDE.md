@@ -419,6 +419,7 @@ UX expertise-aware split:
 | 0008 | Ralph: Sequential Default with Parallel-Ready Architecture | Accepted |
 | 0009 | Claude Code Plugin (MCP) as Primary Mode | Accepted (re-ranks ADR-0005; June-15 billing pivot) |
 | 0010 | Host-Reasoning Stepped MCP Tools (Align + Ralph) | Accepted (implements ADR-0009 §"Implementation notes" #2) |
+| 0011 | Public Release + License Confirmation (MIT) | **Accepted** (2026-06-04 — repo → public; confirms ADR-0007 license MIT) |
 
 ---
 
@@ -436,5 +437,5 @@ UX expertise-aware split:
 
 ---
 
-**Last Updated**: 2026-05-24
-**Version**: 0.0.1-alpha.0 (Stage 6 active — 34 vertical slices done: alignment loop end-to-end + Ralph Gate 1/3/4/5 + audit log + `agora trace` + non-interactive/agent-driven mode. **ADR-0010 Slices A-E shipped**: `agora_align_step` + `agora_ralph_step` MCP tools drive the alignment + Ralph loops via host-supplied reasoning — Mode 3 (MCP plugin) is now load-bearing. 🚧 남은 작업: Mode 2 (subprocess) cost-warning UX, prompt-library refactor of stepped-path inline prompts.)
+**Last Updated**: 2026-06-02
+**Version**: 0.0.1-alpha.0 (Stage 6 active — 34 vertical slices done: alignment loop end-to-end + Ralph Gate 1/3/4/5 + audit log + `agora trace` + non-interactive/agent-driven mode. **ADR-0010 Slices A-E shipped**: `agora_align_step` + `agora_ralph_step` MCP tools drive the alignment + Ralph loops via host-supplied reasoning — Mode 3 (MCP plugin) is now load-bearing. **Public release (2026-06-04, ADR-0011 Accepted)**: repo → public + MIT confirmed; Claude Code plugin manifest (`.claude-plugin/`) + `agora_new` MCP tool (now 7 tools — plugin self-sufficient, session-create in-Claude-Code) + `docs/getting-started.md` + OSS meta (CONTRIBUTING/SECURITY/CoC/CHANGELOG/CI) + `shared/version.ts` dedup (−244 LOC). 🚧 남은 작업: npm publish, code-quality backlog (`docs/architecture/code-quality-backlog.md`), Mode 2 cost-warning UX, prompt-library refactor.)
