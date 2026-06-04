@@ -1,0 +1,27 @@
+{
+  "name": "agora",
+  "version": "0.0.1-alpha.0",
+  "description": "The alignment layer between human intent and AI execution. Five philosophers refine your intent into a verifiable Seed, then a gate-checked loop builds it — all reasoning runs inside your Claude Code session (zero extra billing).",
+  "author": {
+    "name": "Sang Rhee",
+    "url": "https://sangrhee.com"
+  },
+  "homepage": "https://github.com/lazydevz-inc/agora",
+  "repository": "https://github.com/lazydevz-inc/agora",
+  "license": "MIT",
+  "keywords": [
+    "alignment",
+    "spec-first",
+    "philosophy",
+    "verification",
+    "ralph-loop",
+    "claude-code"
+  ],
+  "mcpServers": {
+    "agora": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@lazydevz/agora", "mcp"]
+    }
+  }
+}
