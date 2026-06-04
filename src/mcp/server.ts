@@ -9,6 +9,8 @@
 // Tool surface:
 //   - Read-only (ADR-0009 foundation):
 //       agora_status / agora_doctor / agora_resume / agora_trace
+//   - Session create (LLM-free, mutating):
+//       agora_new — Phase 0 scan + materialize .agora/
 //   - Stepped (ADR-0010):
 //       agora_align_step — Slice A handles telos; subsequent slices
 //                          extend to form / material / efficient /
@@ -18,11 +20,20 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { agoraVersion } from "../shared/version.js";
 
-import { mcpAlignStep, mcpDoctor, mcpRalphStep, mcpResume, mcpStatus, mcpTrace } from "./tools.js";
+import {
+  mcpAlignStep,
+  mcpDoctor,
+  mcpNew,
+  mcpRalphStep,
+  mcpResume,
+  mcpStatus,
+  mcpTrace,
+} from "./tools.js";
 
 export function buildAgoraMcpServer(): McpServer {
-  const server = new McpServer({ name: "agora", version: getAgoraVersion() });
+  const server = new McpServer({ name: "agora", version: agoraVersion() });
 
   server.registerTool(
     "agora_status",
@@ -49,6 +60,18 @@ export function buildAgoraMcpServer(): McpServer {
         "Inspect the current session and report the next concrete step (which command/phase comes next). Read-only; makes no LLM call.",
     },
     async () => mcpResume(),
+  );
+
+  server.registerTool(
+    "agora_new",
+    {
+      description:
+        "Start a new Agora session in the current project: runs the Phase 0 auto-scan (brownfield/greenfield detection) and materializes .agora/. Call this once before agora_align_step. LLM-free; refuses if a session already exists.",
+      inputSchema: {
+        name: z.string().optional(),
+      },
+    },
+    async (args) => mcpNew(args),
   );
 
   server.registerTool(
@@ -134,17 +157,4 @@ export async function startAgoraMcpServer(): Promise<void> {
   const server = buildAgoraMcpServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }
