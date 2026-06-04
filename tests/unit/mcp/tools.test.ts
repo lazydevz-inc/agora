@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { AgoraErrorThrown } from "@/errors/types.js";
 import { buildAgoraMcpServer } from "@/mcp/server.js";
-import { envelopeToMcp, mcpResume, mcpStatus, mcpTrace } from "@/mcp/tools.js";
+import { envelopeToMcp, mcpNew, mcpResume, mcpStatus, mcpTrace } from "@/mcp/tools.js";
 import { err, ok } from "@/result/index.js";
 
 let cwd: string;
@@ -113,6 +113,27 @@ describe("mcpTrace", () => {
       result: { data: { count: number } };
     };
     expect(parsed.result.data.count).toBe(1);
+  });
+});
+
+describe("mcpNew — creates a session", () => {
+  test("no .agora/ → ok envelope + materializes a greenfield session", async () => {
+    const r = await mcpNew({ name: "demo" });
+    expect(r.isError).toBeUndefined();
+    const parsed = JSON.parse(r.content[0]?.text ?? "") as {
+      result: { ok: boolean; data: { scan: { project_name: string; is_brownfield: boolean } } };
+    };
+    expect(parsed.result.ok).toBe(true);
+    expect(parsed.result.data.scan.project_name).toBe("demo");
+    expect(parsed.result.data.scan.is_brownfield).toBe(false);
+  });
+
+  test("existing session → isError (user.confirmation-required)", async () => {
+    await mcpNew({ name: "first" });
+    const r = await mcpNew({ name: "second" });
+    expect(r.isError).toBe(true);
+    const parsed = JSON.parse(r.content[0]?.text ?? "") as { error: { code: string } };
+    expect(parsed.error.code).toBe("user.confirmation-required");
   });
 });
 

@@ -13,6 +13,7 @@
 // json-gated + LLM-free.
 
 import { runDoctorCommand } from "../cli/commands/doctor.js";
+import { runNewCommand } from "../cli/commands/new.js";
 import { runResumeCommand } from "../cli/commands/resume.js";
 import { runStatusCommand } from "../cli/commands/status.js";
 import { runTraceCommand } from "../cli/commands/trace.js";
@@ -93,6 +94,13 @@ export async function mcpDoctor(): Promise<McpToolResult> {
 
 export async function mcpResume(): Promise<McpToolResult> {
   return envelopeToMcp(await runResumeCommand(mcpFlags(), []));
+}
+
+// LLM-free, but unlike the others this one *mutates* — it materializes .agora/
+// (Phase 0 scan + initial state). Refuses if a session already exists.
+export async function mcpNew(args: { name?: string | undefined }): Promise<McpToolResult> {
+  const positional = args.name !== undefined ? [args.name] : [];
+  return envelopeToMcp(await runNewCommand(mcpFlags(), positional));
 }
 
 export async function mcpTrace(args: TraceToolArgs): Promise<McpToolResult> {
