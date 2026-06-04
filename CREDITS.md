@@ -25,7 +25,7 @@ Agora was inspired by and selectively borrows ideas (not code) from [Ouroboros](
   - The premise that "AI coding fails at the input, not the output"
   - The pattern of running an interview phase before any implementation
   - The pattern of a Ralph-style loop with verification gates
-  - The MCP-server-as-harness pattern (planned for Stage 4)
+  - The MCP-server-as-harness pattern (now Agora's primary mode — ADR-0009)
 
 ### What Agora does NOT borrow from Ouroboros
 
@@ -56,10 +56,8 @@ Production dependencies are intentionally minimal. Listed here are the runtime d
 | Package | Role |
 |---------|------|
 | `@clack/prompts` | Modern, beautiful interactive prompts |
+| `@modelcontextprotocol/sdk` | MCP server so Agora runs as a plugin inside Claude Code (ADR-0009 / ADR-0010, the primary mode) |
 | `picocolors` | Tiny terminal color library |
 | `zod` | Runtime schema validation (state, seed, config, events) |
 
 Development tools (TypeScript, vitest, biome, tsx) are listed in `devDependencies`.
-
-Planned (subject to ADR justification):
-- `@modelcontextprotocol/sdk` — MCP server so Agora runs as a plugin inside Claude Code (ADR-0009, the primary mode going forward)
