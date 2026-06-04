@@ -10,7 +10,6 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
 import { intro, log, outro, text } from "@clack/prompts";
 import pc from "picocolors";
 import { type Phase0Output, runPhase0Scan } from "../../alignment/phase-0-scan.js";
@@ -27,6 +26,7 @@ import { openEditorAndRead } from "../../shared/editor.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { ensureAgoraDir, findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
@@ -285,7 +285,7 @@ function buildClackUi(cwd: string): IntakeUi {
 function buildEnvelope(phase1: Phase1Result): CommandEnvelope {
   return {
     command: "agora intake",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -302,17 +302,4 @@ function buildEnvelope(phase1: Phase1Result): CommandEnvelope {
     errors: [],
     exit_code: 0,
   };
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }

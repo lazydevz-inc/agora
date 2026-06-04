@@ -9,9 +9,7 @@
 // error). JSON envelope mirrors TUI data with optional `data.ralph_trend`.
 
 import { join } from "node:path";
-
 import pc from "picocolors";
-
 import type { AgoraErrorThrown } from "../../errors/types.js";
 import { localized } from "../../i18n/index.js";
 import { GATE_5_THRESHOLDS } from "../../ralph/gate-5.js";
@@ -20,6 +18,7 @@ import { computeRalphTrend, type RalphTrend } from "../../ralph/trend.js";
 import { ok, type Result } from "../../result/index.js";
 import { readJsonOrNull } from "../../shared/io.js";
 import { findProjectRoot } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import type { Phase, State } from "../../state/types.js";
 import type { GlobalFlags } from "../flags.js";
@@ -181,7 +180,7 @@ function colorizeAction(action: string): string {
 function buildEnvelope(state: State | null, trendLoad: TrendLoadResult): CommandEnvelope {
   return {
     command: "agora status",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -210,17 +209,4 @@ function buildEnvelope(state: State | null, trendLoad: TrendLoadResult): Command
     errors: [],
     exit_code: 0,
   };
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }

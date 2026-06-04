@@ -6,6 +6,7 @@
 
 import pc from "picocolors";
 import type { AgoraErrorThrown } from "../errors/types.js";
+import { agoraVersion } from "../shared/version.js";
 
 export type EmitMode = "tui" | "json";
 
@@ -82,7 +83,7 @@ export function emitAgoraError(error: AgoraErrorThrown, mode: EmitMode, useColor
   if (mode === "json") {
     const envelope: CommandEnvelope = {
       command: "agora",
-      version: readPackageVersion(),
+      version: agoraVersion(),
       timestamp: new Date().toISOString(),
       result: { ok: false },
       next: [],
@@ -146,22 +147,4 @@ function makeColors(useColor: boolean): Colors {
     dim: pc.dim,
     bold: pc.bold,
   };
-}
-
-function readPackageVersion(): string {
-  // Lightweight fallback used when emitAgoraError fires before normal
-  // version-resolution path. Avoids circular import with commands/version.
-  // Best-effort; returns "unknown" if package.json cannot be located here.
-  try {
-    // Resolve relative to compiled dist/cli/render.js → ../../package.json
-    const url = new URL("../../package.json", import.meta.url);
-    // Synchronous read to keep error path fully sync.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }

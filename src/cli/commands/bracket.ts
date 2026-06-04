@@ -9,10 +9,8 @@
 // - Updates state.json: alignment.phase → -1 (bracket complete; ready for Phase 1)
 
 import { join } from "node:path";
-
 import { intro, log, outro, text } from "@clack/prompts";
 import pc from "picocolors";
-
 import { type Phase0Output, runPhase0Scan } from "../../alignment/phase-0-scan.js";
 import { buildAgoraError } from "../../errors/build.js";
 import type { AgoraErrorThrown } from "../../errors/types.js";
@@ -23,6 +21,7 @@ import { err, ok, type Result } from "../../result/index.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
@@ -280,7 +279,7 @@ function buildEnvelope(
 ): CommandEnvelope {
   return {
     command: "agora bracket",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -297,17 +296,4 @@ function buildEnvelope(
     errors: [],
     exit_code: 0,
   };
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }

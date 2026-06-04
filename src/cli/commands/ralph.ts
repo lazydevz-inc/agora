@@ -26,10 +26,8 @@
 //   - state ready_for_ralph but seed.json missing → state.corrupt
 
 import { join } from "node:path";
-
 import { confirm, intro, log, outro } from "@clack/prompts";
 import pc from "picocolors";
-
 import { buildAgoraError } from "../../errors/build.js";
 import type { AgoraErrorThrown } from "../../errors/types.js";
 import type { ACNode } from "../../handoff/dihairesis.js";
@@ -52,6 +50,7 @@ import { appendEvent } from "../../shared/events.js";
 import { getRecentDiff } from "../../shared/git-diff.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
@@ -885,7 +884,7 @@ async function emitCapWarningEvents(
 function buildEnvelope(data: RalphEnvelopeData): CommandEnvelope {
   return {
     command: "agora ralph",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -928,17 +927,4 @@ function buildEnvelope(data: RalphEnvelopeData): CommandEnvelope {
     errors: [],
     exit_code: 0,
   };
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }

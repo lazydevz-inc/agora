@@ -13,6 +13,7 @@ import { localized } from "../../i18n/index.js";
 import { ok, type Result } from "../../result/index.js";
 import { writeJsonAtomic } from "../../shared/io.js";
 import { ensureAgoraDir, findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import { newState } from "../../state/types.js";
 import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
@@ -74,7 +75,7 @@ function emitTui(scan: Awaited<ReturnType<typeof runPhase0Scan>>): void {
 function buildEnvelope(scan: Awaited<ReturnType<typeof runPhase0Scan>>): CommandEnvelope {
   return {
     command: "agora new",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -100,17 +101,4 @@ function error(
   ctx: Record<string, unknown>,
 ): Result<never, AgoraErrorThrown> {
   return { ok: false, error: buildAgoraError(code, { context: ctx }) };
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }

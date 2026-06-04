@@ -215,7 +215,7 @@ describe("runRalphStep — init (first call)", () => {
 // ─── Gate 5 apply (seeded pending) ───
 
 describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
-  test('PASS (drift<0.15) → kickoff Disputatio (needs_reasoning disputatio.videtur)', async () => {
+  test("PASS (drift<0.15) → kickoff Disputatio (needs_reasoning disputatio.videtur)", async () => {
     await seedInRalphWithPendingGate5();
     const r = await runRalphStep({
       llm_responses: [
@@ -233,7 +233,7 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
     expect(r.value.prompts.length).toBeGreaterThan(0);
   });
 
-  test('SOFT_WARN (0.15-0.30) → kickoff Disputatio', async () => {
+  test("SOFT_WARN (0.15-0.30) → kickoff Disputatio", async () => {
     await seedInRalphWithPendingGate5();
     const r = await runRalphStep({
       llm_responses: [
@@ -249,7 +249,7 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
     expect(r.value.step).toBe("disputatio.videtur");
   });
 
-  test('Z1 (0.30-0.60) → stay on leaf + record directive', async () => {
+  test("Z1 (0.30-0.60) → stay on leaf + record directive", async () => {
     await seedInRalphWithPendingGate5();
     const r = await runRalphStep({
       llm_responses: [
@@ -272,7 +272,7 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
     expect(ralphState.z1_directives).toContain("focus on X next");
   });
 
-  test('Z2 (>=0.60) → issue needs_user_input (ralph.confirm_z2)', async () => {
+  test("Z2 (>=0.60) → issue needs_user_input (ralph.confirm_z2)", async () => {
     await seedInRalphWithPendingGate5();
     const r = await runRalphStep({
       llm_responses: [
@@ -290,13 +290,11 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
 // ─── Disputatio chain end-to-end ───
 
 describe("runRalphStep — Disputatio chain (Slice E)", () => {
-  test('PASS → videtur (1 critic, 0 objections) → sed_contra → respondeo approved → leaf complete', async () => {
+  test("PASS → videtur (1 critic, 0 objections) → sed_contra → respondeo approved → leaf complete", async () => {
     await seedInRalphWithPendingGate5();
     // PASS triggers Disputatio kickoff.
     const v = await runRalphStep({
-      llm_responses: [
-        { id: "gate_5", content: { drift_score: 0.1, rationale: "well-aligned" } },
-      ],
+      llm_responses: [{ id: "gate_5", content: { drift_score: 0.1, rationale: "well-aligned" } }],
     });
     if (!v.ok || v.value.kind !== "needs_reasoning") throw new Error("expected videtur");
     expect(v.value.step).toBe("disputatio.videtur");
@@ -320,7 +318,10 @@ describe("runRalphStep — Disputatio chain (Slice E)", () => {
 
     const re = await runRalphStep({
       llm_responses: [
-        { id: "sed_contra", content: { sed_contra: "Despite no objections, the change is sound." } },
+        {
+          id: "sed_contra",
+          content: { sed_contra: "Despite no objections, the change is sound." },
+        },
       ],
     });
     if (!re.ok || re.value.kind !== "needs_reasoning") throw new Error("expected respondeo");
@@ -348,7 +349,7 @@ describe("runRalphStep — Disputatio chain (Slice E)", () => {
     expect(state.current_phase).toBe("ralph_complete");
   });
 
-  test('verdict=rejected + objections → ad_singula → stayOnLeafAfterReject', async () => {
+  test("verdict=rejected + objections → ad_singula → stayOnLeafAfterReject", async () => {
     await seedInRalphWithPendingGate5();
     await runRalphStep({
       llm_responses: [{ id: "gate_5", content: { drift_score: 0.1, rationale: "ok" } }],
@@ -408,9 +409,7 @@ describe("runRalphStep — Disputatio chain (Slice E)", () => {
       await readFile(join(cwd, ".agora", "ralph_state.json"), "utf8"),
     ) as { z1_directives: string[]; current_leaf_id: string };
     expect(ralphState.current_leaf_id).toBe("ac_001"); // stays
-    expect(ralphState.z1_directives).toContain(
-      "remove unrelated module + refocus on telos",
-    );
+    expect(ralphState.z1_directives).toContain("remove unrelated module + refocus on telos");
   });
 });
 
