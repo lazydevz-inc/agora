@@ -21,7 +21,7 @@
     "node": ">=22"
   },
   "bin": {
-    "agora": "./dist/cli/index.js"
+    "agora": "dist/cli/index.js"
   },
   "files": [
     "dist",
