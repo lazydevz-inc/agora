@@ -133,11 +133,7 @@ Return EXACTLY this JSON shape, no extra keys, no commentary outside JSON:
   ]
 }`;
 
-export function buildDhUserPrompt(
-  node: ACNode,
-  telosStatement: string,
-  maxDepth: number,
-): string {
+export function buildDhUserPrompt(node: ACNode, telosStatement: string, maxDepth: number): string {
   return `Acceptance criterion to decompose:
 - id: ${node.id}
 - content: "${node.content}"

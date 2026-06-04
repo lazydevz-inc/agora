@@ -150,9 +150,7 @@ describe("runAlignStep — fresh telos round, happy path (no noun-phrase)", () =
     }
     expect(r.value.step).toBe("telos.complete");
 
-    const causes = JSON.parse(
-      await readFile(join(cwd, ".agora", "four_causes.json"), "utf8"),
-    ) as {
+    const causes = JSON.parse(await readFile(join(cwd, ".agora", "four_causes.json"), "utf8")) as {
       telos: { statement: string; maturity: string; noun_phrase_refinement_triggered: boolean };
     };
     expect(causes.telos.statement).toBe("Help users align their thinking with AI");
@@ -230,9 +228,9 @@ describe("runAlignStep — noun-phrase refinement loop", () => {
     if (!final.ok || final.value.kind !== "advanced") throw new Error("expected advanced");
     expect(final.value.step).toBe("telos.complete");
 
-    const causes = JSON.parse(
-      await readFile(join(cwd, ".agora", "four_causes.json"), "utf8"),
-    ) as { telos: { noun_phrase_refinement_triggered: boolean } };
+    const causes = JSON.parse(await readFile(join(cwd, ".agora", "four_causes.json"), "utf8")) as {
+      telos: { noun_phrase_refinement_triggered: boolean };
+    };
     expect(causes.telos.noun_phrase_refinement_triggered).toBe(true);
   });
 });

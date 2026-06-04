@@ -24,10 +24,8 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
 import { confirm, intro, log, outro } from "@clack/prompts";
 import pc from "picocolors";
-
 import type { AcceptanceCriteriaResult } from "../../alignment/acceptance-criteria.js";
 import type { Phase1Result } from "../../alignment/phase-1-intake.js";
 import { buildAgoraError } from "../../errors/build.js";
@@ -44,6 +42,7 @@ import { err, ok, type Result } from "../../result/index.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
@@ -357,7 +356,7 @@ async function handoffFromSeed(
 
   return ok({
     command: "agora handoff",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -393,7 +392,7 @@ async function askLockConfirm(_tree: readonly ACNode[]): Promise<boolean> {
 function buildEnvelope(seed: Seed, dh: DihairesisResult): CommandEnvelope {
   return {
     command: "agora handoff",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -416,17 +415,4 @@ function buildEnvelope(seed: Seed, dh: DihairesisResult): CommandEnvelope {
     errors: [],
     exit_code: 0,
   };
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }

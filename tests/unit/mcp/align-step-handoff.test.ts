@@ -153,7 +153,8 @@ describe("runAlignStep — maturity round (4 causes sequential, all pass)", () =
     // Cycle: ask → extract → ask → extract → ... for 4 causes.
     const causes = ["telos", "form", "material", "efficient"] as const;
     for (let i = 0; i < causes.length; i += 1) {
-      const required = causes[i] === "telos" ? "noesis" : causes[i] === "form" ? "dianoia" : "pistis";
+      const required =
+        causes[i] === "telos" ? "noesis" : causes[i] === "form" ? "dianoia" : "pistis";
       const ans = await runAlignStep({
         user_answers: {
           q_noesis: "I considered X but rejected because Y. Then Z made W the right choice.",
@@ -171,9 +172,7 @@ describe("runAlignStep — maturity round (4 causes sequential, all pass)", () =
             content: {
               tagged_maturity: required,
               rejected_alternatives:
-                required === "noesis"
-                  ? [{ alternative: "alt", why_rejected: "reason" }]
-                  : [],
+                required === "noesis" ? [{ alternative: "alt", why_rejected: "reason" }] : [],
             },
           },
         ],
@@ -318,7 +317,9 @@ describe("runAlignStep — handoff (DH + confirm yes → seed lock)", () => {
     });
     const declined = await runAlignStep({ user_answers: { q_confirm: "no" } });
     if (!declined.ok || declined.value.kind !== "advanced") {
-      throw new Error(`expected handoff.declined, got ${declined.ok ? declined.value.kind : "err"}`);
+      throw new Error(
+        `expected handoff.declined, got ${declined.ok ? declined.value.kind : "err"}`,
+      );
     }
     expect(declined.value.step).toBe("handoff.declined");
     const state = JSON.parse(await readFile(join(cwd, ".agora", "state.json"), "utf8")) as {

@@ -165,9 +165,7 @@ describe("runAlignStep — form round (happy path, no feature-list warning)", ()
     if (!done.ok || done.value.kind !== "advanced") throw new Error("expected advanced");
     expect(done.value.step).toBe("form.complete");
 
-    const causes = JSON.parse(
-      await readFile(join(cwd, ".agora", "four_causes.json"), "utf8"),
-    ) as {
+    const causes = JSON.parse(await readFile(join(cwd, ".agora", "four_causes.json"), "utf8")) as {
       form: { essential_structure: string; irreducible_parts: string[] };
     };
     expect(causes.form.essential_structure).toBe("CLI with subcommand-per-cause");
@@ -335,9 +333,9 @@ describe("runAlignStep — socrates elenchus (2-claim sequential)", () => {
     }
     expect(s5.value.step).toBe("socrates.complete");
 
-    const elenchus = JSON.parse(
-      await readFile(join(cwd, ".agora", "elenchus.json"), "utf8"),
-    ) as { elenched: { claim_id: string; outcome: string }[] };
+    const elenchus = JSON.parse(await readFile(join(cwd, ".agora", "elenchus.json"), "utf8")) as {
+      elenched: { claim_id: string; outcome: string }[];
+    };
     expect(elenchus.elenched).toHaveLength(2);
     expect(elenchus.elenched[0]?.claim_id).toBe("telos_001");
     expect(elenchus.elenched[1]?.claim_id).toBe("form_001");

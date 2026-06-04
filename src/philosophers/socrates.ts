@@ -203,10 +203,7 @@ interface ConstructedCase {
   question: string;
 }
 
-export function buildSocratesUserPrompt(
-  input: SocratesInput,
-  demandCwdGrounding: boolean,
-): string {
+export function buildSocratesUserPrompt(input: SocratesInput, demandCwdGrounding: boolean): string {
   const c = input.claim;
   const files = input.cwd_signal.detected_files.slice(0, 5);
   const priors = input.prior_round_history

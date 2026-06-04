@@ -20,10 +20,8 @@
 // the flags now would be dead surface area.  See NOTES Outstanding.
 
 import { join } from "node:path";
-
 import { intro, log, outro, select } from "@clack/prompts";
 import pc from "picocolors";
-
 import { buildAgoraError } from "../../errors/build.js";
 import type { AgoraErrorThrown } from "../../errors/types.js";
 import type { Seed } from "../../handoff/seed-builder.js";
@@ -38,6 +36,7 @@ import { err, ok, type Result } from "../../result/index.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull } from "../../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import type { Phase, State } from "../../state/types.js";
 import { saveState } from "../../state/writer.js";
@@ -355,7 +354,7 @@ function buildEnvelope(outcome: DispatchOutcome, exit_code: 0 | 1): CommandEnvel
   };
   return {
     command: "agora resume",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: { ok: true, data },
     next: outcome.next,
@@ -363,19 +362,6 @@ function buildEnvelope(outcome: DispatchOutcome, exit_code: 0 | 1): CommandEnvel
     errors: [],
     exit_code,
   };
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }
 
 // ─── Ralph end-state interactive handler (Stage 6-A.22 R1-A) ───
@@ -536,7 +522,7 @@ function buildRalphCompleteEnvelope(
 ): CommandEnvelope {
   return {
     command: "agora resume",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,

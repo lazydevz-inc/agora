@@ -6,12 +6,12 @@
 // `agora doctor --check-llm` before v1 release.
 
 import pc from "picocolors";
-
 import { buildAgoraError } from "../../errors/build.js";
 import type { AgoraErrorThrown } from "../../errors/types.js";
 import { selectRuntime } from "../../llm/selection.js";
 import { err, ok, type Result } from "../../result/index.js";
 import { findProjectRoot } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
 
@@ -73,7 +73,7 @@ export async function runPingCommand(
 
   return ok({
     command: "agora ping",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: true,
@@ -106,18 +106,5 @@ function mapLLMErrorCode(code: string): import("../../errors/codes.js").ErrorCod
       return "llm.no-runner-available";
     default:
       return "llm.internal-error";
-  }
-}
-
-function getAgoraVersion(): string {
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
   }
 }

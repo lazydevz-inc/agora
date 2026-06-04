@@ -13,6 +13,7 @@ import { executeProbes, type ProbeRun } from "../../probes/runner.js";
 import type { Probe } from "../../probes/types.js";
 import { ok, type Result } from "../../result/index.js";
 import { findProjectRoot } from "../../shared/path.js";
+import { agoraVersion } from "../../shared/version.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
 
@@ -116,7 +117,7 @@ function buildJsonEnvelope(
 ): CommandEnvelope {
   return {
     command: "agora doctor",
-    version: getAgoraVersion(),
+    version: agoraVersion(),
     timestamp: new Date().toISOString(),
     result: {
       ok: exit_code === 0,
@@ -159,20 +160,4 @@ function buildTuiEnvelope(
   // TUI envelope mirrors JSON shape so emit() in render.ts has uniform input;
   // TUI renderer just doesn't print it (already printed via emitTui above).
   return buildJsonEnvelope(runs, summary, exit_code);
-}
-
-function getAgoraVersion(): string {
-  // Read package.json version. Resolved relative to compiled location.
-  // Mirror of the helper in commands/version.ts; consider extracting to
-  // shared/ if a third caller appears.
-  try {
-    const url = new URL("../../../package.json", import.meta.url);
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require("node:fs");
-    const text = fs.readFileSync(url, "utf8");
-    const parsed = JSON.parse(text) as { version?: string };
-    return parsed.version ?? "unknown";
-  } catch {
-    return "unknown";
-  }
 }
