@@ -342,4 +342,52 @@ describe("runAlignStep — socrates elenchus (2-claim sequential)", () => {
     // Both "confirmed" — no marker words → categorizeResponse returns confirmed
     expect(elenchus.elenched.every((e) => e.outcome === "confirmed")).toBe(true);
   });
+
+  test("refined telos → four_causes.telos.statement stays clean; refinement stored in elenchus_refinement (B6)", async () => {
+    await seedThroughEfficient();
+    await runAlignStep({}); // construct[telos]
+    await runAlignStep({
+      llm_responses: [
+        {
+          id: "construct",
+          content: {
+            case: "Suppose the user disagrees with the AI's framing.",
+            grounding: "real_world",
+            grounding_ref: "disagreement",
+            question: "Does the tool still serve them?",
+          },
+        },
+      ],
+    });
+    // "but " is an exception marker → outcome "refined_with_addition" → refined_content set.
+    const refinement = "Yes, but only if it never overrides the user's own judgement.";
+    await runAlignStep({ user_answers: { q_response: refinement } }); // respond[telos] → construct[form]
+    await runAlignStep({
+      llm_responses: [
+        {
+          id: "construct",
+          content: {
+            case: "Imagine a 6th cause module is added later.",
+            grounding: "real_world",
+            grounding_ref: "extensibility",
+            question: "Does the structure hold?",
+          },
+        },
+      ],
+    });
+    const done = await runAlignStep({
+      user_answers: { q_response: "Yes, additive and structure unchanged." },
+    });
+    if (!done.ok || done.value.kind !== "advanced") {
+      throw new Error("expected socrates.complete");
+    }
+
+    const causes = JSON.parse(await readFile(join(cwd, ".agora", "four_causes.json"), "utf8")) as {
+      telos: { statement: string; elenchus_refinement?: string };
+    };
+    // The clean Aristotle-extracted statement is NOT clobbered by the raw response.
+    expect(causes.telos.statement).toBe("Help users align thinking with AI");
+    // The refinement is preserved separately.
+    expect(causes.telos.elenchus_refinement).toBe(refinement);
+  });
 });

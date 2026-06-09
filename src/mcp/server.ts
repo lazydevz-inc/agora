@@ -25,6 +25,7 @@ import { agoraVersion } from "../shared/version.js";
 import {
   mcpAlignStep,
   mcpDoctor,
+  mcpIntake,
   mcpNew,
   mcpRalphStep,
   mcpResume,
@@ -48,9 +49,13 @@ export function buildAgoraMcpServer(): McpServer {
     "agora_doctor",
     {
       description:
-        "Run Gate 0 pre-flight infrastructure probes (CLI auth, deps reachable). Read-only; makes no LLM call.",
+        "Run Gate 0 pre-flight infrastructure probes (CLI auth, deps reachable). Read-only; makes no LLM call. Pass include_disabled to also surface tier 2+ probes, or refresh to bust the 5-minute probe cache.",
+      inputSchema: {
+        include_disabled: z.boolean().optional(),
+        refresh: z.boolean().optional(),
+      },
     },
-    async () => mcpDoctor(),
+    async (args) => mcpDoctor(args),
   );
 
   server.registerTool(
@@ -72,6 +77,22 @@ export function buildAgoraMcpServer(): McpServer {
       },
     },
     async (args) => mcpNew(args),
+  );
+
+  // Phase 1 intake — LLM-free. Required before agora_align_step (which
+  // begins at the Aristotle telos round and refuses without intake.json).
+  // Lets a Claude-Code-only user bootstrap the alignment loop without
+  // dropping to the interactive `agora intake` CLI command.
+  server.registerTool(
+    "agora_intake",
+    {
+      description:
+        "Capture Phase 1 open intake — the user's raw intent/context dump — into .agora/intake.json and advance alignment to Phase 1. LLM-free; mutating. Call once after agora_new and before agora_align_step. Pass the user's intent as raw_text.",
+      inputSchema: {
+        raw_text: z.string().min(1),
+      },
+    },
+    async (args) => mcpIntake(args),
   );
 
   server.registerTool(

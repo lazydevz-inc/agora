@@ -13,7 +13,7 @@ Agora is two cooperating pieces:
 
 | Piece | What it is | You use it to… |
 |-------|------------|----------------|
-| **MCP server** (`agora mcp`) | Seven `agora_*` tools your Claude Code session calls | run the whole flow *inside* Claude Code — your subscription does the thinking, Agora makes **zero** LLM calls |
+| **MCP server** (`agora mcp`) | Eight `agora_*` tools your Claude Code session calls | run the whole flow *inside* Claude Code — your subscription does the thinking, Agora makes **zero** LLM calls |
 | **`agora` CLI** | A normal terminal command | drive the same flow from the terminal instead, if you prefer |
 
 Everything — starting a session included (`agora_new`) — runs through the tools,
@@ -71,9 +71,9 @@ In Claude Code, open a project and ask:
 > *"Call agora_status."*
 
 If it answers "No active Agora session," you're wired up correctly — that's the
-expected answer before you start one. (You'll see seven `agora_*` tools
-available: `status` / `doctor` / `resume` / `new` / `trace` / `align_step` /
-`ralph_step`.)
+expected answer before you start one. (You'll see eight `agora_*` tools
+available: `status` / `doctor` / `resume` / `new` / `intake` / `trace` /
+`align_step` / `ralph_step`.)
 
 ---
 
@@ -114,7 +114,9 @@ In Claude Code, in that same project:
 
 > *"Use agora to align on a per-user settings page."*
 
-Claude Code now steps through `agora_align_step`. Expect it to:
+Claude Code first captures your raw intent via `agora_intake` (one LLM-free
+call that writes `.agora/intake.json`), then steps through `agora_align_step`.
+Expect it to:
 
 - **(Husserl, optional)** bracket your hidden assumptions — *"a settings* page*,
   or do you actually need settings to* persist *per user?"*

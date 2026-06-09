@@ -285,6 +285,26 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
     if (!r.ok || r.value.kind !== "needs_user_input") throw new Error("expected confirm_z2");
     expect(r.value.step).toBe("ralph.confirm_z2");
   });
+
+  test("Z2 then declined → the spike drift is recorded in gate_5_history (B5)", async () => {
+    await seedInRalphWithPendingGate5();
+    await runRalphStep({
+      llm_responses: [
+        { id: "gate_5", content: { drift_score: 0.8, rationale: "totally drifted" } },
+      ],
+    });
+    const declined = await runRalphStep({ user_answers: { q_confirm_z2: "no" } });
+    if (!declined.ok || declined.value.kind !== "advanced") throw new Error("expected z2_declined");
+    expect(declined.value.step).toBe("ralph.z2_declined");
+    // The catastrophic 0.8 drift must survive in the trend even though Z2 was
+    // declined — otherwise spike-and-recover is invisible.
+    const ralph = JSON.parse(await readFile(join(cwd, ".agora", "ralph_state.json"), "utf8")) as {
+      gate_5_history: { drift_score: number; action: string }[];
+    };
+    expect(ralph.gate_5_history).toHaveLength(1);
+    expect(ralph.gate_5_history[0]?.drift_score).toBe(0.8);
+    expect(ralph.gate_5_history[0]?.action).toBe("Z2");
+  });
 });
 
 // ─── Disputatio chain end-to-end ───
@@ -347,6 +367,14 @@ describe("runRalphStep — Disputatio chain (Slice E)", () => {
       current_phase: string;
     };
     expect(state.current_phase).toBe("ralph_complete");
+    // B5: the passing drift is recorded EXACTLY once — applyGate5 appends to
+    // gate_5_history and advanceLeaf must not re-append (a reference-equality
+    // dedup across the RalphStateSchema.parse clone boundary used to double it).
+    const ralph = JSON.parse(await readFile(join(cwd, ".agora", "ralph_state.json"), "utf8")) as {
+      gate_5_history: { drift_score: number }[];
+    };
+    expect(ralph.gate_5_history).toHaveLength(1);
+    expect(ralph.gate_5_history[0]?.drift_score).toBe(0.1);
   });
 
   test("verdict=rejected + objections → ad_singula → stayOnLeafAfterReject", async () => {

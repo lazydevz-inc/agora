@@ -94,7 +94,13 @@ export async function runResumeCommand(
     if (preselect !== null) return await handleRalphComplete(cwd, state, preselect, false);
   }
 
-  const outcome = dispatch(state);
+  // Brownfield skips Husserl Phase −1 (default-off), matching `agora new`'s
+  // next-step; greenfield is offered the bracket step. Read the Phase 0 scan
+  // to decide; default to greenfield (offer bracket) if the scan is missing.
+  const scan = await readJsonOrNull<{ is_brownfield?: boolean }>(join(cwd, ".agora", "scan.json"));
+  const isBrownfield = scan?.is_brownfield === true;
+
+  const outcome = dispatch(state, isBrownfield);
   if (!flags.json) emitTui(outcome);
   return ok(buildEnvelope(outcome, 0));
 }
@@ -137,11 +143,11 @@ function parseRalphCompletePreselect(
   return ok(seen[0] ?? null);
 }
 
-function dispatch(state: State): DispatchOutcome {
+function dispatch(state: State, isBrownfield: boolean): DispatchOutcome {
   switch (state.current_phase) {
     case "in_alignment":
     case "in_alignment_paused":
-      return buildAlignmentOutcome(state);
+      return buildAlignmentOutcome(state, isBrownfield);
     case "alignment_complete":
       // Y2 passed. Next step is AC capture (then handoff). agora round
       // routes to ac if not yet captured, or shows complete if it has been.
@@ -198,7 +204,7 @@ function buildNoSessionOutcome(): DispatchOutcome {
   };
 }
 
-function buildAlignmentOutcome(state: State): DispatchOutcome {
+function buildAlignmentOutcome(state: State, isBrownfield: boolean): DispatchOutcome {
   const ap = state.alignment?.phase ?? 0;
   const lines: string[] = [
     localized("cli.resume.resuming_alignment", { phase: state.current_phase }),
@@ -211,19 +217,30 @@ function buildAlignmentOutcome(state: State): DispatchOutcome {
   const next: NextSuggestion[] = [];
 
   if (ap === 0) {
-    // Phase 0 just done by `agora new`; user has not yet bracketed.
-    lines.push(localized("cli.resume.next_phase_minus_1"));
-    lines.push(localized("cli.resume.next_phase_1_pending"));
-    next.push({
-      id: "bracket",
-      description: localized("cli.resume.next_bracket_desc"),
-      command: "agora bracket",
-    });
-    next.push({
-      id: "intake_pending",
-      description: localized("cli.resume.next_intake_desc"),
-      command: "agora intake",
-    });
+    // Phase 0 just done by `agora new`. Brownfield skips Husserl Phase −1
+    // (default-off) and goes straight to intake — matching `agora new`'s
+    // next-step. Greenfield is offered the optional bracket first.
+    if (isBrownfield) {
+      lines.push(localized("cli.resume.next_phase_1_pending"));
+      next.push({
+        id: "intake_pending",
+        description: localized("cli.resume.next_intake_desc"),
+        command: "agora intake",
+      });
+    } else {
+      lines.push(localized("cli.resume.next_phase_minus_1"));
+      lines.push(localized("cli.resume.next_phase_1_pending"));
+      next.push({
+        id: "bracket",
+        description: localized("cli.resume.next_bracket_desc"),
+        command: "agora bracket",
+      });
+      next.push({
+        id: "intake_pending",
+        description: localized("cli.resume.next_intake_desc"),
+        command: "agora intake",
+      });
+    }
   } else if (ap === -1) {
     // Husserl bracketed; intake is the next concrete step.
     lines.push(localized("cli.resume.bracket_done"));

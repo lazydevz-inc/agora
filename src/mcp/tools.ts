@@ -12,7 +12,11 @@
 // wrapped commands (status / doctor / resume / trace) are all
 // json-gated + LLM-free.
 
+import { rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { runDoctorCommand } from "../cli/commands/doctor.js";
+import { runIntakeCommand } from "../cli/commands/intake.js";
 import { runNewCommand } from "../cli/commands/new.js";
 import { runResumeCommand } from "../cli/commands/resume.js";
 import { runStatusCommand } from "../cli/commands/status.js";
@@ -88,8 +92,18 @@ export async function mcpStatus(): Promise<McpToolResult> {
   return envelopeToMcp(await runStatusCommand(mcpFlags()));
 }
 
-export async function mcpDoctor(): Promise<McpToolResult> {
-  return envelopeToMcp(await runDoctorCommand(mcpFlags()));
+export async function mcpDoctor(
+  args: { include_disabled?: boolean | undefined; refresh?: boolean | undefined } = {},
+): Promise<McpToolResult> {
+  // Thread the two doctor-specific flags through so the MCP surface can
+  // inspect disabled (tier 2+) probes and bust the 5-min probe cache —
+  // previously these were hardcoded off and unreachable via MCP.
+  const flags: GlobalFlags = {
+    ...mcpFlags(),
+    includeDisabled: args.include_disabled === true,
+    refresh: args.refresh === true,
+  };
+  return envelopeToMcp(await runDoctorCommand(flags));
 }
 
 export async function mcpResume(): Promise<McpToolResult> {
@@ -101,6 +115,44 @@ export async function mcpResume(): Promise<McpToolResult> {
 export async function mcpNew(args: { name?: string | undefined }): Promise<McpToolResult> {
   const positional = args.name !== undefined ? [args.name] : [];
   return envelopeToMcp(await runNewCommand(mcpFlags(), positional));
+}
+
+// LLM-free Phase 1 intake for the pure-MCP flow. agora_align_step begins at
+// the Aristotle telos round and requires .agora/intake.json to already
+// exist; without this tool a Claude-Code-only user had no way to produce it
+// (intake/bracket are interactive CLI-only commands), so the alignment loop
+// could not bootstrap. We reuse runIntakeCommand's non-interactive
+// --from-file path by staging raw_text to a temp file (no LLM, no TTY).
+export async function mcpIntake(args: { raw_text?: string | undefined }): Promise<McpToolResult> {
+  const rawText = args.raw_text ?? "";
+  if (rawText.trim().length === 0) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              ok: false,
+              error: { code: "user.aborted", message: "agora_intake requires non-empty raw_text." },
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+      isError: true,
+    };
+  }
+  const tmpPath = join(
+    tmpdir(),
+    `agora-mcp-intake-${String(process.pid)}-${String(Date.now())}.md`,
+  );
+  await writeFile(tmpPath, rawText, "utf8");
+  try {
+    return envelopeToMcp(await runIntakeCommand(mcpFlags(), [`--from-file=${tmpPath}`]));
+  } finally {
+    await rm(tmpPath, { force: true }).catch(() => undefined);
+  }
 }
 
 export async function mcpTrace(args: TraceToolArgs): Promise<McpToolResult> {

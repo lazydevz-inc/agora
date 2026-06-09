@@ -22,9 +22,57 @@ import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import type { Phase, State } from "../../state/types.js";
 import type { GlobalFlags } from "../flags.js";
-import type { CommandEnvelope } from "../render.js";
+import type { CommandEnvelope, NextSuggestion } from "../render.js";
 
 const RALPH_PHASES: ReadonlySet<Phase> = new Set(["in_ralph", "in_ralph_paused", "ralph_complete"]);
+
+// Per the "always suggest the next step" guided-flow rule (CLAUDE.md CLI
+// design): status is the natural "where am I / what now" command, so it
+// must point at the next concrete action for every phase — not just when
+// there is no session.
+function nextForState(state: State | null): NextSuggestion[] {
+  if (state === null) {
+    return [
+      { id: "start_new", description: "Start a new Agora session", command: "agora new <name>" },
+    ];
+  }
+  switch (state.current_phase) {
+    case "in_alignment":
+    case "in_alignment_paused":
+      return [
+        { id: "resume", description: "Continue the alignment loop", command: "agora resume" },
+      ];
+    case "alignment_complete":
+      return [
+        {
+          id: "round",
+          description: "Capture acceptance criteria, then lock the seed",
+          command: "agora round",
+        },
+      ];
+    case "in_handoff":
+      return [{ id: "handoff", description: "Lock the seed", command: "agora handoff" }];
+    case "ready_for_ralph":
+      return [
+        {
+          id: "ralph",
+          description: "Start building the seed (Ralph loop)",
+          command: "agora ralph",
+        },
+      ];
+    case "in_ralph":
+    case "in_ralph_paused":
+      return [{ id: "ralph", description: "Run the next Ralph iteration", command: "agora ralph" }];
+    case "ralph_complete":
+      return [
+        {
+          id: "resume",
+          description: "Review the completed session — accept or re-align",
+          command: "agora resume",
+        },
+      ];
+  }
+}
 
 interface TrendLoadResult {
   readonly trend?: RalphTrend;
@@ -192,16 +240,7 @@ function buildEnvelope(state: State | null, trendLoad: TrendLoadResult): Command
           : {}),
       },
     },
-    next:
-      state === null
-        ? [
-            {
-              id: "start_new",
-              description: "Start a new Agora session",
-              command: "agora new <name>",
-            },
-          ]
-        : [],
+    next: nextForState(state),
     warnings:
       trendLoad.warning !== undefined
         ? [{ code: "ralph_trend.unavailable", message: trendLoad.warning }]

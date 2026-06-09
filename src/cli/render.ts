@@ -5,6 +5,7 @@
 // arrives with Stage 4-A.5 implementation.
 
 import pc from "picocolors";
+import { exitCodeForError } from "../errors/build.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
 import { agoraVersion } from "../shared/version.js";
 
@@ -97,7 +98,7 @@ export function emitAgoraError(error: AgoraErrorThrown, mode: EmitMode, useColor
           ...(error.context !== undefined ? { context: error.context } : {}),
         },
       ],
-      exit_code: getExitCodeForError(error),
+      exit_code: exitCodeForError(error),
     };
     console.log(JSON.stringify(envelope, null, 2));
     return;
@@ -105,25 +106,6 @@ export function emitAgoraError(error: AgoraErrorThrown, mode: EmitMode, useColor
   console.error(c.red("agora: error:"), error.message);
   if (error.fix !== undefined) {
     console.error(c.dim("  Fix:"), error.fix);
-  }
-}
-
-function getExitCodeForError(error: AgoraErrorThrown): 0 | 1 | 2 | 4 | 5 | 20 {
-  // Look up exit code via the catalog without circular import — derive from
-  // category (matches the per-category default; specific codes can carry
-  // their own exit_code, looked up at error-construction time eventually).
-  // For this slice, category-derived mapping suffices.
-  switch (error.category) {
-    case "config":
-    case "state":
-      return 20;
-    case "user":
-      return 5;
-    case "gate":
-    case "probe":
-      return 4;
-    default:
-      return 1;
   }
 }
 

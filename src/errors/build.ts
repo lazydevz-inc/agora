@@ -34,6 +34,16 @@ export function buildAgoraError(code: ErrorCode, opts?: BuildOptions): AgoraErro
   });
 }
 
+/**
+ * Canonical process/envelope exit code for an error — the per-code value
+ * pinned in ERROR_CATALOG (Stage 4-A.6 R2-A), NOT a category-derived guess.
+ * Both the JSON envelope (render.ts) and the CLI process exit (cli/index.ts)
+ * must use this so the two never disagree.
+ */
+export function exitCodeForError(error: { code: ErrorCode }): ErrorCatalogEntry["exit_code"] {
+  return (ERROR_CATALOG[error.code] as ErrorCatalogEntry).exit_code;
+}
+
 function stringifyContext(ctx: Record<string, unknown> | undefined): Record<string, string> {
   if (ctx === undefined) return {};
   const out: Record<string, string> = {};

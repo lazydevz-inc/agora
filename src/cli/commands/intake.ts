@@ -293,8 +293,8 @@ function buildEnvelope(phase1: Phase1Result): CommandEnvelope {
     },
     next: [
       {
-        id: "phase_2_pending",
-        description: "Phase 2 philosopher rounds — not yet implemented",
+        id: "phase_2",
+        description: "Continue to Phase 2 — the Aristotle/Socrates/Plato rounds",
         command: "agora resume",
       },
     ],

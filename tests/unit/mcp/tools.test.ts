@@ -4,14 +4,22 @@
 // findProjectRoot(process.cwd()); tests chdir into a temp dir (restored
 // afterEach) to exercise them in isolation.
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { AgoraErrorThrown } from "@/errors/types.js";
 import { buildAgoraMcpServer } from "@/mcp/server.js";
-import { envelopeToMcp, mcpNew, mcpResume, mcpStatus, mcpTrace } from "@/mcp/tools.js";
+import {
+  envelopeToMcp,
+  mcpDoctor,
+  mcpIntake,
+  mcpNew,
+  mcpResume,
+  mcpStatus,
+  mcpTrace,
+} from "@/mcp/tools.js";
 import { err, ok } from "@/result/index.js";
 
 let cwd: string;
@@ -134,6 +142,42 @@ describe("mcpNew — creates a session", () => {
     expect(r.isError).toBe(true);
     const parsed = JSON.parse(r.content[0]?.text ?? "") as { error: { code: string } };
     expect(parsed.error.code).toBe("user.confirmation-required");
+  });
+});
+
+describe("mcpIntake — Phase 1 intake bootstrap (B4)", () => {
+  test("after mcpNew, captures raw_text into intake.json (LLM-free)", async () => {
+    await mcpNew({ name: "demo" });
+    const r = await mcpIntake({
+      raw_text: "I want a small CLI that adds two numbers and prints their sum to stdout.",
+    });
+    expect(r.isError).toBeUndefined();
+    const parsed = JSON.parse(r.content[0]?.text ?? "") as {
+      result: { ok: boolean; data: { phase1_result: { intake_word_count: number } } };
+    };
+    expect(parsed.result.ok).toBe(true);
+    expect(parsed.result.data.phase1_result.intake_word_count).toBeGreaterThan(0);
+    const intake = await readFile(join(cwd, ".agora", "intake.json"), "utf8");
+    expect(intake).toContain("raw_intake");
+  });
+
+  test("empty raw_text → isError (user.aborted)", async () => {
+    await mcpNew({ name: "demo" });
+    const r = await mcpIntake({ raw_text: "   " });
+    expect(r.isError).toBe(true);
+    const parsed = JSON.parse(r.content[0]?.text ?? "") as { error: { code: string } };
+    expect(parsed.error.code).toBe("user.aborted");
+  });
+});
+
+describe("mcpDoctor — flag threading (B15)", () => {
+  test("accepts include_disabled + refresh and returns a well-formed envelope", async () => {
+    const r = await mcpDoctor({ include_disabled: true, refresh: true });
+    expect(r.isError).toBeUndefined();
+    const parsed = JSON.parse(r.content[0]?.text ?? "") as {
+      result: { data: { summary: { available: number; disabled: number } } };
+    };
+    expect(typeof parsed.result.data.summary.disabled).toBe("number");
   });
 });
 

@@ -34,6 +34,11 @@ export const TelosClaimSchema = z.object({
   served_good: z.string().min(1),
   failure_signal: z.string().min(1),
   success_signal: z.string().optional(),
+  // Socrates elenchus refinement (raw user response when the claim was
+  // probed + refined). Stored SEPARATELY so the clean verb-phrase
+  // `statement` — the Gate 5 drift anchor — is never clobbered by the
+  // conversational refinement text. Full record also lives in elenchus.json.
+  elenchus_refinement: z.string().optional(),
   // Maturity is a Plato-tagged field; Aristotle outputs at "dianoia" as the
   // initial floor. Plato (future slice) re-tags after Divided Line check.
   maturity: MaturitySchema.default("dianoia"),
@@ -45,6 +50,9 @@ export const FormClaimSchema = z.object({
   essential_structure: z.string().min(1),
   irreducible_parts: z.array(z.string().min(1)).min(1),
   feature_list_warning_triggered: z.boolean().default(false),
+  // Socrates elenchus refinement — see TelosClaimSchema.elenchus_refinement.
+  // Kept separate so `essential_structure` stays the clean structural phrase.
+  elenchus_refinement: z.string().optional(),
   maturity: MaturitySchema.default("dianoia"),
 });
 export type FormClaim = z.infer<typeof FormClaimSchema>;
@@ -550,9 +558,9 @@ Hard rules:
    data this software handles.
 3. infrastructure is one paragraph describing where it runs (deploy
    target, runtime, hosting).
-4. For brownfield, set brownfield_auto_filled=true ONLY if the user
-   accepted the detected stack without removing entries (additions OK).
-   For greenfield, brownfield_auto_filled is always false.
+4. Do NOT emit brownfield_auto_filled — Agora computes it itself by
+   comparing your tech_stack against the detected stack. Just merge the
+   detected entries with the user's confirmations/additions per rule 1.
 5. NEVER let material lead the interview — telos+form are settled
    before material runs. If the user veers back to telos/form in their
    answers, capture material faithfully but flag in raw output.

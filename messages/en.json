@@ -36,7 +36,8 @@
     "user": {
       "forbidden_flag_combo": "Forbidden flag combination: {detail}",
       "confirmation_required": "User confirmation required: {detail}",
-      "aborted": "Aborted: {detail}"
+      "aborted": "Aborted: {detail}",
+      "unknown_command": "Unknown command: {command}. Run `agora --help` to see available commands."
     },
     "state": {
       "corrupt": "State file at {file} is corrupt: {detail}",

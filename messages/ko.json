@@ -36,7 +36,8 @@
     "user": {
       "forbidden_flag_combo": "허용되지 않는 플래그 조합: {detail}",
       "confirmation_required": "사용자 확인 필요: {detail}",
-      "aborted": "중단: {detail}"
+      "aborted": "중단: {detail}",
+      "unknown_command": "알 수 없는 명령: {command}. 사용 가능한 명령은 `agora --help`로 확인하세요."
     },
     "state": {
       "corrupt": "{file} state 파일이 손상되었습니다: {detail}",

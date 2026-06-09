@@ -68,8 +68,13 @@ function emitTui(scan: Awaited<ReturnType<typeof runPhase0Scan>>): void {
   }
   console.log(fieldLabel("Scan time:", `${scan.scan_duration_ms}ms`));
   console.log("");
-  console.log(localized("cli.new.next_phase_minus_1"));
-  console.log(localized("cli.new.next_phase_1"));
+  // Match the JSON `next[]` branch: brownfield skips Husserl Phase −1 and
+  // jumps to intake; greenfield is offered the bracket step first.
+  if (scan.is_brownfield) {
+    console.log(localized("cli.new.next_phase_1"));
+  } else {
+    console.log(localized("cli.new.next_phase_minus_1"));
+  }
 }
 
 function buildEnvelope(scan: Awaited<ReturnType<typeof runPhase0Scan>>): CommandEnvelope {

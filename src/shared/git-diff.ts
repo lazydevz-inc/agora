@@ -2,11 +2,14 @@
 //       primary signal for Gate 5's LLM-side judgment of "did this leaf
 //       implementation actually serve telos?"
 //
-// LAYER 0 helper. Tries `git diff HEAD~1..HEAD` (most recent commit's
-// changes) first; falls back to `git diff` (unstaged work) if HEAD~1
-// doesn't exist (initial commit / no commits yet) or git itself is not
-// available. Bounds output at MAX_DIFF_BYTES so we don't blow LLM token
-// budget on huge diffs.
+// LAYER 0 helper. Tries `git diff HEAD` (uncommitted working-tree changes)
+// FIRST — that is the current Ralph iteration's implementation work, which
+// the host edits before calling agora_ralph_step. Only when the working
+// tree is clean (the host committed the leaf) does it fall back to
+// `git diff HEAD~1..HEAD` (the most recent commit). Earlier this order was
+// inverted, so an uncommitted implementation was invisible to Gate 5 — it
+// judged the prior commit instead. Bounds output at MAX_DIFF_BYTES so we
+// don't blow the LLM token budget on huge diffs.
 
 import { spawnExec } from "./spawn.js";
 
@@ -20,36 +23,37 @@ export interface GitDiffResult {
 }
 
 export async function getRecentDiff(cwd: string): Promise<GitDiffResult> {
-  // First try: HEAD~1..HEAD (the most recent commit's diff).
+  // First try: uncommitted working-tree changes (staged + unstaged vs HEAD).
+  // This is the iteration's in-progress implementation — what the host just
+  // wrote before re-calling agora_ralph_step.
+  const working = await spawnExec("git", ["diff", "HEAD"], {
+    cwd,
+    timeoutMs: GIT_TIMEOUT_MS,
+  });
+  if (working.exit_code === 0 && working.stdout.trim().length > 0) {
+    return finalize(working.stdout, "unstaged");
+  }
+
+  // Fallback: the most recent commit's diff (host committed the leaf before
+  // gating, leaving a clean working tree).
   const recent = await spawnExec("git", ["diff", "HEAD~1..HEAD"], {
     cwd,
     timeoutMs: GIT_TIMEOUT_MS,
   });
-  if (recent.exit_code === 0) {
-    if (recent.stdout.trim().length > 0) {
-      return finalize(recent.stdout, "head_minus_one_to_head");
-    }
-    // Empty diff (HEAD~1..HEAD identical) — fall through to unstaged.
+  if (recent.exit_code === 0 && recent.stdout.trim().length > 0) {
+    return finalize(recent.stdout, "head_minus_one_to_head");
   }
 
-  // Fallback 1: unstaged + staged combined (current working state).
-  const unstaged = await spawnExec("git", ["diff", "HEAD"], {
-    cwd,
-    timeoutMs: GIT_TIMEOUT_MS,
-  });
-  if (unstaged.exit_code === 0) {
-    if (unstaged.stdout.trim().length > 0) {
-      return finalize(unstaged.stdout, "unstaged");
-    }
-    return { diff: "", source: "no_changes", truncated: false };
-  }
-
-  // Fallback 2: not a git repo or git not available.
-  // unstaged.exit_code !== 0 here. Distinguish "not a git repo"
-  // (typical exit_code 128) from "git not installed" (typical 127).
-  if (unstaged.exit_code === 127) {
+  // No diff from either source. Distinguish the cases.
+  if (working.exit_code === 127 || recent.exit_code === 127) {
+    // git not installed.
     return { diff: "", source: "no_git", truncated: false };
   }
+  if (working.exit_code === 0) {
+    // Working tree readable but clean, and no (or empty) prior commit diff.
+    return { diff: "", source: "no_changes", truncated: false };
+  }
+  // `git diff HEAD` failed for another reason (e.g. not a repo / no commits).
   return { diff: "", source: "error", truncated: false };
 }
 

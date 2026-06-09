@@ -104,6 +104,51 @@ describe("agora status (with session)", () => {
   });
 });
 
+describe("agora status — next-step guidance (guided flow)", () => {
+  async function seedState(phase: string): Promise<void> {
+    await mkdir(join(cwd, ".agora"), { recursive: true });
+    await writeFile(
+      join(cwd, ".agora", "state.json"),
+      JSON.stringify({
+        version: 1,
+        current_phase: phase,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+      "utf8",
+    );
+  }
+
+  function nextOf(output: string): { id: string; command: string }[] {
+    return (JSON.parse(output) as { next: { id: string; command: string }[] }).next;
+  }
+
+  test("in_alignment session → suggests resume (never empty)", async () => {
+    await seedState("in_alignment");
+    const { output, status } = run("status --json");
+    expect(status).toBe(0);
+    const next = nextOf(output);
+    expect(next.length).toBeGreaterThan(0);
+    expect(next[0]?.id).toBe("resume");
+    expect(next[0]?.command).toBe("agora resume");
+  });
+
+  test("ready_for_ralph session → suggests starting Ralph", async () => {
+    await seedState("ready_for_ralph");
+    const { output, status } = run("status --json");
+    expect(status).toBe(0);
+    const next = nextOf(output);
+    expect(next[0]?.id).toBe("ralph");
+    expect(next[0]?.command).toBe("agora ralph");
+  });
+
+  test("in_ralph session → suggests the next Ralph iteration", async () => {
+    await seedState("in_ralph");
+    const { output } = run("status --json");
+    expect(nextOf(output)[0]?.id).toBe("ralph");
+  });
+});
+
 describe("agora status (Ralph trend — Stage 6-A.24)", () => {
   async function seedRalphSession(opts: {
     phase: "in_ralph" | "in_ralph_paused" | "ralph_complete";

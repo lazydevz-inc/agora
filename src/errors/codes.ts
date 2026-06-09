@@ -137,7 +137,7 @@ export const ERROR_CATALOG = {
   // ─── user category ───
   "user.forbidden-flag-combo": {
     category: "user",
-    exit_code: 5,
+    exit_code: 2,
     message_key: "errors.user.forbidden_flag_combo",
   },
   "user.confirmation-required": {
@@ -149,6 +149,11 @@ export const ERROR_CATALOG = {
     category: "user",
     exit_code: 2,
     message_key: "errors.user.aborted",
+  },
+  "user.unknown-command": {
+    category: "user",
+    exit_code: 2,
+    message_key: "errors.user.unknown_command",
   },
 
   // ─── state category ───

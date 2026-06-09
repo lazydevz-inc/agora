@@ -9,6 +9,7 @@
 // - Top-level uncaughtException handler catches AgoraErrorThrown and any
 //   unexpected throw → emit + exit per Stage 4-A.6 R2-A.
 
+import { buildAgoraError, exitCodeForError } from "../errors/build.js";
 import { AgoraErrorThrown } from "../errors/types.js";
 import { setLocale } from "../i18n/index.js";
 import { appendEvent } from "../shared/events.js";
@@ -41,7 +42,7 @@ async function main(): Promise<void> {
   if (!parsedResult.ok) {
     const mode: EmitMode = inferEmitMode(argv);
     emitAgoraError(parsedResult.error, mode, useColorFromEnv());
-    process.exit(5);
+    process.exit(exitCodeForError(parsedResult.error));
   }
   const { flags, positional } = parsedResult.value;
   setLocale(flags.locale);
@@ -144,8 +145,18 @@ async function main(): Promise<void> {
     return;
   }
 
-  // No command + no --version: print version-style summary for now.
-  // (Stage 3-B.7 default command lands in a later slice.)
+  // An unrecognized command is a usage error — never silently fall through
+  // to the version summary (that swallows typos with exit 0). The bare
+  // `agora` (no positional) intentionally prints the version-style summary.
+  if (command !== undefined) {
+    const unknown = buildAgoraError("user.unknown-command", {
+      context: { command },
+    });
+    emitAgoraError(unknown, mode, useColor);
+    process.exit(exitCodeForError(unknown));
+  }
+
+  // No command + no --version: print version-style summary (default action).
   await dispatchVersion(flags, mode, useColor);
 }
 
@@ -157,7 +168,7 @@ async function dispatchVersion(
   const result = runVersionCommand(flags);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(1);
+    process.exit(exitCodeForError(result.error));
   }
   emit(result.value, mode, useColor);
   process.exit(result.value.exit_code);
@@ -171,7 +182,7 @@ async function dispatchDoctor(
   const result = await runDoctorCommand(flags);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(1);
+    process.exit(exitCodeForError(result.error));
   }
   // Doctor TUI rendering happens inside the command (multi-line, color-aware).
   // For JSON mode, render via the standard envelope emitter.
@@ -190,7 +201,7 @@ async function dispatchPing(
   const result = await runPingCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -206,7 +217,7 @@ async function dispatchStatus(
   const result = await runStatusCommand(flags);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -223,7 +234,7 @@ async function dispatchNew(
   const result = await runNewCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(2);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -240,8 +251,7 @@ async function dispatchBracket(
   const result = await runBracketCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -257,11 +267,10 @@ async function dispatchResume(
 ): Promise<void> {
   const result = await runResumeCommand(flags, positional);
   if (!result.ok) {
-    // state.corrupt → exit 20 per Stage 3-B.5 R3-A; user.* → exit 2;
-    // other categories fall through emitAgoraError's mapping.
+    // Exit code is the per-code value pinned in ERROR_CATALOG (single
+    // source of truth; matches the JSON envelope's exit_code field).
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -278,10 +287,7 @@ async function dispatchIntake(
   const result = await runIntakeCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    // user.confirmation-required → exit 2 (over-intake guard); other
-    // user.* → exit 2; state.* → exit 20; default exit 1.
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -298,8 +304,7 @@ async function dispatchRound(
   const result = await runRoundCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -316,8 +321,7 @@ async function dispatchTelos(
   const result = await runTelosCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -334,8 +338,7 @@ async function dispatchForm(
   const result = await runFormCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -352,8 +355,7 @@ async function dispatchMaterial(
   const result = await runMaterialCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -370,8 +372,7 @@ async function dispatchEfficient(
   const result = await runEfficientCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -388,8 +389,7 @@ async function dispatchSocrates(
   const result = await runSocratesCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -406,8 +406,7 @@ async function dispatchMaturity(
   const result = await runMaturityCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -424,8 +423,7 @@ async function dispatchAc(
   const result = await runAcCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -442,8 +440,7 @@ async function dispatchHandoff(
   const result = await runHandoffCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -460,8 +457,7 @@ async function dispatchRalph(
   const result = await runRalphCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "state" ? 20 : cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
@@ -478,8 +474,7 @@ async function dispatchTrace(
   const result = await runTraceCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    const cat = result.error.category;
-    process.exit(cat === "user" ? 2 : 1);
+    process.exit(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);

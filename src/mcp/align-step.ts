@@ -502,13 +502,18 @@ async function foldSocratesRefinements(
   let updated: FourCauses = { ...causes };
   for (const e of elenched) {
     if (e.outcome === "confirmed" || e.refined_content === undefined) continue;
+    // Store the refinement in `elenchus_refinement`, NOT by overwriting the
+    // clean `statement` / `essential_structure`. The raw elenchus response is
+    // a multi-sentence conversational answer ("Fair hit. You're right…") that
+    // would violate the telos extractor's own "single verb-phrase, not
+    // editorialized" rule and pollute the Gate 5 drift anchor.
     if (e.claim_id.startsWith("telos") && updated.telos !== undefined) {
-      updated = { ...updated, telos: { ...updated.telos, statement: e.refined_content } };
+      updated = { ...updated, telos: { ...updated.telos, elenchus_refinement: e.refined_content } };
       touched = true;
     } else if (e.claim_id.startsWith("form") && updated.form !== undefined) {
       updated = {
         ...updated,
-        form: { ...updated.form, essential_structure: e.refined_content },
+        form: { ...updated.form, elenchus_refinement: e.refined_content },
       };
       touched = true;
     }

@@ -50,6 +50,7 @@ import {
 import { countAtomicLeaves, selectNextLeaf } from "../ralph/leaf-selector.js";
 import { newRalphState, type RalphState, RalphStateSchema } from "../ralph/state.js";
 import { err, ok, type Result } from "../result/index.js";
+import { appendEvent } from "../shared/events.js";
 import { getRecentDiff } from "../shared/git-diff.js";
 import { readJsonOrNull, writeJsonAtomic } from "../shared/io.js";
 import { findProjectRoot, hasAgoraDir } from "../shared/path.js";
@@ -178,7 +179,7 @@ async function dispatchPending(
   }
   switch (pending.step) {
     case "ralph.gate_5":
-      return await applyGate5(cwd, state, seed, ralphState, args, ralphStatePath);
+      return await applyGate5(cwd, state, seed, ralphState, pending, args, ralphStatePath);
     case "ralph.confirm_z2":
       return await applyZ2(cwd, state, seed, ralphState, args, ralphStatePath);
     case "disputatio.videtur":
@@ -303,6 +304,15 @@ async function runGatesForLeaf(
 
   // Gate 1 (deterministic, sequential)
   const gate1 = await runGate1({ cwd });
+  await appendEvent(cwd, {
+    type: "gate_1.result",
+    command: "agora_ralph_step",
+    data: {
+      leaf_id: leafId,
+      passed: gate1.overall_passed,
+      failed_commands: gate1.commands.filter((c) => !c.passed).map((c) => c.name),
+    },
+  });
   if (!gate1.overall_passed) {
     const newAttempts = attemptsBefore + 1;
     const updated: RalphState = RalphStateSchema.parse({
@@ -334,6 +344,11 @@ async function runGatesForLeaf(
 
   // Gate 2 (deterministic, Playwright; skips when no config)
   const gate2 = await runGate2({ cwd });
+  await appendEvent(cwd, {
+    type: "gate_2.result",
+    command: "agora_ralph_step",
+    data: { leaf_id: leafId, passed: gate2.passed },
+  });
   if (!gate2.passed) {
     const newAttempts = attemptsBefore + 1;
     const updated: RalphState = RalphStateSchema.parse({
@@ -416,6 +431,7 @@ async function applyGate5(
   state: State,
   seed: Seed,
   ralphState: RalphState,
+  pending: McpPending,
   args: StepArgs,
   ralphStatePath: string,
 ): Promise<Result<StepEnvelope, AgoraErrorThrown>> {
@@ -438,17 +454,31 @@ async function applyGate5(
   }
   const extracted = parsedExtract.value;
   const action = mapDriftToAction(extracted.drift_score);
-  // Note: diff_source/truncated could be threaded from scratch; for
-  // simplicity Slice D records "error" sentinel — Slice E may revisit.
+  // Record the ACTUAL diff source the Gate 5 prompt was built from
+  // (threaded through pending.scratch by runGatesForLeaf), not a hardcoded
+  // sentinel — so the gate trail faithfully reflects what was judged.
+  const scratchDiffSource = pending.scratch["diff_source"];
+  const scratchDiffTruncated = pending.scratch["diff_truncated"];
   const gate5: Gate5Result = Gate5ResultSchema.parse({
     leaf_id: leafId,
     drift_score: extracted.drift_score,
     action,
     rationale: extracted.rationale,
     ...(extracted.z1_directive !== undefined ? { z1_directive: extracted.z1_directive } : {}),
-    diff_source: "head_minus_one_to_head" as const,
-    diff_truncated: false,
+    diff_source:
+      typeof scratchDiffSource === "string" ? scratchDiffSource : "head_minus_one_to_head",
+    diff_truncated: scratchDiffTruncated === true,
     ran_at: new Date().toISOString(),
+  });
+  await appendEvent(cwd, {
+    type: "gate_5.result",
+    command: "agora_ralph_step",
+    data: {
+      leaf_id: gate5.leaf_id,
+      drift_score: gate5.drift_score,
+      action: gate5.action,
+      diff_source: gate5.diff_source,
+    },
   });
   const attemptsBefore = ralphState.per_leaf_attempts[leafId] ?? 0;
   const newAttempts = attemptsBefore + 1;
@@ -495,6 +525,19 @@ async function applyGate5(
       ),
     );
   }
+  // Record the (catastrophic) drift in the gate trail NOW, before the Z2
+  // confirm round-trip. Otherwise a declined Z2 loses this spike from
+  // gate_5_history entirely — and the drift trend exists precisely to show
+  // spike-and-recover. applyZ2 reloads this persisted state and does not
+  // re-append, so there is no double count.
+  const withZ2Gate5: RalphState = RalphStateSchema.parse({
+    ...ralphState,
+    last_gate_5_result: gate5,
+    gate_5_history: [...ralphState.gate_5_history, gate5],
+    updated_at: new Date().toISOString(),
+  });
+  await writeJsonAtomic(ralphStatePath, withZ2Gate5);
+
   // Z2: issue confirm step.
   const z2Pending: McpPending = {
     version: 1,
@@ -551,11 +594,11 @@ async function advanceLeaf(
     completed_leaves: [...completed],
     session_total_attempts: ralphState.session_total_attempts + 1,
     last_gate_5_result: gate5,
-    // gate_5_history was already appended in applyGate5 (kickoff path);
-    // dedup here so we don't push the same Gate5Result twice.
-    gate_5_history: ralphState.gate_5_history.includes(gate5)
-      ? ralphState.gate_5_history
-      : [...ralphState.gate_5_history, gate5],
+    // gate_5_history was already appended in applyGate5 before kicking off
+    // Disputatio — do NOT append again here. (A prior reference-equality
+    // dedup `.includes(gate5)` silently failed across the
+    // RalphStateSchema.parse clone boundary, double-recording the drift.)
+    gate_5_history: ralphState.gate_5_history,
     ...(disputatio !== undefined
       ? {
           last_disputatio_result: disputatio,
@@ -695,6 +738,16 @@ async function applyDisputatioVerdict(
       ),
     );
   }
+  await appendEvent(cwd, {
+    type: "disputatio.verdict",
+    command: "agora_ralph_step",
+    data: {
+      leaf_id: ralphState.current_leaf_id,
+      verdict: disputatio.respondeo.verdict,
+      objections: disputatio.all_objections_count,
+      critical_objections: disputatio.critical_objections_count,
+    },
+  });
   if (disputatio.respondeo.verdict === "rejected") {
     return await stayOnLeafAfterReject(cwd, ralphState, disputatio, ralphStatePath);
   }

@@ -92,6 +92,19 @@ describe("agora resume — in_alignment handler", () => {
     expect(parsed.next.map((n) => n.id)).toEqual(["bracket", "intake_pending"]);
   });
 
+  test("phase 0 brownfield → intake only (skips Husserl bracket, matches `agora new`)", async () => {
+    await seedState("in_alignment", 0);
+    await writeFile(
+      join(cwd, ".agora", "scan.json"),
+      JSON.stringify({ project_name: "x", is_brownfield: true, is_greenfield: false }),
+      "utf8",
+    );
+    const { output, status } = run("resume --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as { next: { id: string }[] };
+    expect(parsed.next.map((n) => n.id)).toEqual(["intake_pending"]);
+  });
+
   test("phase -1 → bracket_done line + intake only", async () => {
     await seedState("in_alignment", -1);
     const { output, status } = run("resume");

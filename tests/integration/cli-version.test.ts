@@ -52,6 +52,31 @@ describe("agora --version --json with locale (ko)", () => {
   });
 });
 
+describe("agora <unknown command>", () => {
+  test("unknown command errors (exit 2) instead of silently printing version", () => {
+    let exited = false;
+    try {
+      execSync(`${CLI} frobnicate --json`, { stdio: "pipe" });
+    } catch (e) {
+      exited = true;
+      const status = (e as { status?: number }).status;
+      const stdout = ((e as { stdout?: Buffer }).stdout ?? Buffer.from("")).toString();
+      expect(status).toBe(2);
+      const parsed = JSON.parse(stdout) as { result: { ok: boolean }; errors: { code: string }[] };
+      expect(parsed.result.ok).toBe(false);
+      expect(parsed.errors[0]?.code).toBe("user.unknown-command");
+    }
+    expect(exited).toBe(true);
+  });
+
+  test("bare `agora` (no command) still prints the version summary (exit 0)", () => {
+    const output = execSync(`${CLI} --json`).toString();
+    const parsed = JSON.parse(output) as { command: string; result: { ok: boolean } };
+    expect(parsed.result.ok).toBe(true);
+    expect(parsed.command).toBe("agora --version");
+  });
+});
+
 describe("agora forbidden flag combinations", () => {
   test("--json + --verbose exits non-zero with structured error", () => {
     let exited = false;
@@ -60,19 +85,19 @@ describe("agora forbidden flag combinations", () => {
     } catch (e) {
       exited = true;
       const status = (e as { status?: number }).status;
-      expect(status).toBe(5); // user.forbidden-flag-combo
+      expect(status).toBe(2); // user.forbidden-flag-combo (catalog exit_code)
     }
     expect(exited).toBe(true);
   });
 
-  test("--locale=fr exits 5", () => {
+  test("--locale=fr exits 2", () => {
     let exited = false;
     try {
       execSync(`${CLI} --locale=fr --version`, { stdio: "pipe" });
     } catch (e) {
       exited = true;
       const status = (e as { status?: number }).status;
-      expect(status).toBe(5);
+      expect(status).toBe(2);
     }
     expect(exited).toBe(true);
   });
