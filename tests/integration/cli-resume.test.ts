@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 const CLI_ABS = `${process.cwd()}/src/cli/index.ts`;
+const TSX = `${process.cwd()}/node_modules/.bin/tsx`;
 
 let cwd: string;
 
@@ -25,7 +26,7 @@ afterEach(async () => {
 
 function run(args: string): { output: string; status: number } {
   try {
-    const output = execSync(`tsx ${CLI_ABS} ${args}`, {
+    const output = execSync(`${TSX} ${CLI_ABS} ${args}`, {
       stdio: "pipe",
       cwd,
     }).toString();
