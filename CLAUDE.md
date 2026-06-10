@@ -104,15 +104,15 @@
 
 **Agora = 고대 철학자들이 모이는 광장. AI 코딩 에이전트의 alignment harness.**
 
-> - License: MIT (provisional, ADR-0007 — Q00의 Ouroboros 저작권 보존, CREDITS.md 참조)
+> - License: MIT (ADR-0007에서 provisional 채택 → ADR-0011에서 확정 — Q00의 Ouroboros 저작권 보존, CREDITS.md 참조)
 > - Status: **Stage 6 (Implementation — vertical slices) — 진행 중**
 > - Stage 1 closed: 2026-04-27 (`docs/stage-1/CLOSED.md`, tag `v0.1.0-stage-1`)
 > - Stage 2 closed: 2026-05-03 (`docs/stage-2/CLOSED.md`, tag `v0.2.0-stage-2`)
 > - Stage 3 closed: 2026-05-03 (`docs/stage-3/CLOSED.md`, tag `v0.3.0-stage-3`)
 > - Stage 4 closed: 2026-05-03 (`docs/stage-4/CLOSED.md`, tag `v0.4.0-stage-4`)
 > - Stage 5 closed: 2026-05-04 (`docs/stage-5/CLOSED.md`, tag `v0.5.0-stage-5`)
-> - Repo: github.com/lazydevz-inc/agora (private indefinitely, ADR-0002 + ADR-0007 — public-release는 명시적 전략 결정 시에만)
-> - Package: `@lazydevz/agora` (npm 미공개)
+> - Repo: github.com/lazydevz-inc/agora (**public** — 2026-06-04 ADR-0011로 전환; ADR-0002/0007의 "private 유지" 결정을 대체)
+> - Package: `@lazydevz/agora` (npm 게시됨 — 현재 v0.0.1-alpha.1; 정확한 기능 스냅샷은 하단 Version 단락 참조)
 
 ### 한 줄 정의
 
