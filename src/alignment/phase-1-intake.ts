@@ -1,4 +1,4 @@
-// SPEC: docs/loops/alignment-loop.md (Phase 1 Open Intake §201-282).
+// SPEC: docs/loops/alignment-loop.md (Phase 1 Open Intake §192+).
 //
 // Phase 1 collects the user's first substantive context dump in one turn.
 // LAYER 2 — depends on shared/ + state/ + Phase 0 output. Pure logic +
@@ -14,10 +14,13 @@
 //        - contains '\n' → method = "paste"
 //        - otherwise     → method = "inline"
 //   3. Cap handling on the resolved string:
-//        - byte_size >= 16384 → truncate to 16384, intake_truncated = true,
-//                               ui.displayHardCap(originalByteSize)
-//        - byte_size >= 8192  → ui.displaySoftCap(byteSize), no truncate
-//   4. Compute word_count + estimated_rounds bucket (per SPEC L266-270):
+//        - byte_size >= HARD_CAP_BYTES → archive the FULL original via
+//                               ui.archiveOriginal (lossless cut — archive
+//                               failure never blocks intake), then truncate
+//                               to the cap, intake_truncated = true,
+//                               ui.displayHardCap(originalByteSize, archivePath)
+//        - byte_size >= SOFT_CAP_BYTES → ui.displaySoftCap(byteSize), no truncate
+//   4. Compute word_count + estimated_rounds bucket (per SPEC L273-277):
 //        < 50 words   → "5–8 rounds (lots to clarify)"
 //        50-300 words → "3–5 rounds"
 //        > 300 words  → "2–3 rounds"
@@ -28,7 +31,10 @@
 //   - No LLM calls. Phase 1 is pure intake; Phase 2 starts the dialogue.
 //   - No state writes. Caller persists .agora/intake.json + advances state.
 //   - No editor spawn. Caller passes the editor function via ui.openEditor.
-//   - 8/16 KB are byte limits, not word limits (per SPEC R3-A rationale).
+//   - 16/64 KB are byte limits, not word limits (per SPEC R3-A rationale,
+//     amended 2026-06-11: sized so UTF-8 Korean — 3 bytes/syllable — is not
+//     capped at roughly half the English word count, and so MCP host-relayed
+//     PRDs fit without a lossy cut).
 
 import { z } from "zod";
 
@@ -47,6 +53,12 @@ export const Phase1ResultSchema = z.object({
   intake_word_count: z.number().int().min(0),
   intake_byte_size: z.number().int().min(0),
   intake_truncated: z.boolean(),
+  // Lossless hard cap (R3-A amendment): when truncated, the pre-cut size and
+  // the archive path of the FULL original. Both null when not truncated (and
+  // path null if archiving failed). Defaults keep pre-amendment intake.json
+  // files parseable (seed-builder validates with this schema).
+  intake_original_byte_size: z.number().int().min(0).nullable().default(null),
+  intake_original_path: z.string().nullable().default(null),
   intake_duration_ms: z.number().int().min(0),
   estimated_rounds: z.string(),
   classification: z.enum(["brownfield", "greenfield"]),
@@ -61,10 +73,20 @@ export interface IntakeUi {
   openEditor(): Promise<string>;
   /** Re-prompt after empty editor. Returns user's retry input. */
   askReprompt(noticeText: string): Promise<string>;
-  /** 8KB+ but <16KB: gentle "long input" notice. Continues. */
+  /**
+   * Hard cap hit: persist the FULL original somewhere durable BEFORE the
+   * orchestrator truncates (lossless cut). Returns the archive path for
+   * display + Phase1Result, or null when archiving failed. Must not throw
+   * fatally — the orchestrator treats a throw as null and proceeds.
+   */
+  archiveOriginal(original: string): Promise<string | null>;
+  /** SOFT_CAP+ but under HARD_CAP: gentle "long input" notice. Continues. */
   displaySoftCap(byteSize: number): void;
-  /** 16KB+: input was truncated; flag will be set in Phase1Result. */
-  displayHardCap(originalByteSize: number): void;
+  /**
+   * HARD_CAP+: input was truncated; flag set in Phase1Result. archivePath
+   * is where archiveOriginal preserved the full original (null = failed).
+   */
+  displayHardCap(originalByteSize: number, archivePath: string | null): void;
   /** Mechanical echo. No LLM-generated summary. */
   displayEcho(args: { wordCount: number; method: IntakeMethod; estimatedRounds: string }): void;
 }
@@ -75,10 +97,17 @@ export interface Phase1Input {
   readonly classification: "brownfield" | "greenfield";
 }
 
-// ─── Constants (per SPEC L245, L250, L266-270) ───
+// ─── Constants (per SPEC "Phase 1 Open Intake" INPUT_RULES + R3-A) ───
+//
+// R3-A amended 2026-06-11 (was 8/16 KB): byte-denominated for determinism,
+// sized so no first-class locale is penalized — UTF-8 Korean costs 3 bytes
+// per syllable, so the old caps bit Korean users at ~half the English word
+// count. 64 KB also admits deliberate large relays (MCP host passing a full
+// PRD) while still blocking pathological pastes (multi-MB logs). The hard
+// cap is lossless: ui.archiveOriginal preserves the full text pre-cut.
 
-export const SOFT_CAP_BYTES = 8 * 1024; // 8 KB
-export const HARD_CAP_BYTES = 16 * 1024; // 16 KB
+export const SOFT_CAP_BYTES = 16 * 1024; // 16 KB ≈ 3,000 EN words / ≈1,600 KO 어절
+export const HARD_CAP_BYTES = 64 * 1024; // 64 KB ≈ 12,000 EN words / ≈6,500 KO 어절
 
 export function estimateRounds(wordCount: number): string {
   if (wordCount < 50) return "5–8 rounds (lots to clarify)";
@@ -109,10 +138,18 @@ export async function runPhase1Intake(
   const originalBytes = Buffer.byteLength(rawTextInitial, "utf8");
   let rawText = rawTextInitial;
   let truncated = false;
+  let originalPath: string | null = null;
   if (originalBytes >= HARD_CAP_BYTES) {
+    // Lossless cut: archive the full original BEFORE truncating. Archive
+    // failure must never block intake — degrade to the flagged cut.
+    try {
+      originalPath = await ui.archiveOriginal(rawTextInitial);
+    } catch {
+      originalPath = null;
+    }
     rawText = truncateToBytes(rawTextInitial, HARD_CAP_BYTES);
     truncated = true;
-    ui.displayHardCap(originalBytes);
+    ui.displayHardCap(originalBytes, originalPath);
   } else if (originalBytes >= SOFT_CAP_BYTES) {
     ui.displaySoftCap(originalBytes);
   }
@@ -131,6 +168,8 @@ export async function runPhase1Intake(
     intake_word_count: wordCount,
     intake_byte_size: Buffer.byteLength(rawText, "utf8"),
     intake_truncated: truncated,
+    intake_original_byte_size: truncated ? originalBytes : null,
+    intake_original_path: originalPath,
     intake_duration_ms: Date.now() - startedAt,
     estimated_rounds: estimated,
     classification: input.classification,
@@ -165,10 +204,10 @@ async function collectInput(
     if (editorContent.trim().length > 0) {
       return ok({ rawText: editorContent, method: "editor" });
     }
-    // Empty after editor → one re-prompt (per SPEC L252-253).
+    // Empty after editor → one re-prompt (per SPEC L259-260).
     const retry = await ui.askReprompt(input.emptyRepromptText);
     if (retry.trim().length === 0) {
-      // Empty twice → abort with exit 2 (per SPEC L254).
+      // Empty twice → abort with exit 2 (per SPEC L261).
       return err(
         buildAgoraError("user.aborted", {
           context: { detail: "Phase 1 intake aborted: input was empty twice." },

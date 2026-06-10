@@ -502,8 +502,8 @@ async function applyGate5(
   // Record the ACTUAL diff source the Gate 5 prompt was built from
   // (threaded through pending.scratch by runGatesForLeaf), not a hardcoded
   // sentinel — so the gate trail faithfully reflects what was judged.
-  const scratchDiffSource = pending.scratch["diff_source"];
-  const scratchDiffTruncated = pending.scratch["diff_truncated"];
+  const scratchDiffSource = pending.scratch.diff_source;
+  const scratchDiffTruncated = pending.scratch.diff_truncated;
   const gate5: Gate5Result = Gate5ResultSchema.parse({
     leaf_id: leafId,
     drift_score: extracted.drift_score,
@@ -977,7 +977,7 @@ function matchesExpects(
   if (expects === "user_answers") {
     if (args.user_answers === undefined) {
       return err({
-        code: "user.aborted",
+        code: "user.missing-step-input",
         message: "Pending step expects user_answers; none provided.",
       });
     }
@@ -990,7 +990,7 @@ function matchesExpects(
   } else {
     if (args.llm_responses === undefined) {
       return err({
-        code: "user.aborted",
+        code: "user.missing-step-input",
         message: "Pending step expects llm_responses; none provided.",
       });
     }

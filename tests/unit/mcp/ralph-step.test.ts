@@ -212,7 +212,7 @@ describe("runRalphStep — init (first call)", () => {
 
     // No git repo in the tmp fixture → init must warn (Gate 5 judges a git
     // diff; without a repo every iteration parks at drift 0.50 / Z1).
-    expect(r.value.state_after?.["git_repo"]).toBe(false);
+    expect(r.value.state_after?.git_repo).toBe(false);
     expect(r.value.message).toContain("no git repository detected");
   });
 });

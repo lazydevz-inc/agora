@@ -10,7 +10,7 @@
 // slice) tags maturity for Y2 termination.
 
 import { join } from "node:path";
-import { intro, log, outro, text } from "@clack/prompts";
+import { intro, outro, text } from "@clack/prompts";
 import pc from "picocolors";
 import { type Phase0Output, runPhase0Scan } from "../../alignment/phase-0-scan.js";
 import { buildAgoraError } from "../../errors/build.js";
@@ -33,6 +33,7 @@ import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md; command-shell refactor will split the repeated preamble.
 export async function runEfficientCommand(
   flags: GlobalFlags,
   _positional: readonly string[],

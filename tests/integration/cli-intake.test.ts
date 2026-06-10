@@ -162,7 +162,51 @@ describe("agora intake --from-file — happy path", () => {
       .map((l) => JSON.parse(l) as { type: string; data: Record<string, unknown> })
       .filter((e) => e.type === "intake.captured");
     expect(intakeEvents).toHaveLength(1);
-    expect(intakeEvents[0]?.data["word_count"]).toBeGreaterThan(0);
+    expect(intakeEvents[0]?.data.word_count).toBeGreaterThan(0);
+  });
+
+  test("over hard cap → truncated to 64 KB, FULL original archived to .agora/history/", async () => {
+    await seedSession();
+    // 64 KB hard cap (R3-A amended) + a tail marker that only survives in
+    // the archive — proves the cut is lossless.
+    const HARD_CAP = 64 * 1024;
+    const body = `intent starts here. ${"filler ".repeat(Math.ceil(HARD_CAP / 7))}TAIL-MARKER`;
+    await writeFile(join(cwd, "big-intake.md"), body, "utf8");
+
+    const { output, status } = run("intake --from-file=big-intake.md --json");
+    expect(status).toBe(0);
+    const parsed = JSON.parse(output) as {
+      result: {
+        data: {
+          phase1_result: {
+            intake_truncated: boolean;
+            intake_byte_size: number;
+            intake_original_byte_size: number | null;
+            intake_original_path: string | null;
+          };
+        };
+      };
+      warnings: { code: string; message: string }[];
+    };
+    const phase1 = parsed.result.data.phase1_result;
+    expect(phase1.intake_truncated).toBe(true);
+    expect(phase1.intake_byte_size).toBeLessThanOrEqual(HARD_CAP);
+    expect(phase1.intake_original_byte_size).toBe(Buffer.byteLength(body, "utf8"));
+    expect(phase1.intake_original_path).toMatch(/^\.agora\/history\/intake-original-.+\.md$/);
+    // Envelope warning carries the archive path for --json / MCP consumers.
+    expect(parsed.warnings).toHaveLength(1);
+    expect(parsed.warnings[0]?.code).toBe("intake_hard_cap_truncated");
+    expect(parsed.warnings[0]?.message).toContain(phase1.intake_original_path ?? "");
+
+    // intake.json holds the truncated text (tail gone)…
+    const intake = JSON.parse(await readFile(join(cwd, ".agora", "intake.json"), "utf8")) as {
+      raw_intake: string;
+      intake_original_path: string | null;
+    };
+    expect(intake.raw_intake).not.toContain("TAIL-MARKER");
+    // …and the archive holds the complete original, byte for byte.
+    const archived = await readFile(join(cwd, intake.intake_original_path ?? ""), "utf8");
+    expect(archived).toBe(body);
   });
 
   test("missing file → empty content triggers re-prompt → orchestrator returns user.aborted", async () => {

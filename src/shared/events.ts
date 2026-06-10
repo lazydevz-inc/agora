@@ -104,7 +104,7 @@ export async function appendEvent(cwd: string, input: AppendEventInput): Promise
 }
 
 function maybeDebug(message: string): void {
-  if (process.env["AGORA_EVENTS_DEBUG"] === "1") {
+  if (process.env.AGORA_EVENTS_DEBUG === "1") {
     process.stderr.write(`[events] ${message}\n`);
   }
 }

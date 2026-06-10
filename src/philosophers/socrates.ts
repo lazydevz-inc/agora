@@ -253,6 +253,7 @@ Construct the case per the rules. Return the JSON shape.`;
 
 // ─── Orchestrator ───
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Single orchestration boundary for the Socratic case-probe flow; split after prompt-library refactor lands.
 export async function runSocratesElenchus(
   input: SocratesInput,
   runner: ClaudeRunner,

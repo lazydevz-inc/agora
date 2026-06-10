@@ -87,6 +87,20 @@ describe("runAlignStep — refusal paths", () => {
     if (!r.ok || r.value.kind !== "error") throw new Error("expected error envelope");
     expect(r.value.code).toBe("user.forbidden-flag-combo");
   });
+
+  test("pending expects input, none provided → user.missing-step-input", async () => {
+    await seedSession();
+    const first = await runAlignStep({});
+    expect(first.ok).toBe(true);
+    if (!first.ok || first.value.kind !== "needs_user_input") {
+      throw new Error("expected needs_user_input from first call");
+    }
+    const r = await runAlignStep({});
+    expect(r.ok).toBe(true);
+    if (!r.ok || r.value.kind !== "error") throw new Error("expected error envelope");
+    expect(r.value.code).toBe("user.missing-step-input");
+    expect(r.value.message).toMatch(/none provided/);
+  });
 });
 
 describe("runAlignStep — fresh telos round, happy path (no noun-phrase)", () => {

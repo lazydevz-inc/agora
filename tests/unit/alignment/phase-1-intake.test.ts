@@ -1,4 +1,4 @@
-// SPEC: docs/loops/alignment-loop.md (Phase 1 Open Intake §201-282).
+// SPEC: docs/loops/alignment-loop.md (Phase 1 Open Intake §192+).
 
 import { describe, expect, test } from "vitest";
 
@@ -16,8 +16,9 @@ interface RecordedUi extends IntakeUi {
   inlineCalls: number;
   editorCalls: number;
   repromptCalls: number;
+  archivedOriginals: string[];
   softCaps: number[];
-  hardCaps: number[];
+  hardCaps: { bytes: number; archivePath: string | null }[];
   echoes: { wordCount: number; method: string; estimatedRounds: string }[];
 }
 
@@ -25,6 +26,8 @@ function makeUi(opts: {
   inlineReturns?: string[];
   editorReturns?: string[];
   repromptReturns?: string[];
+  archiveReturn?: string | null;
+  archiveThrows?: boolean;
 }): RecordedUi {
   const inlineQueue = [...(opts.inlineReturns ?? [])];
   const editorQueue = [...(opts.editorReturns ?? [])];
@@ -33,6 +36,7 @@ function makeUi(opts: {
     inlineCalls: 0,
     editorCalls: 0,
     repromptCalls: 0,
+    archivedOriginals: [],
     softCaps: [],
     hardCaps: [],
     echoes: [],
@@ -48,11 +52,16 @@ function makeUi(opts: {
       ui.repromptCalls += 1;
       return repromptQueue.shift() ?? "";
     },
+    archiveOriginal: async (original) => {
+      ui.archivedOriginals.push(original);
+      if (opts.archiveThrows === true) throw new Error("disk full");
+      return opts.archiveReturn ?? ".agora/history/intake-original-test.md";
+    },
     displaySoftCap: (b) => {
       ui.softCaps.push(b);
     },
-    displayHardCap: (b) => {
-      ui.hardCaps.push(b);
+    displayHardCap: (bytes, archivePath) => {
+      ui.hardCaps.push({ bytes, archivePath });
     },
     displayEcho: (e) => {
       ui.echoes.push(e);
@@ -130,17 +139,25 @@ describe("Phase 1 intake — input classification", () => {
 });
 
 describe("Phase 1 intake — cap mechanics (R3-A)", () => {
-  test("input under 8KB → no warning, no truncate", async () => {
+  test("caps sized per amended R3-A: 16 KB soft / 64 KB hard", () => {
+    expect(SOFT_CAP_BYTES).toBe(16 * 1024);
+    expect(HARD_CAP_BYTES).toBe(64 * 1024);
+  });
+
+  test("input under soft cap → no warning, no truncate, no archive", async () => {
     const ui = makeUi({ inlineReturns: ["short text"] });
     const result = await runPhase1Intake(baseInput, ui);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(ui.softCaps).toEqual([]);
     expect(ui.hardCaps).toEqual([]);
+    expect(ui.archivedOriginals).toEqual([]);
     expect(result.value.intake_truncated).toBe(false);
+    expect(result.value.intake_original_byte_size).toBeNull();
+    expect(result.value.intake_original_path).toBeNull();
   });
 
-  test("input ≥ 8KB but < 16KB → soft cap warning, no truncate", async () => {
+  test("input ≥ soft cap but < hard cap → soft cap warning, no truncate, no archive", async () => {
     const long = "a".repeat(SOFT_CAP_BYTES + 100);
     const ui = makeUi({ inlineReturns: [long] });
     const result = await runPhase1Intake(baseInput, ui);
@@ -149,20 +166,42 @@ describe("Phase 1 intake — cap mechanics (R3-A)", () => {
     expect(ui.softCaps).toHaveLength(1);
     expect(ui.softCaps[0]).toBeGreaterThanOrEqual(SOFT_CAP_BYTES);
     expect(ui.hardCaps).toEqual([]);
+    expect(ui.archivedOriginals).toEqual([]);
     expect(result.value.intake_truncated).toBe(false);
     expect(result.value.intake_byte_size).toBe(SOFT_CAP_BYTES + 100);
   });
 
-  test("input ≥ 16KB → hard cap truncate + flag set", async () => {
+  test("input ≥ hard cap → archive FULL original first, then truncate + flag", async () => {
     const long = "a".repeat(HARD_CAP_BYTES + 5000);
-    const ui = makeUi({ inlineReturns: [long] });
+    const ui = makeUi({
+      inlineReturns: [long],
+      archiveReturn: ".agora/history/intake-original-x.md",
+    });
     const result = await runPhase1Intake(baseInput, ui);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(ui.hardCaps).toHaveLength(1);
-    expect(ui.hardCaps[0]).toBe(HARD_CAP_BYTES + 5000);
+    // Lossless cut: the archive hook received the COMPLETE original.
+    expect(ui.archivedOriginals).toHaveLength(1);
+    expect(ui.archivedOriginals[0]).toBe(long);
+    expect(ui.hardCaps).toEqual([
+      { bytes: HARD_CAP_BYTES + 5000, archivePath: ".agora/history/intake-original-x.md" },
+    ]);
     expect(result.value.intake_truncated).toBe(true);
     expect(result.value.intake_byte_size).toBe(HARD_CAP_BYTES);
+    expect(result.value.intake_original_byte_size).toBe(HARD_CAP_BYTES + 5000);
+    expect(result.value.intake_original_path).toBe(".agora/history/intake-original-x.md");
+  });
+
+  test("archive failure (throw) degrades to flagged cut — never blocks intake", async () => {
+    const long = "b".repeat(HARD_CAP_BYTES + 10);
+    const ui = makeUi({ inlineReturns: [long], archiveThrows: true });
+    const result = await runPhase1Intake(baseInput, ui);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.intake_truncated).toBe(true);
+    expect(result.value.intake_original_byte_size).toBe(HARD_CAP_BYTES + 10);
+    expect(result.value.intake_original_path).toBeNull();
+    expect(ui.hardCaps).toEqual([{ bytes: HARD_CAP_BYTES + 10, archivePath: null }]);
   });
 
   test("UTF-8 codepoint boundary preserved on hard truncate", async () => {

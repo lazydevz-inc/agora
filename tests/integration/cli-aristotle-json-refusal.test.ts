@@ -50,7 +50,7 @@ async function seed(opts: {
     updated_at: ts,
   };
   if (opts.alignmentPhase !== undefined) {
-    state["alignment"] = { phase: opts.alignmentPhase, round: opts.alignmentRound ?? 0 };
+    state.alignment = { phase: opts.alignmentPhase, round: opts.alignmentRound ?? 0 };
   }
   await writeFile(join(cwd, ".agora", "state.json"), JSON.stringify(state), "utf8");
   if (opts.scan === true) {

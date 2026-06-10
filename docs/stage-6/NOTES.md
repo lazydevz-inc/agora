@@ -5331,3 +5331,53 @@ Shipped:
 Tests: 533 passing (60 files; was 532 — +1 schema strictness test, +2
 assertion extensions).
 DoD: typecheck ✓ lint ✓ test ✓ build ✓.
+
+### Intake cap re-size + lossless hard cut (R3-A amendment) — DONE (2026-06-11)
+
+Sang flagged HARD_CAP_BYTES=16KB as suspiciously small. Investigation
+confirmed it was intentional (SPEC R3-A, Stage 2) but the rationale had
+aged in three ways:
+
+1. **English-centric math.** "8 KB ≈ 1500 words" only holds for English;
+   UTF-8 Korean is 3 bytes/syllable, so the old caps bit Korean users at
+   ~half the English word count (8 KB ≈ 800 어절, 16 KB ≈ 1,600 어절).
+2. **Pre-MCP threat model.** R3-A's "paste accident" protection assumed
+   interactive-CLI input. In the now-primary host-relay mode (ADR-0009/
+   0010) the host deliberately composes raw_text — often a full PRD —
+   and truncating it cut intended content.
+3. **Irreversible loss.** Truncation was flagged but the cut tail was
+   preserved nowhere (paste path + agora_intake's --from-file temp file
+   both discarded it).
+
+Shipped:
+- `SOFT_CAP_BYTES` 8→16 KB, `HARD_CAP_BYTES` 16→64 KB
+  (src/alignment/phase-1-intake.ts) — ≈12,000 EN words / ≈6,500 KO 어절;
+  still blocks pathological multi-MB pastes. SPEC INPUT_RULES + R3-A
+  rationale rewritten (docs/loops/alignment-loop.md).
+- Lossless hard cut: new `IntakeUi.archiveOriginal` hook; orchestrator
+  archives the FULL original BEFORE truncating; both CLI UIs write
+  `.agora/history/intake-original-{ts}.md`. Archive failure degrades to
+  the flagged cut (never blocks intake).
+- `Phase1Result.intake_original_byte_size` + `intake_original_path`
+  (`.default(null)` — old intake.json files still parse through
+  seed-builder). Archive path surfaced in the clack warning, envelope
+  `warnings[]` (`intake_hard_cap_truncated`), and the `intake.captured`
+  event.
+- Messages: `hard_cap_truncated` re-parameterized ({cap_kb},
+  {archive_path}) + new `hard_cap_truncated_no_archive` (en/ko).
+- Tests: unit cap mechanics extended (archive-first, archive-throw
+  degrade, constant pin) + integration `--from-file` over-cap test
+  proving the archive holds the tail the cut removed.
+- **Bonus bug the new test exposed**: `process.exit()` right after
+  `emit()` truncated any envelope larger than the ~64 KB kernel pipe
+  buffer mid-JSON (intake at the new cap → 66 KB envelope → cut at
+  byte 65536). All CLI exit sites in src/cli/index.ts now go through
+  `exitAfterFlush()` — drain stdout (empty-write callback), then the
+  same hard exit. Affected every `--json` command with large output
+  (e.g. `trace --limit` on a long audit log), not just intake.
+
+Manual check (built CLI, ko locale): 110,049-byte Korean intake →
+exit 0, 66,705-byte envelope parses whole, archive byte-identical,
+intake.json carries the first 65,536 bytes on a clean codepoint
+boundary. Tests: 537 passing (was 533).
+DoD: typecheck ✓ lint ✓ test ✓ build ✓ + manual CLI check ✓.

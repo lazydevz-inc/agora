@@ -35,6 +35,7 @@
     },
     "user": {
       "forbidden_flag_combo": "Forbidden flag combination: {detail}",
+      "missing_step_input": "Missing required step input: {detail}",
       "confirmation_required": "User confirmation required: {detail}",
       "aborted": "Aborted: {detail}",
       "unknown_command": "Unknown command: {command}. Run `agora --help` to see available commands."
@@ -189,7 +190,8 @@
       "reprompt_short": "One sentence describing what you want to do",
       "editor_opening": "Opening $EDITOR for long-form input...",
       "soft_cap_warning": "Long input ({bytes} bytes) — that's good. Continue if you want, or run `agora` again to refine.",
-      "hard_cap_truncated": "Input was {bytes} bytes — truncated to 16 KB. The truncated text is what was captured.",
+      "hard_cap_truncated": "Input was {bytes} bytes — over the {cap_kb} KB hard cap. Captured the first {cap_kb} KB; the full original is preserved at {archive_path}.",
+      "hard_cap_truncated_no_archive": "Input was {bytes} bytes — truncated to {cap_kb} KB. (Could not archive the full original; the truncated text is what was captured.)",
       "echo": "OK. Captured {word_count} words via {method}. Estimated rounds to seed lock: {estimated_rounds}."
     },
     "trace": {

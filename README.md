@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/hero.png" alt="Five philosophers — Husserl, Socrates, Aristotle, Plato, Aquinas — gathered around a developer, inscribing telos on a glowing scroll" width="880">
+  <img src="https://raw.githubusercontent.com/lazydevz-inc/agora/main/docs/assets/hero.png" alt="Five philosophers — Husserl, Socrates, Aristotle, Plato, Aquinas — gathered around a developer, inscribing telos on a glowing scroll" width="880">
 </p>
 
 ---
@@ -262,11 +262,10 @@ install above avoids this. Suppress the per-run reminder with
 
 ## Inspirations & credits
 
-Agora is inspired by [Ouroboros](https://github.com/Q00/ouroboros) (MIT, © 2025 Q00)
-and selectively borrows *concepts* (not code). Where Agora differs: one guided CLI
-instead of ~15 subcommands, per-project configuration as the default, five focused
-philosopher modules instead of 21 generic agents, telos as the primary axis of
-evaluation, and an in-Claude-Code architecture instead of an API-billed SDK.
+Agora was partly inspired by [Ouroboros](https://github.com/Q00/ouroboros)'s
+intuition that AI coding benefits from an intent-refinement phase before
+implementation. Agora is an independent TypeScript implementation with its own
+architecture, philosopher modules, Claude Code MCP mode, and verification gates.
 
 See [`CREDITS.md`](CREDITS.md) for full attribution and [`MANIFESTO.md`](MANIFESTO.md)
 for the philosophy behind the philosophy.
@@ -275,7 +274,7 @@ for the philosophy behind the philosophy.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE). Original Q00 copyright preserved per MIT terms.
+MIT. See [`LICENSE`](LICENSE).
 
 ---
 

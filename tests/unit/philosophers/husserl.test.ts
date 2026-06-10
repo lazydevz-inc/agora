@@ -50,10 +50,8 @@ function makeInput(overrides: Partial<HusserlInput> = {}): HusserlInput {
 }
 
 function makeUi(defenses: { software: string; form: string; audience: string }): HusserlUi {
-  let calls = 0;
   return {
     askDefense: async ({ bracketLabel }) => {
-      calls++;
       if (bracketLabel === "Software") return defenses.software;
       if (bracketLabel === "Form") return defenses.form;
       if (bracketLabel === "Audience") return defenses.audience;

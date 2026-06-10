@@ -6,6 +6,28 @@ follow [Semantic Versioning](https://semver.org/) once it leaves alpha.
 
 ## [Unreleased]
 
+### Changed
+- **Intake caps re-sized (SPEC R3-A amended): 16 KB soft / 64 KB hard**
+  (was 8/16 KB). The old numbers were sized in English bytes — UTF-8
+  Korean costs 3 bytes per syllable, so Korean users hit the caps at
+  roughly half the English word count — and they predate the MCP
+  host-relay mode, where `raw_text` is a deliberately composed relay
+  (often a full PRD), not a paste accident.
+- **Hard-cap truncation is now lossless.** Before cutting, the full
+  original is archived to `.agora/history/intake-original-{ts}.md`; the
+  archive path + pre-cut byte size are recorded in `Phase1Result`
+  (`intake_original_path`, `intake_original_byte_size`), surfaced in the
+  CLI warning, the `--json`/MCP envelope `warnings[]`, and the
+  `intake.captured` audit event. Archive failure degrades to the old
+  flagged cut and never blocks intake. Pre-amendment `intake.json` files
+  stay parseable (new fields default to `null`).
+
+### Fixed
+- `--json` output larger than the OS pipe buffer (~64 KB) was silently
+  cut mid-JSON: the CLI called `process.exit()` before stdout drained.
+  All exit sites now flush stdout first (`exitAfterFlush`), so large
+  envelopes — a hard-cap intake, a long `trace` — arrive whole.
+
 ## [0.0.1-alpha.2] — 2026-06-10
 
 Host-relay UX release. Dogfooding the published plugin showed the host
@@ -115,7 +137,10 @@ the CLI and the in-Claude-Code MCP plugin.
 
 ### Notes
 - This is **alpha**. Some philosopher/gate prompts are still inline pending the
-  prompt-library refactor. Not yet published to npm.
+  prompt-library refactor. This entry records the first runnable alpha baseline
+  before the later npm publication.
 
-[Unreleased]: https://github.com/lazydevz-inc/agora/compare/v0.5.0-stage-5...HEAD
-[0.0.1-alpha.0]: https://github.com/lazydevz-inc/agora/releases/tag/v0.5.0-stage-5
+[Unreleased]: https://github.com/lazydevz-inc/agora/compare/a025af3...HEAD
+[0.0.1-alpha.2]: https://github.com/lazydevz-inc/agora/compare/1bad698...a025af3
+[0.0.1-alpha.1]: https://github.com/lazydevz-inc/agora/compare/d03b532...1bad698
+[0.0.1-alpha.0]: https://github.com/lazydevz-inc/agora/compare/v0.5.0-stage-5...d03b532

@@ -141,6 +141,7 @@ async function seedThroughAcs() {
 // ─── Maturity (4-cause sequential, all pass) ───
 
 describe("runAlignStep — maturity round (4 causes sequential, all pass)", () => {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: End-to-end stepped-flow test intentionally preserves the visible sequence.
   test("seeded through elenchus → 4 ask/extract cycles → alignment_complete", async () => {
     await seedThroughElenchus();
     const ask1 = await runAlignStep({});
@@ -299,6 +300,7 @@ describe("runAlignStep — handoff (DH + confirm yes → seed lock)", () => {
     expect(seed.ac_tree[0]?.atomic).toBe(true);
   });
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Handoff refusal scenario is clearer as one full flow.
   test('q_confirm:"no" → handoff.declined; seed not written; state stays alignment_complete', async () => {
     await seedThroughAcs();
     await runAlignStep({}); // opens DH

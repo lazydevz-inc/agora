@@ -48,6 +48,7 @@ import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md; command-shell refactor will split the repeated preamble.
 export async function runHandoffCommand(
   flags: GlobalFlags,
   positional: readonly string[],

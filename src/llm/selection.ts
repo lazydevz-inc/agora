@@ -91,7 +91,7 @@ export function maybeEmitMode2CostWarning(): void {
 }
 
 export function shouldSuppressCostWarning(): boolean {
-  return process.env["AGORA_NO_COST_WARNING"] === "1" || process.env["AGORA_QUIET"] === "1";
+  return process.env.AGORA_NO_COST_WARNING === "1" || process.env.AGORA_QUIET === "1";
 }
 
 export function buildCostWarningMessage(locale: "en" | "ko"): string {

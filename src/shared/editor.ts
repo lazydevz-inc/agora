@@ -46,7 +46,7 @@ export async function openEditorAndRead(opts: OpenEditorOptions): Promise<string
 }
 
 async function pickEditor(): Promise<string | null> {
-  const explicit = process.env["EDITOR"];
+  const explicit = process.env.EDITOR;
   if (explicit !== undefined && explicit.trim().length > 0) {
     if (await commandAvailable(explicit)) return explicit;
   }

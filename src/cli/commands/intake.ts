@@ -8,12 +8,13 @@
 // alignment.phase = 1. Refuses if .agora/ is missing OR alignment is
 // already past Phase 1 (no over-intake).
 
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { intro, log, outro, text } from "@clack/prompts";
 import pc from "picocolors";
 import { type Phase0Output, runPhase0Scan } from "../../alignment/phase-0-scan.js";
 import {
+  HARD_CAP_BYTES,
   type IntakeUi,
   type Phase1Result,
   runPhase1Intake,
@@ -32,6 +33,7 @@ import { saveState } from "../../state/writer.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md; command-shell refactor will split the repeated preamble.
 export async function runIntakeCommand(
   flags: GlobalFlags,
   positional: readonly string[],
@@ -127,6 +129,9 @@ export async function runIntakeCommand(
       method: phase1.intake_method,
       word_count: phase1.intake_word_count,
       truncated: phase1.intake_truncated ?? false,
+      ...(phase1.intake_original_path !== null
+        ? { original_path: phase1.intake_original_path }
+        : {}),
     },
   });
 
@@ -177,6 +182,38 @@ function parseIntakeArgs(positional: readonly string[]): Result<IntakeArgs, Agor
   return ok({ fromFile });
 }
 
+// R3-A lossless hard cap: preserve the FULL original under .agora/history/
+// before the orchestrator truncates. Returns the cwd-relative path (display
+// + Phase1Result), or null when archiving fails — never blocks intake.
+function buildArchiveOriginal(cwd: string): (original: string) => Promise<string | null> {
+  return async (original: string) => {
+    try {
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const rel = join(".agora", "history", `intake-original-${ts}.md`);
+      await mkdir(join(cwd, ".agora", "history"), { recursive: true });
+      await writeFile(join(cwd, rel), original, "utf8");
+      return rel;
+    } catch {
+      return null;
+    }
+  };
+}
+
+function hardCapMessage(originalByteSize: number, archivePath: string | null): string {
+  const capKb = String(HARD_CAP_BYTES / 1024);
+  if (archivePath !== null) {
+    return localized("cli.intake.hard_cap_truncated", {
+      bytes: String(originalByteSize),
+      cap_kb: capKb,
+      archive_path: archivePath,
+    });
+  }
+  return localized("cli.intake.hard_cap_truncated_no_archive", {
+    bytes: String(originalByteSize),
+    cap_kb: capKb,
+  });
+}
+
 function buildFileUi(path: string, cwd: string, json: boolean): IntakeUi {
   const resolved = path.startsWith("/") ? path : join(cwd, path);
   return {
@@ -192,13 +229,12 @@ function buildFileUi(path: string, cwd: string, json: boolean): IntakeUi {
     },
     openEditor: async () => "", // never reached if askInline returned content
     askReprompt: async () => "", // never reached either
+    archiveOriginal: buildArchiveOriginal(cwd),
     displaySoftCap: (byteSize) => {
       if (!json) log.warn(localized("cli.intake.soft_cap_warning", { bytes: String(byteSize) }));
     },
-    displayHardCap: (originalByteSize) => {
-      if (!json) {
-        log.warn(localized("cli.intake.hard_cap_truncated", { bytes: String(originalByteSize) }));
-      }
+    displayHardCap: (originalByteSize, archivePath) => {
+      if (!json) log.warn(hardCapMessage(originalByteSize, archivePath));
     },
     displayEcho: ({ wordCount, method, estimatedRounds }) => {
       if (!json) {
@@ -264,11 +300,12 @@ function buildClackUi(cwd: string): IntakeUi {
       if (typeof response !== "string") return "";
       return response;
     },
+    archiveOriginal: buildArchiveOriginal(cwd),
     displaySoftCap: (byteSize: number) => {
       log.warn(localized("cli.intake.soft_cap_warning", { bytes: String(byteSize) }));
     },
-    displayHardCap: (originalByteSize: number) => {
-      log.warn(localized("cli.intake.hard_cap_truncated", { bytes: String(originalByteSize) }));
+    displayHardCap: (originalByteSize: number, archivePath: string | null) => {
+      log.warn(hardCapMessage(originalByteSize, archivePath));
     },
     displayEcho: ({ wordCount, method, estimatedRounds }) => {
       log.success(
@@ -298,7 +335,19 @@ function buildEnvelope(phase1: Phase1Result): CommandEnvelope {
         command: "agora resume",
       },
     ],
-    warnings: [],
+    // Surface the hard cap to --json / MCP consumers too (the clack warning
+    // is invisible there); the host should relay the archive path onward.
+    warnings: phase1.intake_truncated
+      ? [
+          {
+            code: "intake_hard_cap_truncated",
+            message: hardCapMessage(
+              phase1.intake_original_byte_size ?? phase1.intake_byte_size,
+              phase1.intake_original_path,
+            ),
+          },
+        ]
+      : [],
     errors: [],
     exit_code: 0,
   };

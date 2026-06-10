@@ -77,7 +77,7 @@ describe("appendEvent — happy path", () => {
     const parsed = EventSchema.parse(JSON.parse(line ?? ""));
     expect(parsed.type).toBe("gate_1.result");
     expect(parsed.command).toBe("agora ralph");
-    expect(parsed.data["leaf_id"]).toBe("ac_001.1");
+    expect(parsed.data.leaf_id).toBe("ac_001.1");
     expect(parsed.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-7][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
@@ -96,7 +96,7 @@ describe("appendEvent — happy path", () => {
     expect(lines).toHaveLength(5);
     for (const [i, line] of lines.entries()) {
       const parsed = EventSchema.parse(JSON.parse(line));
-      expect(parsed.data["i"]).toBe(i);
+      expect(parsed.data.i).toBe(i);
     }
   });
 
@@ -124,7 +124,7 @@ describe("appendEvent — happy path", () => {
     const [line] = await readLines(eventsFilePath(cwd));
     const raw = JSON.parse(line ?? "") as Record<string, unknown>;
     expect("prev_state_phase" in raw).toBe(false);
-    expect(raw["new_state_phase"]).toBe("in_alignment");
+    expect(raw.new_state_phase).toBe("in_alignment");
   });
 });
 

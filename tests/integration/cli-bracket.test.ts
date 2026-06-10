@@ -144,7 +144,7 @@ describe("agora bracket --skip-bracket — happy path", () => {
       .map((l) => JSON.parse(l) as { type: string; data: Record<string, unknown> })
       .filter((e) => e.type === "bracket.captured");
     expect(bracketEvents).toHaveLength(1);
-    expect(bracketEvents[0]?.data["skipped"]).toBe(true);
-    expect(bracketEvents[0]?.data["raw_intent_chars"]).toBe(11); // "test intent"
+    expect(bracketEvents[0]?.data.skipped).toBe(true);
+    expect(bracketEvents[0]?.data.raw_intent_chars).toBe(11); // "test intent"
   });
 });

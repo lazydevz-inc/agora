@@ -3,7 +3,7 @@
 // re-running the gate commands by hand. Gates are mocked at the module
 // boundary; this file covers only the failure-envelope contract.
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -151,7 +151,7 @@ describe("gate_1_failed envelope — failed_detail contract", () => {
     const r = await runRalphStep({});
     if (!r.ok || r.value.kind !== "advanced") throw new Error("expected advanced");
     expect(r.value.step).toBe("ralph.gate_1_failed");
-    const detail = r.value.state_after?.["failed_detail"] as {
+    const detail = r.value.state_after?.failed_detail as {
       name: string;
       exit_code: number;
       stdout_tail: string;
@@ -178,7 +178,7 @@ describe("gate_2_failed envelope — failed_detail contract", () => {
     const r = await runRalphStep({});
     if (!r.ok || r.value.kind !== "advanced") throw new Error("expected advanced");
     expect(r.value.step).toBe("ralph.gate_2_failed");
-    const detail = r.value.state_after?.["failed_detail"] as {
+    const detail = r.value.state_after?.failed_detail as {
       exit_code: number | null;
       stdout_tail: string;
     };

@@ -55,6 +55,7 @@ export interface ElenchusFile {
   created_at: string;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md; command-shell refactor will split the repeated preamble.
 export async function runSocratesCommand(
   flags: GlobalFlags,
   _positional: readonly string[],

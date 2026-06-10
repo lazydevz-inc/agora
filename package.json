@@ -1,7 +1,7 @@
 {
   "name": "@lazydevz/agora",
   "version": "0.0.1-alpha.2",
-  "description": "An agent harness where ancient philosophers gather to refine intent into reality.",
+  "description": "A Claude Code MCP alignment harness that refines intent into a verifiable Seed, then builds through gated checks.",
   "license": "MIT",
   "author": {
     "name": "Sang Rhee",
@@ -16,6 +16,15 @@
   "bugs": {
     "url": "https://github.com/lazydevz-inc/agora/issues"
   },
+  "keywords": [
+    "claude-code",
+    "mcp",
+    "ai-agents",
+    "alignment",
+    "spec-first",
+    "verification",
+    "developer-tools"
+  ],
   "type": "module",
   "engines": {
     "node": ">=22"

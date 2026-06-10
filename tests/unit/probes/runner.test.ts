@@ -126,7 +126,7 @@ describe("executeProbes — probe.result event emission (Stage 6-A.27)", () => {
     expect(lines).toHaveLength(2);
     const events = lines.map((l) => EventSchema.parse(JSON.parse(l)));
     expect(events.every((e) => e.type === "probe.result")).toBe(true);
-    const ids = new Set(events.map((e) => e.data["probe_id"]));
+    const ids = new Set(events.map((e) => e.data.probe_id));
     expect(ids.has("fake-ok")).toBe(true);
     expect(ids.has("fake-fail")).toBe(true);
   });
@@ -139,8 +139,8 @@ describe("executeProbes — probe.result event emission (Stage 6-A.27)", () => {
     const lines = text.split("\n").filter((l) => l.length > 0);
     expect(lines).toHaveLength(2);
     const events = lines.map((l) => EventSchema.parse(JSON.parse(l)));
-    expect(events[0]?.data["from_cache"]).toBe(false);
-    expect(events[1]?.data["from_cache"]).toBe(true);
+    expect(events[0]?.data.from_cache).toBe(false);
+    expect(events[1]?.data.from_cache).toBe(true);
   });
 
   test("crash inside probe still emits probe.result with internal_error", async () => {
@@ -152,8 +152,8 @@ describe("executeProbes — probe.result event emission (Stage 6-A.27)", () => {
       .filter((l) => l.length > 0)
       .map((l) => EventSchema.parse(JSON.parse(l)));
     expect(events).toHaveLength(1);
-    expect(events[0]?.data["ok"]).toBe(false);
-    expect(String(events[0]?.data["detail"])).toContain("internal_error");
+    expect(events[0]?.data.ok).toBe(false);
+    expect(String(events[0]?.data.detail)).toContain("internal_error");
   });
 });
 
