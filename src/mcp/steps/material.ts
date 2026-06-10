@@ -108,7 +108,12 @@ export function advanceMaterial(pending: McpPending, args: StepArgs): MaterialSt
 }
 
 function issueQuestionsStep(scratch: MaterialScratch): MaterialStepOutcome {
-  const stackPrompt = scratch.input.is_brownfield
+  // Confirm-detected phrasing only makes sense when something WAS detected.
+  // A brownfield repo with an empty detected stack (bare git init, non-JS
+  // project) was asked to "accept as-is" an empty list — ask from scratch
+  // instead. (Dogfood QA 2026-06-10.)
+  const confirmDetected = scratch.input.is_brownfield && scratch.input.detected_stack.length > 0;
+  const stackPrompt = confirmDetected
     ? localized("cli.material.q_confirm_stack", {
         detected: scratch.input.detected_stack.slice(0, 15).join(", "),
       })
@@ -117,7 +122,7 @@ function issueQuestionsStep(scratch: MaterialScratch): MaterialStepOutcome {
     {
       id: "q_stack",
       prompt: stackPrompt,
-      hint: scratch.input.is_brownfield
+      hint: confirmDetected
         ? "confirm + add/remove (comma-separated)"
         : "language + framework + key libs",
     },

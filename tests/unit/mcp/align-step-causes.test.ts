@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { runAlignStep } from "@/mcp/align-step.js";
+import { beginMaterial } from "@/mcp/steps/material.js";
 import { writeJsonAtomic } from "@/shared/io.js";
 import { newState } from "@/state/types.js";
 
@@ -174,6 +175,33 @@ describe("runAlignStep — form round (happy path, no feature-list warning)", ()
 });
 
 // ─── Material ───
+
+describe("beginMaterial — empty detected stack never gets confirm-detected phrasing", () => {
+  test("brownfield with detected_stack:[] (bare git init) asks from scratch", () => {
+    const outcome = beginMaterial({
+      telos_statement: "t",
+      detected_stack: [],
+      is_brownfield: true,
+      current_round: 3,
+    });
+    if (outcome.type !== "issue") throw new Error("expected issue");
+    const q = outcome.envelope.kind === "needs_user_input" ? outcome.envelope.questions[0] : null;
+    expect(q?.prompt).not.toContain("Detected stack");
+    expect(q?.hint).toBe("language + framework + key libs");
+  });
+
+  test("brownfield WITH detections keeps the confirm phrasing", () => {
+    const outcome = beginMaterial({
+      telos_statement: "t",
+      detected_stack: ["typescript", "vitest"],
+      is_brownfield: true,
+      current_round: 3,
+    });
+    if (outcome.type !== "issue") throw new Error("expected issue");
+    const q = outcome.envelope.kind === "needs_user_input" ? outcome.envelope.questions[0] : null;
+    expect(q?.prompt).toContain("typescript");
+  });
+});
 
 describe("runAlignStep — material round (greenfield happy path)", () => {
   test("through form → material.questions → material.extract → advanced", async () => {

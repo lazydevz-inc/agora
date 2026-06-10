@@ -340,8 +340,8 @@ hardcoded defaults            ← 최후
 
 ### Brownfield/Greenfield 자동 감지
 
-- `.git` + 코드 파일 존재 → brownfield
-- 빈 디렉토리 또는 신규 → greenfield
+- `.git` 존재 → brownfield (코드/문서 파일이 충분하면 high, sparse면 low confidence — SPEC R1-A; low-confidence의 Phase 1 한-줄 확인은 미구현/defer)
+- `.git` 없는 빈/신규 디렉토리 → greenfield
 - 사용자에게 묻지 않음. 잘못 감지 시 명시적 override 가능
 
 ### Per-folder 격리 (P5+ rule)

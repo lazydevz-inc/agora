@@ -5245,3 +5245,57 @@ in MCP mode (needs Phase-0 file capture); maturity retry re-tags all
 
 Files: 36 changed (+667/−128). DoD: pnpm verify ✓ (lint + typecheck +
 lint:locale + lint:prompts + 501 tests + build).
+
+
+---
+
+### Design-improvement slice + dogfood round 3 (web/Gate-2) — DONE (2026-06-10)
+
+Sang asked "구조나 설계를 더 고도화하거나 개선할만한 부분?" — three
+high-ROI improvements implemented, then validated by a third dogfood
+round on a more complex project (tally — client-side expense splitter
+with a REAL Playwright suite, the first time Gate 2 executed instead of
+skipping).
+
+Improvements shipped (commit 3c3be91):
+1. Gate-1 tree-fingerprint cache (shared/fingerprint.ts +
+   ralph/gate-1-cache.ts): pass results memoized on (HEAD + tracked
+   patch + untracked identity + command list), 10-min TTL, failures
+   never cached, .agora churn excluded. In vivo (tally, 9 leaves):
+   from_cache = [False, True ×8] — one full gate run per tree state.
+2. Critic selection signals: parseChangedFiles(diff) + seed
+   material.tech_stack threaded into CriticContext (file_pattern /
+   tech_stack triggers were dead code in the MCP path).
+3. next[] mcp_tool hints decorated at the MCP boundary (envelopeToMcp)
+   so the CLI envelope stays per Stage 3-A.1 while hosts stop guessing
+   "agora intake" → agora_intake.
+
+Proposed, needs Sang/ADR: stepped-protocol answer piggybacking (halves
+host round-trips; amends ADR-0010). Deferred: StepModule registry
+(backlog), maturity-retry failing-only (Plato Y2 semantics), Phase-0
+detected_files capture (Socrates cwd grounding).
+
+Round-3 findings (all addressed):
+- #17 bare `git init` → brownfield: implementation matches SPEC R1-A
+  (brownfield LOW confidence) — CLAUDE.md's summary was wrong and is
+  corrected; the low-confidence Phase-1 one-liner confirm remains
+  unimplemented (deferred).
+- #18 brownfield + empty detected stack asked "Accept as-is" on an
+  empty list — FIXED: confirm-detected phrasing requires a non-empty
+  detection; tests added.
+- #19 gate_2.result event couldn't distinguish a real Playwright pass
+  from a vacuous skip — FIXED: events now carry skipped /
+  detected_config / duration_ms (+ gate_1 duration_ms).
+- failed_detail envelope contract now has real unit coverage
+  (vi.mock'd gates) — it previously shipped tested only by dogfood.
+
+Gate 2 live verification: tally's playwright.config.ts detected,
+`npx playwright test` executed 2 e2e specs against the real DOM via the
+repo's own static server (skipped:false, exit 0, ~1.2s warm). Full
+loop: 8 ACs → 9 leaves (one genuine Dihairesis split: balance
+reactivity vs zero-sum invariant) → ralph_complete in 9 iterations,
+0 retries. The produced app works (settlement math conserves to the
+cent; stale-tab writes refused).
+
+Tests: 518 passing (59 files; was 514).
+DoD: pnpm verify ✓.
