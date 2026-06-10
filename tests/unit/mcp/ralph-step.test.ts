@@ -209,6 +209,11 @@ describe("runRalphStep — init (first call)", () => {
       await readFile(join(cwd, ".agora", "ralph_state.json"), "utf8"),
     ) as { current_leaf_id: string };
     expect(ralphState.current_leaf_id).toBe("ac_001");
+
+    // No git repo in the tmp fixture → init must warn (Gate 5 judges a git
+    // diff; without a repo every iteration parks at drift 0.50 / Z1).
+    expect(r.value.state_after?.["git_repo"]).toBe(false);
+    expect(r.value.message).toContain("no git repository detected");
   });
 });
 
@@ -310,7 +315,7 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
 // ─── Disputatio chain end-to-end ───
 
 describe("runRalphStep — Disputatio chain (Slice E)", () => {
-  test("PASS → videtur (1 critic, 0 objections) → sed_contra → respondeo approved → leaf complete", async () => {
+  test("PASS → videtur (1 critic, 0 objections) → respondeo approved (sed_contra skipped) → leaf complete", async () => {
     await seedInRalphWithPendingGate5();
     // PASS triggers Disputatio kickoff.
     const v = await runRalphStep({
@@ -326,22 +331,12 @@ describe("runRalphStep — Disputatio chain (Slice E)", () => {
       "universal-telos-alignment",
     ]);
 
-    const sc = await runRalphStep({
+    // Zero objections → Sed contra is vacuous and SKIPPED; respondeo is next.
+    const re = await runRalphStep({
       llm_responses: [
         { id: "universal-telos-alignment", content: { objections: [] } },
         { id: "tech-solid", content: { objections: [] } },
         { id: "tech-error-handling", content: { objections: [] } },
-      ],
-    });
-    if (!sc.ok || sc.value.kind !== "needs_reasoning") throw new Error("expected sed_contra");
-    expect(sc.value.step).toBe("disputatio.sed_contra");
-
-    const re = await runRalphStep({
-      llm_responses: [
-        {
-          id: "sed_contra",
-          content: { sed_contra: "Despite no objections, the change is sound." },
-        },
       ],
     });
     if (!re.ok || re.value.kind !== "needs_reasoning") throw new Error("expected respondeo");
@@ -420,7 +415,8 @@ describe("runRalphStep — Disputatio chain (Slice E)", () => {
           content: {
             rulings: [
               {
-                objection_id: "obj_1",
+                // Objection ids are namespaced per critic by the orchestrator.
+                objection_id: "universal-telos-alignment:obj_1",
                 ruling: "concedo",
                 action_or_reason: "remove unrelated module + refocus on telos",
               },
@@ -455,6 +451,17 @@ describe("runRalphStep — Z2 apply", () => {
     };
     expect(state.current_phase).toBe("in_alignment");
     expect(state.alignment.round).toBe(0);
+
+    // Z2-yes must actually OPEN the re-alignment: maturity tags + seed lock
+    // invalidated (else align_step sees every artifact, says "done", and
+    // ralph_step refuses in_alignment — deadlock; dogfood QA 2026-06-10).
+    await expect(readFile(join(cwd, ".agora", "seed.json"), "utf8")).rejects.toThrow();
+    await expect(readFile(join(cwd, ".agora", "maturity.json"), "utf8")).rejects.toThrow();
+    // ralph_state survives so Ralph resumes the same leaf after re-lock.
+    const ralphState = JSON.parse(
+      await readFile(join(cwd, ".agora", "ralph_state.json"), "utf8"),
+    ) as { current_leaf_id: string };
+    expect(ralphState.current_leaf_id).toBe("ac_001");
   });
 
   test('q_confirm_z2:"no" → declined; state stays in_ralph', async () => {

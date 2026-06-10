@@ -25,6 +25,7 @@ interface DoctorEnvelope {
       }>;
     };
   };
+  next?: Array<{ id: string; command: string }>;
   exit_code: number;
 }
 
@@ -57,6 +58,8 @@ describe("agora doctor (JSON)", () => {
       expect(status).toBe(4);
     } else {
       expect(status).toBe(0);
+      // Gate 0 green must guide the flow's next move (no session here → new).
+      expect(parsed.next?.[0]?.command).toBe("agora new <name>");
     }
   });
 

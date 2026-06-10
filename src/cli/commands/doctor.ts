@@ -12,7 +12,7 @@ import { ALL_PROBES } from "../../probes/registry.js";
 import { executeProbes, type ProbeRun } from "../../probes/runner.js";
 import type { Probe } from "../../probes/types.js";
 import { ok, type Result } from "../../result/index.js";
-import { findProjectRoot } from "../../shared/path.js";
+import { findProjectRoot, hasAgoraSession } from "../../shared/path.js";
 import { agoraVersion } from "../../shared/version.js";
 import type { GlobalFlags } from "../flags.js";
 import type { CommandEnvelope } from "../render.js";
@@ -32,12 +32,13 @@ export async function runDoctorCommand(
 
   const summary = summarize(runs);
   const exit_code: 0 | 4 = summary.failures === 0 ? 0 : 4;
+  const sessionPresent = await hasAgoraSession(cwd);
 
   if (flags.json) {
-    return ok(buildJsonEnvelope(runs, summary, exit_code));
+    return ok(buildJsonEnvelope(runs, summary, exit_code, sessionPresent));
   }
   emitTui(runs, summary);
-  return ok(buildTuiEnvelope(runs, summary, exit_code));
+  return ok(buildTuiEnvelope(runs, summary, exit_code, sessionPresent));
 }
 
 async function computeActiveProbes(_cwd: string, _flags: GlobalFlags): Promise<readonly Probe[]> {
@@ -114,6 +115,7 @@ function buildJsonEnvelope(
   runs: readonly ProbeRun[],
   summary: DoctorSummary,
   exit_code: 0 | 4,
+  sessionPresent: boolean,
 ): CommandEnvelope {
   return {
     command: "agora doctor",
@@ -138,7 +140,21 @@ function buildJsonEnvelope(
     },
     next:
       exit_code === 0
-        ? []
+        ? [
+            // Gate 0 is green — point at the flow's actual next move so the
+            // doctor-first order (Gate 0 → new → align) guides itself.
+            sessionPresent
+              ? {
+                  id: "resume",
+                  description: "All probes green — continue the existing session",
+                  command: "agora resume",
+                }
+              : {
+                  id: "start_new",
+                  description: "All probes green — start a new Agora session",
+                  command: "agora new <name>",
+                },
+          ]
         : [
             {
               id: "fix_failing_probes",
@@ -156,8 +172,9 @@ function buildTuiEnvelope(
   runs: readonly ProbeRun[],
   summary: DoctorSummary,
   exit_code: 0 | 4,
+  sessionPresent: boolean,
 ): CommandEnvelope {
   // TUI envelope mirrors JSON shape so emit() in render.ts has uniform input;
   // TUI renderer just doesn't print it (already printed via emitTui above).
-  return buildJsonEnvelope(runs, summary, exit_code);
+  return buildJsonEnvelope(runs, summary, exit_code, sessionPresent);
 }

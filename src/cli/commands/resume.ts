@@ -35,7 +35,7 @@ import { type RalphState, RalphStateSchema } from "../../ralph/state.js";
 import { err, ok, type Result } from "../../result/index.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull } from "../../shared/io.js";
-import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { findProjectRoot, hasAgoraSession } from "../../shared/path.js";
 import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import type { Phase, State } from "../../state/types.js";
@@ -69,7 +69,7 @@ export async function runResumeCommand(
   if (!preselectResult.ok) return preselectResult;
   const preselect = preselectResult.value;
 
-  if (!(await hasAgoraDir(cwd))) {
+  if (!(await hasAgoraSession(cwd))) {
     const outcome = buildNoSessionOutcome();
     if (!flags.json) emitTui(outcome);
     return ok(buildEnvelope(outcome, 1));
@@ -172,13 +172,14 @@ function dispatch(state: State, isBrownfield: boolean): DispatchOutcome {
       return buildDeferredOutcome(state.current_phase, "ralph_iteration_pending", "agora ralph");
     case "ralph_complete":
       // TUI mode handled by handleRalphComplete (interactive 3-option
-      // dialog per Stage 2-C.2 R4-A). JSON mode falls here — non-
-      // interactive ralph_complete actions (--accept-deferred /
-      // --re-align) are future ergonomics.
+      // dialog per Stage 2-C.2 R4-A). JSON mode falls here when no
+      // preselect flag was passed — the non-interactive flags DO exist
+      // (Stage 6-A.26), so point at them instead of a TTY dead end
+      // (MCP hosts cannot open the interactive dialog).
       return buildDeferredOutcome(
         state.current_phase,
-        "ralph_complete_json_mode_pending_non_interactive_flags",
-        "agora resume (interactive TTY runs the dialog)",
+        "ralph_complete_pass_a_preselect_flag",
+        "agora resume --accept-deferred (or --re-align / --view-log)",
       );
   }
 }

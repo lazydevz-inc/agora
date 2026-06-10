@@ -29,6 +29,7 @@
 // LAYER 3 — depends on state, pending, step, ralph/*, handoff/{seed,dh},
 // shared.
 
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 
 import { selectCritics } from "../critics/registry.js";
@@ -53,7 +54,8 @@ import { err, ok, type Result } from "../result/index.js";
 import { appendEvent } from "../shared/events.js";
 import { getRecentDiff } from "../shared/git-diff.js";
 import { readJsonOrNull, writeJsonAtomic } from "../shared/io.js";
-import { findProjectRoot, hasAgoraDir } from "../shared/path.js";
+import { findProjectRoot, hasAgoraSession } from "../shared/path.js";
+import { spawnExec } from "../shared/spawn.js";
 import { loadState } from "../state/reader.js";
 import type { State } from "../state/types.js";
 import { saveState } from "../state/writer.js";
@@ -90,7 +92,7 @@ export async function runRalphStep(
   }
   const args = argsResult.data;
 
-  if (!(await hasAgoraDir(cwd))) {
+  if (!(await hasAgoraSession(cwd))) {
     return ok(
       envError(
         "ralph",
@@ -274,14 +276,26 @@ async function initRalph(
     "agora_ralph_step",
   );
   if (!advanced.ok) return advanced;
+  // Gate 5 judges a git diff; without a repo every iteration is stuck at
+  // the drift-0.50 uncertainty anchor (Z1 forever). Surface that at init,
+  // not three gates deep.
+  const repoProbe = await spawnExec("git", ["rev-parse", "--is-inside-work-tree"], {
+    cwd,
+    timeoutMs: 10_000,
+  });
+  const hasGitRepo = repoProbe.exit_code === 0 && !repoProbe.timed_out;
+  const gitWarning = hasGitRepo
+    ? ""
+    : " Warning: no git repository detected — Gate 5 judges a git diff and stays at drift 0.50 (Z1) without one. Run `git init` (a baseline commit is optional) before implementing.";
   return ok(
     envAdvanced(
       "ralph",
       "ralph.initialized",
-      `Ralph initialized. Current leaf: ${firstLeaf}. Implement the leaf, then call agora_ralph_step again to run Gates 1 → 2 → 5.`,
+      `Ralph initialized. Current leaf: ${firstLeaf}. Implement the leaf, then call agora_ralph_step again to run Gates 1 → 2 → 5.${gitWarning}`,
       {
         current_leaf_id: firstLeaf,
         total_leaves: countAtomicLeaves(seed.ac_tree as ACNode[]),
+        git_repo: hasGitRepo,
       },
     ),
   );
@@ -337,6 +351,18 @@ async function runGatesForLeaf(
           attempts: newAttempts,
           cap: updated.iteration_cap_per_leaf,
           failed_commands: gate1.commands.filter((c) => !c.passed).map((c) => c.name),
+          // Carry the failure output so the host can fix without re-running
+          // the gate commands by hand (the tails otherwise hide in
+          // ralph_state.json where no host will look).
+          failed_detail: gate1.commands
+            .filter((c) => !c.passed)
+            .map((c) => ({
+              name: c.name,
+              exit_code: c.exit_code,
+              timed_out: c.timed_out,
+              stdout_tail: clipTail(c.stdout_tail),
+              stderr_tail: clipTail(c.stderr_tail),
+            })),
         },
       ),
     );
@@ -368,6 +394,12 @@ async function runGatesForLeaf(
           current_leaf_id: leafId,
           attempts: newAttempts,
           cap: updated.iteration_cap_per_leaf,
+          failed_detail: {
+            exit_code: gate2.exit_code,
+            timed_out: gate2.timed_out,
+            stdout_tail: clipTail(gate2.stdout_tail),
+            stderr_tail: clipTail(gate2.stderr_tail),
+          },
         },
       ),
     );
@@ -828,6 +860,16 @@ async function applyZ2(
   void seed;
 
   if (yes) {
+    // Re-entering the alignment loop must actually OPEN something to
+    // re-align: invalidate the Plato maturity tags + the locked seed so
+    // agora_align_step re-runs maturity → handoff (the preserved
+    // ac_tree.json makes handoff a single confirm). Without this, every
+    // artifact still exists, align_step reports "done", ralph_step refuses
+    // in_alignment — a hard deadlock (dogfood QA 2026-06-10).
+    // ralph_state.json is preserved: completed leaves + the current leaf
+    // survive the re-alignment and Ralph resumes where it left off.
+    await rm(join(cwd, ".agora", "maturity.json"), { force: true });
+    await rm(join(cwd, ".agora", "seed.json"), { force: true });
     const advanced = await saveState(
       cwd,
       {
@@ -842,7 +884,7 @@ async function applyZ2(
       envAdvanced(
         "ralph",
         "ralph.z2_accepted",
-        "Z2 accepted: state reset to in_alignment with alignment.round=0. Drive agora_align_step to re-align.",
+        "Z2 accepted: state reset to in_alignment (maturity tags + seed lock invalidated). Drive agora_align_step to re-align — maturity re-runs, then handoff re-confirms the preserved ac_tree, then agora_ralph_step resumes this leaf.",
         { current_leaf_id: leafId },
       ),
     );
@@ -858,6 +900,14 @@ async function applyZ2(
 }
 
 // ─── Helpers ───
+
+// Bound per-command output carried in a StepEnvelope: enough to diagnose,
+// small enough to not blow the host's context.
+const ENVELOPE_TAIL_CHARS = 700;
+function clipTail(s: string): string {
+  if (s.length <= ENVELOPE_TAIL_CHARS) return s;
+  return `…${s.slice(-ENVELOPE_TAIL_CHARS)}`;
+}
 
 function parseGate5Response(
   raw: string | Record<string, unknown>,

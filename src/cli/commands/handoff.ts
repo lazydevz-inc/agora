@@ -41,7 +41,7 @@ import { countAtomicLeaves } from "../../ralph/leaf-selector.js";
 import { err, ok, type Result } from "../../result/index.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
-import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { findProjectRoot, hasAgoraSession } from "../../shared/path.js";
 import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import { saveState } from "../../state/writer.js";
@@ -64,7 +64,7 @@ export async function runHandoffCommand(
   if (!argsResult.ok) return argsResult;
   const { fromSeed } = argsResult.value;
 
-  if (!(await hasAgoraDir(cwd))) {
+  if (!(await hasAgoraSession(cwd))) {
     return err(
       buildAgoraError("user.aborted", {
         context: { detail: "No Agora session in this directory. Run `agora new <name>` first." },

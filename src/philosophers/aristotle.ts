@@ -744,7 +744,7 @@ Hard rules:
 1. NEVER skip even for solo projects. Solo IS an efficient cause that
    constrains everything downstream.
 2. Capture three sub-fields:
-   - who: people involved (e.g. "solo: Sang", "team of 2", "Sang + 1 reviewer")
+   - who: people involved (e.g. "solo: one dev", "team of 2", "me + 1 reviewer")
    - when: timeline + cadence (e.g. "evenings, 30 min sessions",
      "full-time, 2-week sprints")
    - how: process tools + sequence (e.g. "TDD with vitest, deploy on push",

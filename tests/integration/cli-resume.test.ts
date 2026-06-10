@@ -167,9 +167,7 @@ describe("agora resume — deferred phases (R3-A)", () => {
       result: { data: { handler: string; deferred_reason: string } };
     };
     expect(parsed.result.data.handler).toBe("deferred");
-    expect(parsed.result.data.deferred_reason).toBe(
-      "ralph_complete_json_mode_pending_non_interactive_flags",
-    );
+    expect(parsed.result.data.deferred_reason).toBe("ralph_complete_pass_a_preselect_flag");
   });
 
   test("ready_for_ralph → deferred (ralph_iteration_pending)", async () => {
@@ -328,9 +326,7 @@ describe("agora resume — ralph_complete non-interactive (Stage 6-A.26)", () =>
       result: { data: { handler: string; deferred_reason?: string } };
     };
     expect(parsed.result.data.handler).toBe("deferred");
-    expect(parsed.result.data.deferred_reason).toBe(
-      "ralph_complete_json_mode_pending_non_interactive_flags",
-    );
+    expect(parsed.result.data.deferred_reason).toBe("ralph_complete_pass_a_preselect_flag");
   });
 
   test("--accept-deferred + --re-align → user.forbidden-flag-combo exit 2", async () => {

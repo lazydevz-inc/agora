@@ -334,5 +334,59 @@ describe("runAlignStep — handoff (DH + confirm yes → seed lock)", () => {
       seedExists = false;
     }
     expect(seedExists).toBe(false);
+
+    // Retry after decline: the preserved ac_tree.json must short-circuit
+    // Dihairesis — next handoff round goes STRAIGHT to confirm (no
+    // dh_decompose round-trips re-paid). (Dogfood QA 2026-06-10.)
+    const retry = await runAlignStep({});
+    if (!retry.ok || retry.value.kind !== "needs_user_input") {
+      throw new Error(`expected immediate confirm, got ${retry.ok ? retry.value.kind : "err"}`);
+    }
+    expect(retry.value.step).toBe("handoff.confirm");
+    const locked = await runAlignStep({ user_answers: { q_confirm: "yes" } });
+    if (!locked.ok || locked.value.kind !== "advanced") throw new Error("expected complete");
+    expect(locked.value.step).toBe("handoff.complete");
+  });
+});
+
+describe("runAlignStep — deadlock reconcile (all artifacts exist, state in_alignment)", () => {
+  test("in_alignment + locked seed → align.reconciled, state advances to ready_for_ralph", async () => {
+    await seedThroughAcs();
+    // Complete handoff for real.
+    await runAlignStep({});
+    await runAlignStep({
+      llm_responses: [
+        {
+          id: "decompose",
+          content: {
+            binary: "—",
+            alternatives_considered: ["a"],
+            defense: "—",
+            defense_score: 0.3,
+            children: [],
+          },
+        },
+      ],
+    });
+    await runAlignStep({ user_answers: { q_confirm: "yes" } });
+    // Simulate a Z2-style re-entry that invalidated nothing: state back to
+    // in_alignment while every artifact (incl. seed.json) still exists.
+    const stateRaw = JSON.parse(
+      await readFile(join(cwd, ".agora", "state.json"), "utf8"),
+    ) as Record<string, unknown>;
+    await writeJsonAtomic(join(cwd, ".agora", "state.json"), {
+      ...stateRaw,
+      current_phase: "in_alignment",
+    });
+
+    const r = await runAlignStep({});
+    if (!r.ok || r.value.kind !== "advanced") {
+      throw new Error(`expected align.reconciled, got ${r.ok ? r.value.kind : "err"}`);
+    }
+    expect(r.value.step).toBe("align.reconciled");
+    const after = JSON.parse(await readFile(join(cwd, ".agora", "state.json"), "utf8")) as {
+      current_phase: string;
+    };
+    expect(after.current_phase).toBe("ready_for_ralph");
   });
 });

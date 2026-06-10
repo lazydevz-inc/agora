@@ -34,3 +34,19 @@ export async function hasAgoraDir(cwd: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Check whether an actual Agora SESSION exists in cwd — keyed on
+ * .agora/state.json, not the bare directory. `agora doctor` (probe cache +
+ * audit log) materializes .agora/ without creating a session; treating the
+ * bare directory as "session present" broke the natural Gate-0-first order
+ * (doctor → new refused with "existing session detected").
+ */
+export async function hasAgoraSession(cwd: string): Promise<boolean> {
+  try {
+    const s = await stat(join(cwd, ".agora", "state.json"));
+    return s.isFile();
+  } catch {
+    return false;
+  }
+}

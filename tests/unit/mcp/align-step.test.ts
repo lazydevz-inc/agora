@@ -59,6 +59,18 @@ describe("runAlignStep — refusal paths", () => {
     }
   });
 
+  test("doctor-created .agora (cache/log, no state.json) → 'no session', not state.corrupt", async () => {
+    // `agora doctor` materializes .agora/ without a session; the guard must
+    // key on state.json so the host is told to run `agora new`, not shown a
+    // misleading corruption error.
+    await mkdir(join(cwd, ".agora", "cache"), { recursive: true });
+    const r = await runAlignStep({});
+    expect(r.ok).toBe(true);
+    if (!r.ok || r.value.kind !== "error") throw new Error("expected error envelope");
+    expect(r.value.code).toBe("user.aborted");
+    expect(r.value.message).toMatch(/agora new/);
+  });
+
   test(".agora but no intake.json → error envelope (user.aborted)", async () => {
     await mkdir(join(cwd, ".agora"), { recursive: true });
     await writeJsonAtomic(join(cwd, ".agora", "state.json"), newState());

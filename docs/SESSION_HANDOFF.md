@@ -378,6 +378,27 @@ Surprises that cost real iteration time. Read once, internalize.
 - **Conditional spread for `exactOptionalPropertyTypes`** — fourth
   occurrence locked in as canonical idiom.
 
+### Self-QA dogfood pass #2 (2026-06-10)
+- **"Session present" means `.agora/state.json`, not the bare `.agora/`
+  directory.** `agora doctor` materializes `.agora/` (probe cache +
+  events.jsonl) with no session; guards keyed on the directory broke the
+  natural doctor→new order. Use `hasAgoraSession` for session guards;
+  `hasAgoraDir` only for artifacts that legitimately predate a session
+  (events/trace).
+- **Gate 5's diff must exclude Agora's own noise.** Every gate run appends
+  events.jsonl, so `git diff HEAD` is never clean in-session; without the
+  `:(exclude).agora` pathspec (+ lockfile excludes + untracked-file
+  rendering + `git show` root-commit fallback) Gate 5 judges bookkeeping,
+  not implementation. See src/shared/git-diff.ts header.
+- **Re-entry must invalidate something.** The MCP align orchestrator picks
+  its next target purely from artifact existence; any "re-enter the loop"
+  transition (Z2-yes) has to delete the artifacts it wants re-done
+  (maturity.json + seed.json) or the loop replies "done" forever while the
+  phase gate refuses — a deadlock. Same lesson for future pause/redo flows.
+- **Stepped-tool prompt ids vary per step** (telos.extract → `extract`,
+  telos.re_extract → `re_extract`): always read `issued_prompts[].id` from
+  the envelope/pending instead of assuming.
+
 ### Stage 5-A.3 (runbook batch)
 - **Batch commits without per-runbook review missed 3 critical drift items**
   (Plato's REQUIRED_FLOORS, atomicity criteria, ACNode shape).

@@ -4915,22 +4915,6 @@ Next task: Stage 6-A.35 — likely candidates:
 
 ### Stage 6-A.17 — DONE (2026-05-05)
 
-### Stage 6-A.17 — DONE (2026-05-05)
-
-### Stage 6-A.17 — DONE (2026-05-05)
-
-### Stage 6-A.17 — DONE (2026-05-05)
-
-### Stage 6-A.17 — DONE (2026-05-05)
-
-### Stage 6-A.17 — DONE (2026-05-05)
-
-### Stage 6-A.17 — DONE (2026-05-05)
-
-### Stage 6-A.17 — DONE (2026-05-05)
-
-### Stage 6-A.17 — DONE (2026-05-05)
-
 **Seventeenth vertical slice: `agora handoff` — Plato Dihairesis +
 seed.json + state lock.** Auto-selected per 6-A.16 NOTES; Sang accepted
 all 5 R1-R5 recommendations. **Closes the alignment loop**: AC list
@@ -5195,3 +5179,69 @@ Next task: Stage 6-A.14 — likely candidates:
       = 5 inline prompts now; Plato will be 6th).
   (e) `src/config/` + TOML + Zod.
   (f) Remaining 14 probes.
+
+---
+
+### Self-QA dogfood pass #2 — DONE (2026-06-10)
+
+**Greenfield + brownfield end-to-end dogfood of the MCP host-reasoning
+mode** (per Sang's "셀프 테스트 QA, 퀄리티 체크" directive). Built a real
+project (mdtoc — markdown TOC refresher, 15 tests) by driving
+agora_new → agora_intake → agora_align_step (telos / form / material /
+efficient / Socrates ×2 / Plato ×4 / AC / Dihairesis / confirm) →
+agora_ralph_step (13 leaves, Gates 1→2→5 + full Disputatio) to
+ralph_complete — twice (round 2 re-ran brownfield with deliberate
+failure-path probes: noun-phrase telos re-prompt, maturity fail/retry,
+handoff decline, Gate-1 failure, Z2 accept). One-shot MCP server per
+call → mcp_pending.json restart-persistence exercised ~80 times, zero
+losses.
+
+16 findings; all fixed with regression tests (501 tests, was 488) or
+explicitly deferred:
+
+1. doctor→new trap: doctor materializes .agora/ → new refused
+   ("session detected"). FIXED: hasAgoraSession (state.json marker);
+   17 guard sites swapped; trace intentionally stays directory-keyed.
+2. Gate 5 judged .agora/events.jsonl audit noise (tree never clean).
+   FIXED: pathspec-excluded from both diff windows.
+3. Gate 5 budget eaten by pnpm-lock.yaml. FIXED: lockfiles excluded.
+4. Untracked (brand-new) files invisible to Gate 5. FIXED: git diff
+   --no-index vs /dev/null per untracked file.
+5. Single-root-commit repo → no diff. FIXED: git show fallback.
+6. No-git greenfield = unwinnable drift-0.50 Z1 loop, never surfaced.
+   FIXED: ralph.initialized warns + git_repo:false in state_after.
+7. gate_1/2_failed envelopes had names only. FIXED: failed_detail
+   (exit codes + clipped stdout/stderr tails).
+8. Z2-yes deadlock: state→in_alignment but no artifact invalidated;
+   align_step said "done" (with a false "advances to ready_for_ralph"
+   copy) while ralph_step refused in_alignment. FIXED: Z2-yes unlinks
+   maturity.json + seed.json (ralph_state preserved → same leaf
+   resumes); align done-branch reconciles in_alignment→ready_for_ralph.
+9. Handoff decline retry re-ran the whole Dihairesis. FIXED:
+   preserved ac_tree.json short-circuits to confirm on id match.
+10. Disputatio objection-id collision across critics let one ruling
+    satisfy F-Aquinas-4 for several objections. FIXED:
+    stampObjectionIds namespaces `<critic>:<id>` + uniquifies (both
+    runner + MCP paths).
+11. Vacuous Sed contra issued on zero objections. FIXED: skipped
+    (sentinel recorded); Ad singula already skipped.
+12. Socrates categorizeResponse missed clear aporia ("Good catch — I
+    hadn't pinned this down") → refinement silently dropped. FIXED:
+    markers broadened (en+ko), biased to sensitivity.
+13. resume@ralph_complete (JSON/MCP) claimed flags "not yet
+    implemented" though --accept-deferred shipped in 6-A.26. FIXED:
+    reason + suggestion now name the real flags.
+14. "Sang" hardcoded in efficient-round hints + Aristotle runbook §4
+    prompt examples. FIXED: neutralized + prompts regenerated.
+15. doctor success had empty next[]. FIXED: session-aware next
+    (new <name> / resume). new (greenfield) also gained the
+    intake option alongside optional bracket.
+16. Stale "lands in Slice D" copy in align done summary. FIXED.
+
+Deferred (documented, not fixed): MCP Socrates passes
+detected_files:[] so F-Socrates-3 cwd-grounding regen never triggers
+in MCP mode (needs Phase-0 file capture); maturity retry re-tags all
+4 causes instead of failing ones only.
+
+Files: 36 changed (+667/−128). DoD: pnpm verify ✓ (lint + typecheck +
+lint:locale + lint:prompts + 501 tests + build).

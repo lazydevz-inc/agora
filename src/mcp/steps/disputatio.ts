@@ -41,6 +41,7 @@ import {
   renderObjections,
   SED_CONTRA_SYSTEM,
   SedContraResponseSchema,
+  stampObjectionIds,
   type VideturPerCritic,
   VideturPerCriticSchema,
 } from "../../ralph/disputatio.js";
@@ -386,14 +387,8 @@ function handleVideturApply(scratch: DisputatioScratch, args: StepArgs): Disputa
         ),
       };
     }
-    const objections = parsed.data.objections.map((o) =>
-      ObjectionSchema.parse({
-        id: o.id,
-        critic_id: criticId,
-        claim: o.claim,
-        evidence: o.evidence,
-        severity: o.severity,
-      }),
+    const objections = stampObjectionIds(criticId, parsed.data.objections).map((o) =>
+      ObjectionSchema.parse(o),
     );
     results.push(
       VideturPerCriticSchema.parse({
@@ -404,6 +399,18 @@ function handleVideturApply(scratch: DisputatioScratch, args: StepArgs): Disputa
           : {}),
       }),
     );
+  }
+  // Zero objections across every critic: Sed contra ("the strongest case
+  // FOR despite the objections") has nothing to argue against — issuing it
+  // would ask the host to argue with nobody (and burn a reasoning
+  // round-trip per clean leaf). Skip straight to Respondeo; the verdict is
+  // still owed. Ad singula already skips on zero objections.
+  if (collectObjections(results).length === 0) {
+    return issueRespondeoStep({
+      ...scratch,
+      videtur_results: results,
+      sed_contra: "(no objections raised — Sed contra vacuous, skipped)",
+    });
   }
   return issueSedContraStep({ ...scratch, videtur_results: results });
 }

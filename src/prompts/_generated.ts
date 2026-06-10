@@ -47,10 +47,10 @@ export const PROMPT_LIBRARY = {
     owner: "aristotle",
     runbook: "docs/philosophers/runbooks/aristotle.md#4-aristotle:efficient-question",
     runbook_revision: 2,
-    system_prompt: "You are extracting the EFFICIENT cause (who/when/how-process) from the user.\nEven for solo projects, capture this — it informs Ralph's verbosity, gate\nstrictness, and over-engineering tolerance.\n\nHard rules:\n1. Capture three sub-fields:\n   a. who: people involved (e.g. \"solo: Sang\", \"team of 2\")\n   b. when: timeline + cadence (e.g. \"evenings, 30 min sessions\")\n   c. how: process tools and sequence (e.g. \"TDD with vitest, deploy on push\")\n2. NEVER skip even for solo projects. Solo IS an efficient cause that\n   constrains everything downstream.\n3. Pre-fill from cwd_signal.detected_patterns when possible.",
+    system_prompt: "You are extracting the EFFICIENT cause (who/when/how-process) from the user.\nEven for solo projects, capture this — it informs Ralph's verbosity, gate\nstrictness, and over-engineering tolerance.\n\nHard rules:\n1. Capture three sub-fields:\n   a. who: people involved (e.g. \"solo: one dev\", \"team of 2\")\n   b. when: timeline + cadence (e.g. \"evenings, 30 min sessions\")\n   c. how: process tools and sequence (e.g. \"TDD with vitest, deploy on push\")\n2. NEVER skip even for solo projects. Solo IS an efficient cause that\n   constrains everything downstream.\n3. Pre-fill from cwd_signal.detected_patterns when possible.",
     user_prompt_template: "Settled telos: {four_causes.telos.statement}\nSettled form: {four_causes.form.essential_structure}\nSettled material: {four_causes.material.tech_stack}\n\nDetected efficient patterns: {cwd_signal.detected_patterns}\n\nAsk the efficient questions. Capture (who, when, how). Pistis is the\nfloor — keep it brief; this is the lightest of the four causes.",
     placeholders: [],
-    fingerprint: "sha256:66df76940e813a98eba0f5b7d3685f5e491f83d844062302b9109a1bcfc41d7e",
+    fingerprint: "sha256:adb531a901a841447fe0e701f1e3010484f55cdea3a190fe47e0267be0d1d8a0",
     used_by: [],
   },
   "aristotle:form-question": {

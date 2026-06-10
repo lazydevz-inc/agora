@@ -117,6 +117,35 @@ describe("categorizeResponse — markers, not sentiment (runbook §10)", () => {
       "refined_with_addition",
     );
   });
+
+  // Dogfood QA 2026-06-10 regression: a clear aporia admission followed by a
+  // decision was classified "confirmed", silently dropping the refinement
+  // from elenchus_refinement. Markers are biased toward sensitivity now.
+  test("aporia admissions beyond 'thought/considered' phrasing (en)", () => {
+    expect(
+      categorizeResponse("Good catch — I hadn't pinned this down. Decision: CRLF stays.", "en"),
+    ).toBe("aporia_then_refined");
+    expect(categorizeResponse("Fair hit — the ground truth is GitHub's behavior.", "en")).toBe(
+      "aporia_then_refined",
+    );
+    expect(categorizeResponse("You're right, I missed the fenced-marker case.", "en")).toBe(
+      "aporia_then_refined",
+    );
+    expect(categorizeResponse("I hadn't decided that yet — deciding now: bytes win.", "en")).toBe(
+      "aporia_then_refined",
+    );
+  });
+  test("ko aporia admissions (좋은 지적/놓쳤/미처)", () => {
+    expect(categorizeResponse("좋은 지적이야. 그 케이스는 픽스처로 잠그자.", "ko")).toBe(
+      "aporia_then_refined",
+    );
+    expect(categorizeResponse("그 케이스를 놓쳤네 — 라인엔딩은 파일을 따라간다.", "ko")).toBe(
+      "aporia_then_refined",
+    );
+    expect(categorizeResponse("미처 거기까진 정하지 않았어. 지금 정하면…", "ko")).toBe(
+      "aporia_then_refined",
+    );
+  });
 });
 
 describe("isSycophantic (F-Socrates-1)", () => {

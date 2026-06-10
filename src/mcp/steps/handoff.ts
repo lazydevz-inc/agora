@@ -91,6 +91,16 @@ export type HandoffStepOutcome =
 export interface HandoffStepInput {
   readonly telos_statement: string;
   readonly acceptance_criteria: readonly z.input<typeof AcceptanceCriterionSchema>[];
+  // A previously-decomposed tree (preserved from a declined confirm, or
+  // surviving a Z2 re-alignment). When its roots match the current ACs the
+  // orchestrator skips Dihairesis and goes straight to the confirm step —
+  // a declined "no" must not cost the host the whole decomposition again.
+  readonly preserved?: {
+    readonly ac_tree: readonly unknown[];
+    readonly undivided_acs: readonly string[];
+    readonly max_depth_reached: number;
+    readonly total_llm_calls: number;
+  };
 }
 
 export function beginHandoff(input: HandoffStepInput): HandoffStepOutcome {
@@ -104,6 +114,30 @@ export function beginHandoff(input: HandoffStepInput): HandoffStepOutcome {
         "handoff: no acceptance criteria to decompose",
       ),
     };
+  }
+  // Preserved-tree fast path: validate shape + root-id match, then jump to
+  // confirm. Any mismatch falls through to a fresh decomposition.
+  if (input.preserved !== undefined) {
+    const parsedTree = z.array(ACNodeSchema).safeParse(input.preserved.ac_tree);
+    const rootIds = parsedTree.success ? parsedTree.data.map((n) => n.id).sort() : [];
+    const acIds = acs.map((a) => a.id).sort();
+    if (
+      parsedTree.success &&
+      rootIds.length === acIds.length &&
+      rootIds.every((id, i) => id === acIds[i])
+    ) {
+      const scratch: HandoffScratch = {
+        telos_statement: input.telos_statement,
+        acceptance_criteria: acs,
+        ac_tree: parsedTree.data,
+        pending_queue: [],
+        undivided_acs: [...input.preserved.undivided_acs],
+        total_llm_calls: input.preserved.total_llm_calls,
+        max_depth_reached: Math.min(input.preserved.max_depth_reached, MAX_DH_DEPTH),
+        dh_complete: true,
+      };
+      return advanceCursor(scratch);
+    }
   }
   const tree: ACNode[] = acs.map((ac) => ({
     id: ac.id,
