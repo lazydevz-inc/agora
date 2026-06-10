@@ -151,6 +151,8 @@ describe("runAlignStep — maturity round (4 causes sequential, all pass)", () =
     expect(ask1.value.step).toBe("maturity.ask");
     expect(ask1.value.questions[0]?.id).toBe("q_noesis");
     expect(ask1.value.questions[0]?.open_question).toBe(true);
+    expect(ask1.value.questions[0]?.philosopher).toBe("plato");
+    expect(ask1.value.questions[0]?.purpose_label).toBeTruthy();
 
     // Cycle: ask → extract → ask → extract → ... for 4 causes.
     const causes = ["telos", "form", "material", "efficient"] as const;
@@ -281,6 +283,10 @@ describe("runAlignStep — handoff (DH + confirm yes → seed lock)", () => {
       throw new Error("expected handoff.confirm");
     }
     expect(confirmStep.value.step).toBe("handoff.confirm");
+    // Termination gate is Plato's (Dihairesis review), and even this closed
+    // yes/no decision carries a purpose_label.
+    expect(confirmStep.value.questions[0]?.philosopher).toBe("plato");
+    expect(confirmStep.value.questions[0]?.purpose_label).toBeTruthy();
 
     const done = await runAlignStep({ user_answers: { q_confirm: "yes" } });
     if (!done.ok || done.value.kind !== "advanced") {

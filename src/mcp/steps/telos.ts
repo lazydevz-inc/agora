@@ -132,18 +132,24 @@ function issueQuestionsStep(scratch: TelosScratch): TelosStepOutcome {
       id: "q_why_exists",
       prompt: localized("cli.telos.q_why_exists"),
       hint: "Because I want to...",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.telos.purpose_q_why_exists"),
       open_question: true,
     },
     {
       id: "q_served_good",
       prompt: localized("cli.telos.q_served_good"),
       hint: "Name the goodness, not the activity",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.telos.purpose_q_served_good"),
       open_question: true,
     },
     {
       id: "q_failure_signal",
       prompt: localized("cli.telos.q_failure_signal"),
       hint: "After N months, I notice...",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.telos.purpose_q_failure_signal"),
       open_question: true,
     },
   ];
@@ -221,6 +227,8 @@ function issueRefinementStep(scratch: TelosScratch): TelosStepOutcome {
     id: "q_refinement",
     prompt: localized("cli.telos.q_noun_phrase_refinement"),
     hint: `What good does "${detected}" serve? (${reason})`,
+    philosopher: "aristotle",
+    purpose_label: localized("cli.telos.purpose_q_refinement"),
     open_question: true,
   };
   return {

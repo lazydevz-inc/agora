@@ -98,6 +98,10 @@ function issueAskStep(scratch: AcScratch): AcStepOutcome {
       form: scratch.input.form_essential_structure,
     }),
     hint: "one per line, or comma-separated; bullets are fine",
+    // Round-planner attribution: AC drafting is Aristotle's round
+    // (alignment-loop.md §Round-planner, "Aristotle.ac_drafter").
+    philosopher: "aristotle",
+    purpose_label: localized("cli.ac.purpose_q_acs_list"),
     open_question: true,
   };
   return {

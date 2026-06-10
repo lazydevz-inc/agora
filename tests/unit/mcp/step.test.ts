@@ -88,6 +88,29 @@ describe("envelope builders + schema discrimination", () => {
     expect(StepEnvelopeSchema.safeParse(unknownKey).success).toBe(false);
   });
 
+  test("question accepts philosopher + purpose_label attribution; rejects unknown philosopher", () => {
+    const attributed = envNeedsUserInput("align", "telos.questions", [
+      {
+        id: "q_why_exists",
+        prompt: "P",
+        philosopher: "aristotle",
+        purpose_label: "Final cause opener",
+        open_question: true,
+      },
+    ]);
+    expect(StepEnvelopeSchema.safeParse(attributed).success).toBe(true);
+    // purpose_label without philosopher is valid (loop-policy questions, e.g. Z2)
+    const policyOnly = envNeedsUserInput("ralph", "ralph.confirm_z2", [
+      { id: "q_confirm_z2", prompt: "P", purpose_label: "Z2 escalation" },
+    ]);
+    expect(StepEnvelopeSchema.safeParse(policyOnly).success).toBe(true);
+    // only the five first-class philosopher modules are valid
+    const unknownPhilosopher = envNeedsUserInput("align", "x", [
+      { id: "q", prompt: "P", philosopher: "kant" } as never,
+    ]);
+    expect(StepEnvelopeSchema.safeParse(unknownPhilosopher).success).toBe(false);
+  });
+
   test("envNeedsReasoning requires ≥1 prompt with expect:json|text", () => {
     const ok = envNeedsReasoning("align", "telos.extract", [
       { id: "p", system: "S", user: "U", expect: "json" },

@@ -121,6 +121,10 @@ describe("runAlignStep — fresh telos round, happy path (no noun-phrase)", () =
     ]);
     // Exam questions carry the host relay contract flag.
     expect(r.value.questions.every((q) => q.open_question === true)).toBe(true);
+    // Every question is attributed: who is asking (Aristotle leads the telos
+    // round) and why (purpose_label per F2 — no question without a "why").
+    expect(r.value.questions.every((q) => q.philosopher === "aristotle")).toBe(true);
+    expect(r.value.questions.every((q) => (q.purpose_label ?? "").length > 0)).toBe(true);
 
     const pendingR = await readPending(cwd);
     expect(pendingR.ok).toBe(true);

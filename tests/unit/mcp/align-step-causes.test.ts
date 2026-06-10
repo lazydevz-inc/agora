@@ -326,6 +326,8 @@ describe("runAlignStep — socrates elenchus (2-claim sequential)", () => {
       throw new Error("expected socrates.respond[telos]");
     }
     expect(s2.value.step).toBe("socrates.respond");
+    expect(s2.value.questions[0]?.philosopher).toBe("socrates");
+    expect(s2.value.questions[0]?.purpose_label).toBeTruthy();
 
     const s3 = await runAlignStep({
       user_answers: { q_response: "They name a goal they had not articulated before." },

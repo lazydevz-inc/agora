@@ -37,6 +37,7 @@ import { buildAgoraError } from "../errors/build.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
 import type { ACNode } from "../handoff/dihairesis.js";
 import type { Seed } from "../handoff/seed-builder.js";
+import { localized } from "../i18n/index.js";
 import type { DisputatioResult } from "../ralph/disputatio.js";
 import { runGate1WithCache } from "../ralph/gate-1-cache.js";
 import { runGate2 } from "../ralph/gate-2.js";
@@ -68,6 +69,7 @@ import {
   type StepArgs,
   StepArgsSchema,
   type StepEnvelope,
+  type StepQuestion,
 } from "./step.js";
 import {
   advanceDisputatio,
@@ -583,19 +585,20 @@ async function applyGate5(
   });
   await writeJsonAtomic(ralphStatePath, withZ2Gate5);
 
-  // Z2: issue confirm step.
+  // Z2: issue confirm step. Loop-policy decision — no philosopher owns it,
+  // but the purpose_label still tells the user why they're being asked.
+  const z2Question: StepQuestion = {
+    id: "q_confirm_z2",
+    prompt: `Gate 5 escalated to Z2 (drift=${gate5.drift_score.toFixed(2)}). Re-enter the alignment loop to re-align this leaf? Answer "yes" to reset state to in_alignment, or "no" to keep this leaf and treat as Z1.\n\nRationale: ${gate5.rationale}`,
+    hint: 'reply "yes" or "no"',
+    purpose_label: localized("cli.ralph.purpose_q_confirm_z2"),
+  };
   const z2Pending: McpPending = {
     version: 1,
     owner: "ralph",
     step: "ralph.confirm_z2",
     expects: "user_answers",
-    issued_questions: [
-      {
-        id: "q_confirm_z2",
-        prompt: `Gate 5 escalated to Z2 (drift=${gate5.drift_score.toFixed(2)}). Re-enter the alignment loop to re-align this leaf? Answer "yes" to reset state to in_alignment, or "no" to keep this leaf and treat as Z1.\n\nRationale: ${gate5.rationale}`,
-        hint: 'reply "yes" or "no"',
-      },
-    ],
+    issued_questions: [z2Question],
     scratch: {
       leaf_id: leafId,
       gate_5: gate5 as unknown as Record<string, unknown>,
@@ -604,15 +607,7 @@ async function applyGate5(
     issued_at: new Date().toISOString(),
   };
   await writePending(cwd, z2Pending);
-  return ok(
-    envNeedsUserInput("ralph", "ralph.confirm_z2", [
-      {
-        id: "q_confirm_z2",
-        prompt: `Gate 5 escalated to Z2 (drift=${gate5.drift_score.toFixed(2)}). Re-enter the alignment loop to re-align this leaf? Answer "yes" to reset state to in_alignment, or "no" to keep this leaf and treat as Z1.\n\nRationale: ${gate5.rationale}`,
-        hint: 'reply "yes" or "no"',
-      },
-    ]),
-  );
+  return ok(envNeedsUserInput("ralph", "ralph.confirm_z2", [z2Question]));
 }
 
 async function advanceLeaf(

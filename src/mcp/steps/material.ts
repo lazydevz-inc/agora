@@ -125,18 +125,24 @@ function issueQuestionsStep(scratch: MaterialScratch): MaterialStepOutcome {
       hint: confirmDetected
         ? "confirm + add/remove (comma-separated)"
         : "language + framework + key libs",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.material.purpose_q_stack"),
       open_question: true,
     },
     {
       id: "q_data_shape",
       prompt: localized("cli.material.q_data_shape"),
       hint: "one paragraph",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.material.purpose_q_data_shape"),
       open_question: true,
     },
     {
       id: "q_infrastructure",
       prompt: localized("cli.material.q_infrastructure"),
       hint: "where it runs",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.material.purpose_q_infrastructure"),
       open_question: true,
     },
   ];

@@ -289,6 +289,9 @@ describe("runRalphStep — Gate 5 apply (pending pre-seeded)", () => {
     });
     if (!r.ok || r.value.kind !== "needs_user_input") throw new Error("expected confirm_z2");
     expect(r.value.step).toBe("ralph.confirm_z2");
+    // Loop-policy question: no philosopher owns it, but the purpose still shows.
+    expect(r.value.questions[0]?.philosopher).toBeUndefined();
+    expect(r.value.questions[0]?.purpose_label).toBeTruthy();
   });
 
   test("Z2 then declined → the spike drift is recorded in gate_5_history (B5)", async () => {
