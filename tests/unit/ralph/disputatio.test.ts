@@ -195,7 +195,7 @@ describe("runDisputatio — F-Aquinas-4 enforcement", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("internal.invariant-violation");
-    expect(result.error.context?.["detail"]).toContain("F-Aquinas-4");
+    expect(result.error.context?.detail).toContain("F-Aquinas-4");
   });
 });
 

@@ -952,7 +952,7 @@ function matchesExpects(
   if (expects === "user_answers") {
     if (args.user_answers === undefined) {
       return err({
-        code: "user.aborted",
+        code: "user.missing-step-input",
         message: "Pending step expects user_answers; none provided.",
       });
     }
@@ -965,7 +965,7 @@ function matchesExpects(
   } else {
     if (args.llm_responses === undefined) {
       return err({
-        code: "user.aborted",
+        code: "user.missing-step-input",
         message: "Pending step expects llm_responses; none provided.",
       });
     }

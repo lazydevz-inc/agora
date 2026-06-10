@@ -16,7 +16,7 @@ describe("runVersionCommand (TUI mode)", () => {
     expect(result.value.command).toBe("agora --version");
     expect(result.value.exit_code).toBe(0);
     expect(result.value.result.ok).toBe(true);
-    expect(result.value.result.data?.["agora_version"]).toBeTypeOf("string");
+    expect(result.value.result.data?.agora_version).toBeTypeOf("string");
     expect(result.value.warnings).toHaveLength(0);
   });
 });
@@ -32,13 +32,13 @@ describe("runVersionCommand (JSON mode)", () => {
     const data = result.value.result.data;
     expect(data).toBeDefined();
     if (data === undefined) return;
-    expect(data["agora_version"]).toBeTypeOf("string");
-    expect(data["node_version"]).toBe(process.version);
-    expect(data["platform"]).toBe(process.platform);
-    expect(data["arch"]).toBe(process.arch);
-    expect(data["claude_cli_present"]).toBeNull();
-    expect(data["pnpm_version"]).toBeNull();
-    expect(data["locale_resolved"]).toBe("en");
+    expect(data.agora_version).toBeTypeOf("string");
+    expect(data.node_version).toBe(process.version);
+    expect(data.platform).toBe(process.platform);
+    expect(data.arch).toBe(process.arch);
+    expect(data.claude_cli_present).toBeNull();
+    expect(data.pnpm_version).toBeNull();
+    expect(data.locale_resolved).toBe("en");
     expect(result.value.warnings).toHaveLength(1);
     expect(result.value.warnings[0]?.code).toBe("version_runtime_probes_deferred");
   });
@@ -72,14 +72,14 @@ describe("parseArgv forbidden combinations", () => {
   });
 
   test("LANG=ko_KR.UTF-8 normalized to ko", () => {
-    const original = process.env["LANG"];
-    process.env["LANG"] = "ko_KR.UTF-8";
-    delete process.env["AGORA_LOCALE"];
+    const original = process.env.LANG;
+    process.env.LANG = "ko_KR.UTF-8";
+    delete process.env.AGORA_LOCALE;
     const parsed = parseArgv(["--version"]);
     if (original === undefined) {
-      delete process.env["LANG"];
+      delete process.env.LANG;
     } else {
-      process.env["LANG"] = original;
+      process.env.LANG = original;
     }
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.value.flags.locale).toBe("ko");

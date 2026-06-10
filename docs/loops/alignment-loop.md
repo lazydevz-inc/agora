@@ -242,13 +242,20 @@ phase_1_open_intake(phase_0_result) -> Phase1Result:
                                                  intake_method = "editor"
       - Paste (multi-line)                     → accepted as-is;
                                                  intake_method = "paste"
-      - Soft cap: 8 KB (≈ 1500 words)          → user shown gentle notice on
-                                                 reaching:
+      - Soft cap: 16 KB (≈ 3,000 EN words /    → user shown gentle notice on
+                  ≈ 1,600 KO 어절)               reaching:
                                                  "Long input — that's good.
                                                   Continue if you want, or
                                                   run `agora` again to refine."
-      - Hard cap: 16 KB                        → truncated; flag set;
+      - Hard cap: 64 KB                        → FULL original archived to
+                                                 .agora/history/
+                                                 intake-original-{ts}.md
+                                                 BEFORE the cut (lossless);
+                                                 then truncated; flag +
+                                                 original size + archive path
+                                                 recorded in Phase1Result;
                                                  user notified at echo-back
+                                                 with the archive path
       - Empty after editor open + close        → re-prompt once with
                                                  "Need at least one sentence."
       - Empty twice                            → abort Phase 1 with exit code 2
@@ -276,6 +283,10 @@ phase_1_open_intake(phase_0_result) -> Phase1Result:
     intake_word_count: int,
     intake_byte_size: int,
     intake_truncated: bool,
+    intake_original_byte_size: int | null,  # pre-cut size; null unless truncated
+    intake_original_path: string | null,    # archive of the FULL original;
+                                            # null unless truncated (or if
+                                            # archiving failed)
     intake_duration_ms: int,
     estimated_rounds: string,  # for telemetry/UI, not a commitment
   )
@@ -291,11 +302,29 @@ phase_1_open_intake(phase_0_result) -> Phase1Result:
   produce paralysis. Three dimensions (what / why / shape) cover the bulk of
   what Aristotle's four causes will need without pre-committing the user to
   any particular structuring. Phase 2 fills the remainder via Aristotle.
-- **R3-A** (8 KB soft / 16 KB hard cap): 1500 words is far more than most
-  users dump in one sitting; beyond that, additional words are usually
-  unfocused. Hard truncate at 16 KB protects against paste accidents
-  (e.g. accidentally pasting an entire doc) while still allowing large
-  intentional dumps.
+- **R3-A** (16 KB soft / 64 KB hard cap — amended 2026-06-11, was 8/16 KB):
+  caps stay byte-denominated for determinism, but the original numbers were
+  sized in *English* bytes ("8 KB ≈ 1500 words") for an interactive-CLI
+  threat model (accidental paste of a whole document). Two things broke
+  that math:
+    1. **Korean pays 3× per character in UTF-8.** 8 KB is only ~800 Korean
+       어절 — a Korean user hit the old caps at roughly half the English
+       word count. The numbers must be generous enough that no first-class
+       locale is penalized in practice: 64 KB ≈ 12,000 EN words ≈ 6,500 KO
+       어절.
+    2. **MCP host-relay is now the primary mode (ADR-0009/0010).** The host
+       session deliberately composes `raw_text` — often relaying an existing
+       PRD or long session context. "Paste accident" does not describe that
+       input, and truncating it cuts intended content.
+  A cap is still wanted: `raw_intake` is embedded verbatim in the telos
+  round prompt and preserved in seed.md's Genesis section, so unbounded
+  dumps bloat both, and normal dialogue-first usage sits far below the cap
+  (the rounds estimator already treats 300+ words as "a lot"). But reaching
+  the cap must be **lossless**: the full original is archived to
+  `.agora/history/intake-original-{ts}.md` *before* the cut, the archive
+  path is recorded in `Phase1Result.intake_original_path`, and the
+  user/host is told where the original lives. Archiving failure degrades
+  to the old flagged cut and never blocks intake.
 - **R4-A** (mechanical echo, no LLM summary): mechanical "I heard {N} words"
   builds trust without risking F4 violation (a wrong LLM summary would
   immediately damage trust). The estimated-rounds line gives the user a
@@ -325,7 +354,9 @@ When user presses Enter on empty input:
 - ❌ No LLM calls during input collection.
 - ❌ No LLM-generated summary of input (R4-A: mechanical echo only).
 - ❌ No question dialog yet — that's Phase 2.
-- ❌ No silent truncation — soft cap is shown, hard cap is announced at echo.
+- ❌ No silent truncation — soft cap is shown; hard cap archives the full
+      original to `.agora/history/` first, then announces both the cut and
+      the archive path at echo. Truncation never destroys data.
 - ❌ No persisting input until user has confirmed (Ctrl+C before echo discards).
 - ❌ No reading from stdin in non-TTY mode unless explicit `--non-interactive`
       flag is set (Mode 2 of the 3-mode I/O — see ADR-0005).

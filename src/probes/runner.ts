@@ -93,7 +93,7 @@ async function emitProbeEvent(cwd: string, run: ProbeRun): Promise<void> {
   // appendEvent itself swallows .agora/-missing + I/O errors.
   await appendEvent(cwd, {
     type: "probe.result",
-    command: process.env["AGORA_COMMAND"] ?? "agora",
+    command: process.env.AGORA_COMMAND ?? "agora",
     data: {
       probe_id: run.probe.id,
       ok: run.result.ok,

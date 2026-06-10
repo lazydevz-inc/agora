@@ -220,17 +220,17 @@ describe("MCP locale — env-derived, applied at tool entry via setLocale", () =
   let savedLang: string | undefined;
 
   beforeEach(() => {
-    savedAgoraLocale = process.env["AGORA_LOCALE"];
-    savedLang = process.env["LANG"];
-    delete process.env["AGORA_LOCALE"];
-    delete process.env["LANG"];
+    savedAgoraLocale = process.env.AGORA_LOCALE;
+    savedLang = process.env.LANG;
+    delete process.env.AGORA_LOCALE;
+    delete process.env.LANG;
   });
 
   afterEach(() => {
-    if (savedAgoraLocale === undefined) delete process.env["AGORA_LOCALE"];
-    else process.env["AGORA_LOCALE"] = savedAgoraLocale;
-    if (savedLang === undefined) delete process.env["LANG"];
-    else process.env["LANG"] = savedLang;
+    if (savedAgoraLocale === undefined) delete process.env.AGORA_LOCALE;
+    else process.env.AGORA_LOCALE = savedAgoraLocale;
+    if (savedLang === undefined) delete process.env.LANG;
+    else process.env.LANG = savedLang;
     setLocale("en"); // tool entry mutates the module-global locale
   });
 
@@ -265,7 +265,7 @@ describe("MCP locale — env-derived, applied at tool entry via setLocale", () =
   }
 
   test("AGORA_LOCALE=ko → telos question prompt resolves to the ko catalog string", async () => {
-    process.env["AGORA_LOCALE"] = "ko";
+    process.env.AGORA_LOCALE = "ko";
     await seedAlignSession();
     const koPrompt = lookupKey(loadCatalog("ko"), "cli.telos.q_why_exists");
     expect(typeof koPrompt).toBe("string");
@@ -273,7 +273,7 @@ describe("MCP locale — env-derived, applied at tool entry via setLocale", () =
   });
 
   test("LANG=ko_KR.UTF-8 (no AGORA_LOCALE) → ko catalog string too", async () => {
-    process.env["LANG"] = "ko_KR.UTF-8";
+    process.env.LANG = "ko_KR.UTF-8";
     await seedAlignSession();
     expect(await telosQuestionPrompt()).toBe(
       lookupKey(loadCatalog("ko"), "cli.telos.q_why_exists"),

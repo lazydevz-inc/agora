@@ -5,7 +5,9 @@
 // CLI top-level entry per Stage 5-A.6 R3-A:
 // - Parse argv via cli/flags.ts (returns Result)
 // - Dispatch to command (returns Result)
-// - emit() result + process.exit(exit_code)
+// - emit() result + exitAfterFlush(exit_code) — drains stdout before the
+//   hard exit (a pipe-backed stdout truncates at the ~64 KB kernel buffer
+//   on bare process.exit, which bit envelopes carrying hard-cap intakes)
 // - Top-level uncaughtException handler catches AgoraErrorThrown and any
 //   unexpected throw → emit + exit per Stage 4-A.6 R2-A.
 
@@ -36,13 +38,29 @@ import { runVersionCommand } from "./commands/version.js";
 import { type GlobalFlags, parseArgv } from "./flags.js";
 import { type EmitMode, emit, emitAgoraError } from "./render.js";
 
+// process.exit() does not wait for a pipe-backed stdout to drain, and the
+// kernel pipe buffer is typically 64 KB — an envelope bigger than that
+// (e.g. `intake --json` carrying a hard-cap-sized raw_intake) was silently
+// cut mid-JSON. An empty write's callback fires only after everything
+// queued before it has flushed (or errored, e.g. EPIPE), so exit there.
+// Still a hard exit afterwards: lingering handles must never hang the CLI.
+async function exitAfterFlush(code: number): Promise<never> {
+  await new Promise<void>((resolve) => {
+    process.stdout.write("", () => {
+      resolve();
+    });
+  });
+  return process.exit(code);
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md M1; command registry dispatch is the planned fix.
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const parsedResult = parseArgv(argv);
   if (!parsedResult.ok) {
     const mode: EmitMode = inferEmitMode(argv);
     emitAgoraError(parsedResult.error, mode, useColorFromEnv());
-    process.exit(exitCodeForError(parsedResult.error));
+    return exitAfterFlush(exitCodeForError(parsedResult.error));
   }
   const { flags, positional } = parsedResult.value;
   setLocale(flags.locale);
@@ -52,10 +70,10 @@ async function main(): Promise<void> {
   // Help short-circuit.
   if (flags.help && positional.length === 0) {
     printHelp();
-    process.exit(0);
+    return exitAfterFlush(0);
   }
 
-  // Version short-circuit (also default for first slice with no command).
+  // Version short-circuit.
   if (flags.version) {
     await emitCommandInvoked("agora --version", flags, positional);
     await dispatchVersion(flags, mode, useColor);
@@ -146,18 +164,19 @@ async function main(): Promise<void> {
   }
 
   // An unrecognized command is a usage error — never silently fall through
-  // to the version summary (that swallows typos with exit 0). The bare
-  // `agora` (no positional) intentionally prints the version-style summary.
+  // to the default guided status (that would swallow typos with exit 0).
   if (command !== undefined) {
     const unknown = buildAgoraError("user.unknown-command", {
       context: { command },
     });
     emitAgoraError(unknown, mode, useColor);
-    process.exit(exitCodeForError(unknown));
+    return exitAfterFlush(exitCodeForError(unknown));
   }
 
-  // No command + no --version: print version-style summary (default action).
-  await dispatchVersion(flags, mode, useColor);
+  // No command + no --version: guided entrypoint. `agora` answers
+  // "where am I and what should happen next?" using the same state-aware
+  // status command exposed to humans and MCP hosts.
+  await dispatchStatus(flags, mode, useColor);
 }
 
 async function dispatchVersion(
@@ -168,10 +187,10 @@ async function dispatchVersion(
   const result = runVersionCommand(flags);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   emit(result.value, mode, useColor);
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchDoctor(
@@ -182,14 +201,14 @@ async function dispatchDoctor(
   const result = await runDoctorCommand(flags);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   // Doctor TUI rendering happens inside the command (multi-line, color-aware).
   // For JSON mode, render via the standard envelope emitter.
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchPing(
@@ -201,12 +220,12 @@ async function dispatchPing(
   const result = await runPingCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchStatus(
@@ -217,12 +236,12 @@ async function dispatchStatus(
   const result = await runStatusCommand(flags);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchNew(
@@ -234,12 +253,12 @@ async function dispatchNew(
   const result = await runNewCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchBracket(
@@ -251,12 +270,12 @@ async function dispatchBracket(
   const result = await runBracketCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchResume(
@@ -270,12 +289,12 @@ async function dispatchResume(
     // Exit code is the per-code value pinned in ERROR_CATALOG (single
     // source of truth; matches the JSON envelope's exit_code field).
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchIntake(
@@ -287,12 +306,12 @@ async function dispatchIntake(
   const result = await runIntakeCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchRound(
@@ -304,12 +323,12 @@ async function dispatchRound(
   const result = await runRoundCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchTelos(
@@ -321,12 +340,12 @@ async function dispatchTelos(
   const result = await runTelosCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchForm(
@@ -338,12 +357,12 @@ async function dispatchForm(
   const result = await runFormCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchMaterial(
@@ -355,12 +374,12 @@ async function dispatchMaterial(
   const result = await runMaterialCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchEfficient(
@@ -372,12 +391,12 @@ async function dispatchEfficient(
   const result = await runEfficientCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchSocrates(
@@ -389,12 +408,12 @@ async function dispatchSocrates(
   const result = await runSocratesCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchMaturity(
@@ -406,12 +425,12 @@ async function dispatchMaturity(
   const result = await runMaturityCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchAc(
@@ -423,12 +442,12 @@ async function dispatchAc(
   const result = await runAcCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchHandoff(
@@ -440,12 +459,12 @@ async function dispatchHandoff(
   const result = await runHandoffCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchRalph(
@@ -457,12 +476,12 @@ async function dispatchRalph(
   const result = await runRalphCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 async function dispatchTrace(
@@ -474,12 +493,12 @@ async function dispatchTrace(
   const result = await runTraceCommand(flags, positional);
   if (!result.ok) {
     emitAgoraError(result.error, mode, useColor);
-    process.exit(exitCodeForError(result.error));
+    return exitAfterFlush(exitCodeForError(result.error));
   }
   if (mode === "json") {
     emit(result.value, mode, useColor);
   }
-  process.exit(result.value.exit_code);
+  return exitAfterFlush(result.value.exit_code);
 }
 
 function printHelp(): void {
@@ -489,7 +508,7 @@ function printHelp(): void {
   console.log("Usage: agora [command] [options]");
   console.log("");
   console.log("Commands:");
-  console.log("  agora             (default) print version + suggested next");
+  console.log("  agora             (default) show status + suggested next action");
   console.log("  agora doctor      Diagnose environment + run Gate 0 probes");
   console.log("  agora ping [pmt]  Send a small prompt to Claude (LLM smoke test)");
   console.log("  agora status      Show current session phase + progress");
@@ -520,7 +539,7 @@ function printHelp(): void {
     "  agora trace       View .agora/events.jsonl audit log (--type, --since, --command, --limit)",
   );
   console.log(
-    "  agora mcp         Run as an MCP server inside Claude Code (read-only tools; zero LLM calls)",
+    "  agora mcp         Run as an MCP server inside Claude Code (8 tools; zero LLM calls)",
   );
   console.log("");
   console.log("Universal flags:");
@@ -532,12 +551,10 @@ function printHelp(): void {
   console.log("doctor flags:");
   console.log("      --refresh           Bust cached Gate 0 probe results");
   console.log("      --include-disabled  Show disabled probes as warnings");
-  console.log("");
-  console.log("Full CLI surface arrives in subsequent Stage 6 slices.");
 }
 
 function inferEmitMode(argv: readonly string[]): EmitMode {
-  return argv.includes("--json") || process.env["AGORA_JSON"] === "1" ? "json" : "tui";
+  return argv.includes("--json") || process.env.AGORA_JSON === "1" ? "json" : "tui";
 }
 
 // Commands that are pure read-only observers of .agora/events.jsonl —
@@ -552,7 +569,7 @@ async function emitCommandInvoked(
   flags: GlobalFlags,
   positional: readonly string[],
 ): Promise<void> {
-  process.env["AGORA_COMMAND"] = command;
+  process.env.AGORA_COMMAND = command;
   if (COMMAND_INVOKED_SKIP.has(command)) return;
   // Audit-log entry per Stage 6-A.23 R5-A. Fail-soft: if no .agora/
   // exists (greenfield pre-`agora new`), appendEvent returns false.
@@ -573,11 +590,11 @@ async function emitCommandInvoked(
 }
 
 function useColorFromEnv(): boolean {
-  return process.env["NO_COLOR"] === undefined && supportsColor();
+  return process.env.NO_COLOR === undefined && supportsColor();
 }
 
 function supportsColor(): boolean {
-  return process.stdout.isTTY === true && process.env["NO_COLOR"] === undefined;
+  return process.stdout.isTTY === true && process.env.NO_COLOR === undefined;
 }
 
 process.on("uncaughtException", (error: unknown) => handleUncaught(error));
@@ -588,7 +605,8 @@ function handleUncaught(reason: unknown): void {
   const useColor = useColorFromEnv();
   if (reason instanceof AgoraErrorThrown) {
     emitAgoraError(reason, mode, useColor);
-    process.exit(1);
+    exitAfterFlush(1).catch(() => undefined);
+    return;
   }
   const wrapped = new AgoraErrorThrown({
     code: "internal.uncaught",
@@ -598,7 +616,7 @@ function handleUncaught(reason: unknown): void {
     cause: reason,
   });
   emitAgoraError(wrapped, mode, useColor);
-  process.exit(1);
+  exitAfterFlush(1).catch(() => undefined);
 }
 
 main().catch(handleUncaught);

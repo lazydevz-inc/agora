@@ -76,17 +76,17 @@ describe("resolveEnvLocale — shared env locale resolver", () => {
   let savedLang: string | undefined;
 
   beforeEach(() => {
-    savedAgoraLocale = process.env["AGORA_LOCALE"];
-    savedLang = process.env["LANG"];
-    delete process.env["AGORA_LOCALE"];
-    delete process.env["LANG"];
+    savedAgoraLocale = process.env.AGORA_LOCALE;
+    savedLang = process.env.LANG;
+    delete process.env.AGORA_LOCALE;
+    delete process.env.LANG;
   });
 
   afterEach(() => {
-    if (savedAgoraLocale === undefined) delete process.env["AGORA_LOCALE"];
-    else process.env["AGORA_LOCALE"] = savedAgoraLocale;
-    if (savedLang === undefined) delete process.env["LANG"];
-    else process.env["LANG"] = savedLang;
+    if (savedAgoraLocale === undefined) delete process.env.AGORA_LOCALE;
+    else process.env.AGORA_LOCALE = savedAgoraLocale;
+    if (savedLang === undefined) delete process.env.LANG;
+    else process.env.LANG = savedLang;
   });
 
   test("unset env → en", () => {
@@ -94,20 +94,20 @@ describe("resolveEnvLocale — shared env locale resolver", () => {
   });
 
   test("AGORA_LOCALE=ko → ko; takes precedence over LANG", () => {
-    process.env["AGORA_LOCALE"] = "ko";
-    process.env["LANG"] = "en_US.UTF-8";
+    process.env.AGORA_LOCALE = "ko";
+    process.env.LANG = "en_US.UTF-8";
     expect(resolveEnvLocale()).toBe("ko");
   });
 
   test("LANG=ko_KR.UTF-8 → ko (prefix match)", () => {
-    process.env["LANG"] = "ko_KR.UTF-8";
+    process.env.LANG = "ko_KR.UTF-8";
     expect(resolveEnvLocale()).toBe("ko");
   });
 
   test("unsupported values fall back to en, never error", () => {
-    process.env["LANG"] = "ja_JP.UTF-8";
+    process.env.LANG = "ja_JP.UTF-8";
     expect(resolveEnvLocale()).toBe("en");
-    process.env["AGORA_LOCALE"] = "fr";
+    process.env.AGORA_LOCALE = "fr";
     expect(resolveEnvLocale()).toBe("en");
   });
 });

@@ -10,7 +10,7 @@
 // `agora doctor` for full env scan. Full probe runner lands in next slice.
 
 import { readFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgoraErrorThrown } from "../../errors/types.js";
 import { localized } from "../../i18n/index.js";
@@ -108,10 +108,10 @@ function readPackageJson(): PackageJson {
 function getInstallPath(): string {
   // Best-effort: directory containing package.json (3 levels up).
   const here = dirname(fileURLToPath(import.meta.url));
-  return `${here}/../../..`;
+  return resolve(here, "../../..");
 }
 
 function isAnthropicApiKeyPresent(): boolean {
-  const key = process.env["ANTHROPIC_API_KEY"];
+  const key = process.env.ANTHROPIC_API_KEY;
   return typeof key === "string" && key.startsWith("sk-ant-");
 }

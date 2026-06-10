@@ -3,9 +3,13 @@
 // Spawns the CLI via tsx (dev mode equivalent) and asserts stdout shape.
 
 import { execSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "vitest";
 
-const CLI = "tsx src/cli/index.ts";
+const ROOT = process.cwd();
+const CLI = `${ROOT}/node_modules/.bin/tsx ${ROOT}/src/cli/index.ts`;
 
 describe("agora --version (TUI)", () => {
   test("prints single line `agora <semver>`", () => {
@@ -28,10 +32,10 @@ describe("agora --version --json (JSON)", () => {
     };
     expect(parsed.command).toBe("agora --version");
     expect(parsed.result.ok).toBe(true);
-    expect(parsed.result.data?.["agora_version"]).toBeTypeOf("string");
-    expect(parsed.result.data?.["node_version"]).toBeTypeOf("string");
-    expect(parsed.result.data?.["platform"]).toBeTypeOf("string");
-    expect(parsed.result.data?.["arch"]).toBeTypeOf("string");
+    expect(parsed.result.data?.agora_version).toBeTypeOf("string");
+    expect(parsed.result.data?.node_version).toBeTypeOf("string");
+    expect(parsed.result.data?.platform).toBeTypeOf("string");
+    expect(parsed.result.data?.arch).toBeTypeOf("string");
     expect(parsed.warnings.length).toBeGreaterThan(0);
     expect(parsed.warnings[0]?.code).toBe("version_runtime_probes_deferred");
     expect(parsed.errors).toHaveLength(0);
@@ -46,7 +50,7 @@ describe("agora --version --json with locale (ko)", () => {
       result: { data?: Record<string, unknown> };
       warnings: { message: string }[];
     };
-    expect(parsed.result.data?.["locale_resolved"]).toBe("ko");
+    expect(parsed.result.data?.locale_resolved).toBe("ko");
     // Warning message itself is locale-resolved.
     expect(parsed.warnings[0]?.message).toContain("agora doctor");
   });
@@ -69,11 +73,22 @@ describe("agora <unknown command>", () => {
     expect(exited).toBe(true);
   });
 
-  test("bare `agora` (no command) still prints the version summary (exit 0)", () => {
-    const output = execSync(`${CLI} --json`).toString();
-    const parsed = JSON.parse(output) as { command: string; result: { ok: boolean } };
-    expect(parsed.result.ok).toBe(true);
-    expect(parsed.command).toBe("agora --version");
+  test("bare `agora` (no command) shows guided status (exit 0)", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agora-default-"));
+    try {
+      const output = execSync(`${CLI} --json`, { cwd }).toString();
+      const parsed = JSON.parse(output) as {
+        command: string;
+        result: { ok: boolean; data?: { session_present?: boolean } };
+        next: { id: string; command: string }[];
+      };
+      expect(parsed.result.ok).toBe(true);
+      expect(parsed.command).toBe("agora status");
+      expect(parsed.result.data?.session_present).toBe(false);
+      expect(parsed.next[0]?.id).toBe("start_new");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 });
 

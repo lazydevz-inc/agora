@@ -61,8 +61,9 @@ import type { CommandEnvelope } from "../render.js";
 // Mutually exclusive; passing both → user.forbidden-flag-combo.
 type Z2Preselect = "accept" | "decline" | null;
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md H3; Ralph gate pipeline extraction is the planned fix.
 export async function runRalphCommand(
-  flags: GlobalFlags,
+  _flags: GlobalFlags,
   positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
@@ -444,6 +445,7 @@ interface ApplyGate5OutcomeArgs {
   z2Preselect: Z2Preselect; // null → run interactive confirm
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md H3; outcome persistence extraction is the planned fix.
 async function applyGate5Outcome(
   args: ApplyGate5OutcomeArgs,
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
@@ -881,6 +883,7 @@ async function emitCapWarningEvents(
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md M2; okEnvelope helper will centralize this shape.
 function buildEnvelope(data: RalphEnvelopeData): CommandEnvelope {
   return {
     command: "agora ralph",

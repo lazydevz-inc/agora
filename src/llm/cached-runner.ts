@@ -43,7 +43,7 @@ export class CachedRunner implements ClaudeRunner {
   ): Promise<void> {
     await appendEvent(this.cwd, {
       type: "llm.call",
-      command: process.env["AGORA_COMMAND"] ?? "agora",
+      command: process.env.AGORA_COMMAND ?? "agora",
       data: {
         cache_key: opts.cache_key ?? null,
         cache_hit: cacheHit,

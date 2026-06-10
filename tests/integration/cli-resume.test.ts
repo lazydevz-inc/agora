@@ -47,7 +47,7 @@ async function seedState(phase: string, alignmentPhase?: number): Promise<void> 
     updated_at: new Date().toISOString(),
   };
   if (alignmentPhase !== undefined) {
-    state["alignment"] = { phase: alignmentPhase, round: 0 };
+    state.alignment = { phase: alignmentPhase, round: 0 };
   }
   await writeFile(join(cwd, ".agora", "state.json"), JSON.stringify(state), "utf8");
 }

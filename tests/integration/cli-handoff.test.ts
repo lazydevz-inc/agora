@@ -190,8 +190,8 @@ describe("agora handoff --from-seed — happy path", () => {
       .map((l) => JSON.parse(l) as { type: string; data: Record<string, unknown> })
       .filter((e) => e.type === "handoff.completed");
     expect(events).toHaveLength(1);
-    expect(events[0]?.data["from_seed"]).toBe(true);
-    expect(events[0]?.data["total_atomic_leaves"]).toBe(2);
+    expect(events[0]?.data.from_seed).toBe(true);
+    expect(events[0]?.data.total_atomic_leaves).toBe(2);
   });
 
   test("re-stamps locked_at to execution time (not the file's stale timestamp)", async () => {

@@ -33,7 +33,7 @@ export function getLocale(): Locale {
 // refuse (cli/flags.ts). Callers: CLI flag resolution (env branch), MCP
 // tool entry (mcp/tools.ts), Mode 2 cost warning (llm/selection.ts).
 export function resolveEnvLocale(): Locale {
-  const raw = (process.env["AGORA_LOCALE"] ?? process.env["LANG"] ?? "en").toLowerCase();
+  const raw = (process.env.AGORA_LOCALE ?? process.env.LANG ?? "en").toLowerCase();
   return raw.startsWith("ko") ? "ko" : "en";
 }
 

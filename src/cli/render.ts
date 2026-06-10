@@ -64,7 +64,7 @@ function emitTui(envelope: CommandEnvelope, useColor: boolean): void {
   const c = makeColors(useColor);
   // For first slice the only TUI path is `agora --version` → single-line.
   if (envelope.command === "agora --version") {
-    const version = envelope.result.data?.["agora_version"];
+    const version = envelope.result.data?.agora_version;
     if (typeof version === "string") {
       console.log(`agora ${version}`);
     }

@@ -35,6 +35,7 @@
     },
     "user": {
       "forbidden_flag_combo": "허용되지 않는 플래그 조합: {detail}",
+      "missing_step_input": "필요한 스텝 입력 누락: {detail}",
       "confirmation_required": "사용자 확인 필요: {detail}",
       "aborted": "중단: {detail}",
       "unknown_command": "알 수 없는 명령: {command}. 사용 가능한 명령은 `agora --help`로 확인하세요."
@@ -189,7 +190,8 @@
       "reprompt_short": "하고 싶은 일을 한 문장으로",
       "editor_opening": "$EDITOR로 긴 입력을 위해 편집기를 엽니다...",
       "soft_cap_warning": "긴 입력 ({bytes} 바이트) — 좋습니다. 더 쓰셔도 되고, `agora`를 다시 실행해 다듬어도 됩니다.",
-      "hard_cap_truncated": "입력이 {bytes} 바이트였습니다 — 16 KB로 잘렸습니다. 캡처된 텍스트는 잘린 부분까지입니다.",
+      "hard_cap_truncated": "입력이 {bytes} 바이트였습니다 — {cap_kb} KB 하드캡을 넘어 앞 {cap_kb} KB만 캡처했습니다. 원본 전체는 {archive_path} 에 보존되어 있습니다.",
+      "hard_cap_truncated_no_archive": "입력이 {bytes} 바이트였습니다 — {cap_kb} KB로 잘렸습니다. (원본 보존에 실패해 잘린 텍스트만 캡처되었습니다.)",
       "echo": "확인. {method} 방식으로 {word_count} 단어 캡처. 예상 라운드 (시드 잠금까지): {estimated_rounds}."
     },
     "trace": {

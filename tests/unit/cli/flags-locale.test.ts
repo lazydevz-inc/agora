@@ -14,50 +14,50 @@ let savedAgoraLocale: string | undefined;
 let savedLang: string | undefined;
 
 beforeEach(() => {
-  savedAgoraLocale = process.env["AGORA_LOCALE"];
-  savedLang = process.env["LANG"];
-  delete process.env["AGORA_LOCALE"];
-  delete process.env["LANG"];
+  savedAgoraLocale = process.env.AGORA_LOCALE;
+  savedLang = process.env.LANG;
+  delete process.env.AGORA_LOCALE;
+  delete process.env.LANG;
 });
 
 afterEach(() => {
-  if (savedAgoraLocale === undefined) delete process.env["AGORA_LOCALE"];
-  else process.env["AGORA_LOCALE"] = savedAgoraLocale;
-  if (savedLang === undefined) delete process.env["LANG"];
-  else process.env["LANG"] = savedLang;
+  if (savedAgoraLocale === undefined) delete process.env.AGORA_LOCALE;
+  else process.env.AGORA_LOCALE = savedAgoraLocale;
+  if (savedLang === undefined) delete process.env.LANG;
+  else process.env.LANG = savedLang;
 });
 
 describe("locale resolution — environment values always fall back", () => {
   test("LANG=C.UTF-8 (CI default) → en, no error", () => {
-    process.env["LANG"] = "C.UTF-8";
+    process.env.LANG = "C.UTF-8";
     const r = parseArgv(["status"]);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.flags.locale).toBe("en");
   });
 
   test("LANG=ja_JP.UTF-8 (unsupported user locale) → en, no error", () => {
-    process.env["LANG"] = "ja_JP.UTF-8";
+    process.env.LANG = "ja_JP.UTF-8";
     const r = parseArgv(["status"]);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.flags.locale).toBe("en");
   });
 
   test("LANG=ko_KR.UTF-8 → ko (prefix match)", () => {
-    process.env["LANG"] = "ko_KR.UTF-8";
+    process.env.LANG = "ko_KR.UTF-8";
     const r = parseArgv(["status"]);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.flags.locale).toBe("ko");
   });
 
   test("empty LANG → en", () => {
-    process.env["LANG"] = "";
+    process.env.LANG = "";
     const r = parseArgv(["status"]);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.flags.locale).toBe("en");
   });
 
   test("AGORA_LOCALE=fr (unsupported) → en fallback, not an error", () => {
-    process.env["AGORA_LOCALE"] = "fr";
+    process.env.AGORA_LOCALE = "fr";
     const r = parseArgv(["status"]);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.value.flags.locale).toBe("en");

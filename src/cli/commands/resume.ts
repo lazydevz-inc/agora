@@ -205,6 +205,7 @@ function buildNoSessionOutcome(): DispatchOutcome {
   };
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md M1; dispatch table extraction is the planned fix.
 function buildAlignmentOutcome(state: State, isBrownfield: boolean): DispatchOutcome {
   const ap = state.alignment?.phase ?? 0;
   const lines: string[] = [
@@ -456,6 +457,7 @@ async function handleRalphComplete(
   return await dialogLoop(cwd, state, stats, preselect, tui);
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tracked in docs/architecture/code-quality-backlog.md M1; ralph-complete dialog extraction is the planned fix.
 async function dialogLoop(
   cwd: string,
   state: State,

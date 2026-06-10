@@ -127,6 +127,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Trace filter parsing is intentionally centralized; split when adding the next filter family.
 function parseTraceFilters(positional: readonly string[]): Result<TraceFilters, AgoraErrorThrown> {
   const types: string[] = [];
   let sinceMs: number | null = null;
@@ -281,39 +282,38 @@ function formatEventLine(e: Event): string {
   return `  ${pc.dim(ts)}  ${pc.cyan(type)}  ${command}  ${summary}`;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Event summary switch is the trace viewer's compact dispatch table; split when event rendering grows again.
 function summarizeData(e: Event): string {
   const d = e.data;
   switch (e.type) {
     case "state.transition":
       return `${e.prev_state_phase ?? "(none)"} → ${e.new_state_phase ?? "?"}`;
     case "gate_1.result":
-      return `leaf=${String(d["leaf_id"] ?? "?")} passed=${String(d["overall_passed"] ?? "?")}`;
+      return `leaf=${String(d.leaf_id ?? "?")} passed=${String(d.overall_passed ?? "?")}`;
     case "gate_2.result":
-      return `leaf=${String(d["leaf_id"] ?? "?")} ${d["skipped"] === true ? "skipped (no playwright config)" : `passed=${String(d["passed"] ?? "?")}`}`;
+      return `leaf=${String(d.leaf_id ?? "?")} ${d.skipped === true ? "skipped (no playwright config)" : `passed=${String(d.passed ?? "?")}`}`;
     case "gate_5.result":
-      return `leaf=${String(d["leaf_id"] ?? "?")} drift=${String(d["drift_score"] ?? "?")} action=${String(d["action"] ?? "?")}`;
+      return `leaf=${String(d.leaf_id ?? "?")} drift=${String(d.drift_score ?? "?")} action=${String(d.action ?? "?")}`;
     case "disputatio.verdict":
-      return `leaf=${String(d["leaf_id"] ?? "?")} verdict=${String(d["verdict"] ?? "?")} objections=${String(d["all_objections_count"] ?? "?")}`;
+      return `leaf=${String(d.leaf_id ?? "?")} verdict=${String(d.verdict ?? "?")} objections=${String(d.all_objections_count ?? "?")}`;
     case "dialog.choice":
-      return `dialog=${String(d["dialog"] ?? "?")} choice=${String(d["choice"] ?? "?")}`;
+      return `dialog=${String(d.dialog ?? "?")} choice=${String(d.choice ?? "?")}`;
     case "cap.warning":
-      return `kind=${String(d["kind"] ?? "?")} attempts=${String(d["attempts"] ?? "?")}/${String(d["cap"] ?? "?")}`;
+      return `kind=${String(d.kind ?? "?")} attempts=${String(d.attempts ?? "?")}/${String(d.cap ?? "?")}`;
     case "llm.call":
-      return `cache_hit=${String(d["cache_hit"] ?? "?")} ok=${String(d["ok"] ?? "?")} attempts=${String(d["attempts"] ?? "?")} duration_ms=${String(d["total_duration_ms"] ?? "?")}`;
+      return `cache_hit=${String(d.cache_hit ?? "?")} ok=${String(d.ok ?? "?")} attempts=${String(d.attempts ?? "?")} duration_ms=${String(d.total_duration_ms ?? "?")}`;
     case "command.invoked": {
-      const positional = Array.isArray(d["positional"])
-        ? (d["positional"] as unknown[]).join(" ")
-        : "";
+      const positional = Array.isArray(d.positional) ? (d.positional as unknown[]).join(" ") : "";
       return positional;
     }
     case "probe.result":
-      return `probe=${String(d["probe_id"] ?? "?")} ok=${String(d["ok"] ?? "?")} duration_ms=${String(d["duration_ms"] ?? "?")}${d["from_cache"] === true ? " (cached)" : ""}`;
+      return `probe=${String(d.probe_id ?? "?")} ok=${String(d.ok ?? "?")} duration_ms=${String(d.duration_ms ?? "?")}${d.from_cache === true ? " (cached)" : ""}`;
     case "intake.captured":
-      return `method=${String(d["method"] ?? "?")} words=${String(d["word_count"] ?? "?")}${d["truncated"] === true ? " (truncated)" : ""}`;
+      return `method=${String(d.method ?? "?")} words=${String(d.word_count ?? "?")}${d.truncated === true ? " (truncated)" : ""}`;
     case "bracket.captured":
-      return `intent_chars=${String(d["raw_intent_chars"] ?? "?")} brackets=${String(d["brackets_count"] ?? "?")}${d["skipped"] === true ? " (skipped)" : ""}`;
+      return `intent_chars=${String(d.raw_intent_chars ?? "?")} brackets=${String(d.brackets_count ?? "?")}${d.skipped === true ? " (skipped)" : ""}`;
     case "handoff.completed":
-      return `roots=${String(d["ac_tree_root_count"] ?? "?")} leaves=${String(d["total_atomic_leaves"] ?? "?")} depth=${String(d["max_depth"] ?? "?")}`;
+      return `roots=${String(d.ac_tree_root_count ?? "?")} leaves=${String(d.total_atomic_leaves ?? "?")} depth=${String(d.max_depth ?? "?")}`;
     default:
       return "";
   }

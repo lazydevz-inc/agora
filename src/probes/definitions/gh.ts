@@ -15,7 +15,7 @@ export const ghProbe: Probe = {
       const m = buildMarkerHelpers(ctx);
       if (await m.fileExists(".github")) return true;
       const remote = await m.gitRemoteUrl();
-      return remote !== null && remote.includes("github.com");
+      return remote?.includes("github.com") ?? false;
     },
   },
   async check(ctx) {

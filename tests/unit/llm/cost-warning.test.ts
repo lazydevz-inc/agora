@@ -18,10 +18,10 @@ const originalEnv = { ...process.env };
 
 beforeEach(() => {
   _resetSelectionForTests();
-  delete process.env["AGORA_NO_COST_WARNING"];
-  delete process.env["AGORA_QUIET"];
-  delete process.env["AGORA_LOCALE"];
-  delete process.env["LANG"];
+  delete process.env.AGORA_NO_COST_WARNING;
+  delete process.env.AGORA_QUIET;
+  delete process.env.AGORA_LOCALE;
+  delete process.env.LANG;
 });
 
 afterEach(() => {
@@ -35,17 +35,17 @@ describe("shouldSuppressCostWarning", () => {
   });
 
   test("AGORA_NO_COST_WARNING=1 → true", () => {
-    process.env["AGORA_NO_COST_WARNING"] = "1";
+    process.env.AGORA_NO_COST_WARNING = "1";
     expect(shouldSuppressCostWarning()).toBe(true);
   });
 
   test("AGORA_QUIET=1 → true", () => {
-    process.env["AGORA_QUIET"] = "1";
+    process.env.AGORA_QUIET = "1";
     expect(shouldSuppressCostWarning()).toBe(true);
   });
 
   test('AGORA_NO_COST_WARNING="" (empty) → false', () => {
-    process.env["AGORA_NO_COST_WARNING"] = "";
+    process.env.AGORA_NO_COST_WARNING = "";
     expect(shouldSuppressCostWarning()).toBe(false);
   });
 });
@@ -82,7 +82,7 @@ describe("maybeEmitMode2CostWarning — emission control", () => {
   });
 
   test("AGORA_NO_COST_WARNING=1 → no stderr write", () => {
-    process.env["AGORA_NO_COST_WARNING"] = "1";
+    process.env.AGORA_NO_COST_WARNING = "1";
     const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     try {
       maybeEmitMode2CostWarning();
@@ -93,7 +93,7 @@ describe("maybeEmitMode2CostWarning — emission control", () => {
   });
 
   test("AGORA_QUIET=1 → no stderr write", () => {
-    process.env["AGORA_QUIET"] = "1";
+    process.env.AGORA_QUIET = "1";
     const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     try {
       maybeEmitMode2CostWarning();
@@ -104,7 +104,7 @@ describe("maybeEmitMode2CostWarning — emission control", () => {
   });
 
   test("ko locale via LANG → Korean message emitted", () => {
-    process.env["LANG"] = "ko_KR.UTF-8";
+    process.env.LANG = "ko_KR.UTF-8";
     const spy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     try {
       maybeEmitMode2CostWarning();

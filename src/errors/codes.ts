@@ -140,6 +140,11 @@ export const ERROR_CATALOG = {
     exit_code: 2,
     message_key: "errors.user.forbidden_flag_combo",
   },
+  "user.missing-step-input": {
+    category: "user",
+    exit_code: 2,
+    message_key: "errors.user.missing_step_input",
+  },
   "user.confirmation-required": {
     category: "user",
     exit_code: 2,

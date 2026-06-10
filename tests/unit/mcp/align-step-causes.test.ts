@@ -296,6 +296,7 @@ describe("runAlignStep — efficient round (happy path)", () => {
 // ─── Socrates (2-claim sequential, both confirmed) ───
 
 describe("runAlignStep — socrates elenchus (2-claim sequential)", () => {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: End-to-end stepped-flow test intentionally preserves the visible sequence.
   test("through efficient → construct[telos] → respond[telos] → construct[form] → respond[form] → complete", async () => {
     await seedThroughEfficient();
 

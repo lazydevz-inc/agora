@@ -28,7 +28,6 @@ import { renderPrompt } from "../../prompts/index.js";
 import {
   AD_SINGULA_SYSTEM,
   AdSingulaResponseSchema,
-  type AdSingulaRuling,
   AdSingulaRulingSchema,
   CriticResponseSchema,
   type DisputatioResult,
@@ -36,7 +35,6 @@ import {
   type Objection,
   ObjectionSchema,
   RESPONDEO_SYSTEM,
-  type Respondeo,
   RespondeoSchema,
   renderObjections,
   SED_CONTRA_SYSTEM,
