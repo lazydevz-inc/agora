@@ -24,7 +24,7 @@ import { runTraceCommand } from "../cli/commands/trace.js";
 import type { GlobalFlags } from "../cli/flags.js";
 import type { CommandEnvelope } from "../cli/render.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
-import { type Locale, SUPPORTED_LOCALES } from "../i18n/index.js";
+import { type Locale, resolveEnvLocale, setLocale } from "../i18n/index.js";
 import type { Result } from "../result/index.js";
 import { runAlignStep } from "./align-step.js";
 import { runRalphStep } from "./ralph-step.js";
@@ -45,10 +45,19 @@ export interface TraceToolArgs {
   limit?: number | undefined;
 }
 
-function mcpLocale(): Locale {
-  const raw = (process.env["AGORA_LOCALE"] ?? process.env["LANG"] ?? "en").toLowerCase();
-  const normalized = raw.startsWith("ko") ? "ko" : "en";
-  return SUPPORTED_LOCALES.includes(normalized as Locale) ? (normalized as Locale) : "en";
+// MCP locale is env-derived (AGORA_LOCALE, then LANG). The `agora mcp` boot
+// path does run the CLI entry's setLocale(flags.locale) (src/cli/index.ts),
+// but the handlers must not depend on that: imported without the CLI boot
+// (unit tests, embedding) the module-global locale would stay "en" and every
+// localized() string (step question prompts, error messages) would ignore
+// the environment. Called at every tool entry: via mcpFlags() for the
+// wrapped commands, and directly by the stepped tools (which don't build
+// GlobalFlags). Env wins on every call — a --locale flag passed at `agora
+// mcp` boot is deliberately not honored for envelope strings.
+function applyMcpLocale(): Locale {
+  const locale = resolveEnvLocale();
+  setLocale(locale);
+  return locale;
 }
 
 function mcpFlags(): GlobalFlags {
@@ -58,7 +67,7 @@ function mcpFlags(): GlobalFlags {
     help: false,
     version: false,
     json: true,
-    locale: mcpLocale(),
+    locale: applyMcpLocale(),
     quiet: false,
     verbose: false,
     noColor: true,
@@ -233,9 +242,11 @@ export function stepEnvelopeToMcp(result: Result<StepEnvelope, AgoraErrorThrown>
 }
 
 export async function mcpAlignStep(rawArgs: unknown): Promise<McpToolResult> {
+  applyMcpLocale();
   return stepEnvelopeToMcp(await runAlignStep(rawArgs));
 }
 
 export async function mcpRalphStep(rawArgs: unknown): Promise<McpToolResult> {
+  applyMcpLocale();
   return stepEnvelopeToMcp(await runRalphStep(rawArgs));
 }

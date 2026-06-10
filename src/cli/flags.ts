@@ -7,7 +7,7 @@
 
 import { buildAgoraError } from "../errors/build.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
-import { type Locale, SUPPORTED_LOCALES } from "../i18n/index.js";
+import { type Locale, resolveEnvLocale, SUPPORTED_LOCALES } from "../i18n/index.js";
 import { err, ok, type Result } from "../result/index.js";
 
 export interface GlobalFlags {
@@ -150,9 +150,7 @@ function resolveLocale(localeFlag: string | undefined): Result<Locale, AgoraErro
     }
     return ok(normalized as Locale);
   }
-  const envLocale = process.env["AGORA_LOCALE"] ?? process.env["LANG"] ?? "en";
-  const normalized = normalizeLocale(envLocale);
-  return ok(SUPPORTED_LOCALES.includes(normalized as Locale) ? (normalized as Locale) : "en");
+  return ok(resolveEnvLocale());
 }
 
 function normalizeLocale(raw: string): string {

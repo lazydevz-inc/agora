@@ -10,9 +10,12 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { AgoraErrorThrown } from "@/errors/types.js";
+import { lookupKey } from "@/i18n/catalog.js";
+import { loadCatalog, setLocale } from "@/i18n/index.js";
 import { buildAgoraMcpServer } from "@/mcp/server.js";
 import {
   envelopeToMcp,
+  mcpAlignStep,
   mcpDoctor,
   mcpIntake,
   mcpNew,
@@ -22,6 +25,8 @@ import {
   mcpTrace,
 } from "@/mcp/tools.js";
 import { err, ok } from "@/result/index.js";
+import { writeJsonAtomic } from "@/shared/io.js";
+import { newState } from "@/state/types.js";
 
 let cwd: string;
 let originalCwd: string;
@@ -203,6 +208,83 @@ describe("mcpToolForCommand — next[] hints for the MCP host", () => {
   test("interactive-only commands have no MCP equivalent", () => {
     expect(mcpToolForCommand("agora bracket")).toBeUndefined();
     expect(mcpToolForCommand("agora ping")).toBeUndefined();
+  });
+});
+
+describe("MCP locale — env-derived, applied at tool entry via setLocale", () => {
+  // Regression guard: the MCP server has no argv, so nothing called
+  // setLocale() and every localized() string (step question prompts,
+  // error messages) stayed pinned to "en" regardless of AGORA_LOCALE/LANG.
+  // Tool entry now applies resolveEnvLocale() before any envelope is built.
+  let savedAgoraLocale: string | undefined;
+  let savedLang: string | undefined;
+
+  beforeEach(() => {
+    savedAgoraLocale = process.env["AGORA_LOCALE"];
+    savedLang = process.env["LANG"];
+    delete process.env["AGORA_LOCALE"];
+    delete process.env["LANG"];
+  });
+
+  afterEach(() => {
+    if (savedAgoraLocale === undefined) delete process.env["AGORA_LOCALE"];
+    else process.env["AGORA_LOCALE"] = savedAgoraLocale;
+    if (savedLang === undefined) delete process.env["LANG"];
+    else process.env["LANG"] = savedLang;
+    setLocale("en"); // tool entry mutates the module-global locale
+  });
+
+  // Minimal session so the first agora_align_step call reaches the telos
+  // questions envelope (same shape as align-step.test.ts seedSession).
+  async function seedAlignSession() {
+    await mkdir(join(cwd, ".agora"), { recursive: true });
+    await writeJsonAtomic(join(cwd, ".agora", "state.json"), newState());
+    await writeJsonAtomic(join(cwd, ".agora", "intake.json"), {
+      raw_intake: "A CLI that aligns human intent with AI execution.",
+      intake_method: "inline",
+      intake_word_count: 9,
+      intake_byte_size: 50,
+      intake_truncated: false,
+      intake_duration_ms: 10,
+      estimated_rounds: "3-5 rounds",
+      classification: "greenfield",
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  async function telosQuestionPrompt(): Promise<string | undefined> {
+    const r = await mcpAlignStep({});
+    expect(r.isError).toBeUndefined();
+    const envelope = JSON.parse(r.content[0]?.text ?? "{}") as {
+      kind: string;
+      questions: { id: string; prompt: string }[];
+    };
+    expect(envelope.kind).toBe("needs_user_input");
+    expect(envelope.questions[0]?.id).toBe("q_why_exists");
+    return envelope.questions[0]?.prompt;
+  }
+
+  test("AGORA_LOCALE=ko → telos question prompt resolves to the ko catalog string", async () => {
+    process.env["AGORA_LOCALE"] = "ko";
+    await seedAlignSession();
+    const koPrompt = lookupKey(loadCatalog("ko"), "cli.telos.q_why_exists");
+    expect(typeof koPrompt).toBe("string");
+    expect(await telosQuestionPrompt()).toBe(koPrompt);
+  });
+
+  test("LANG=ko_KR.UTF-8 (no AGORA_LOCALE) → ko catalog string too", async () => {
+    process.env["LANG"] = "ko_KR.UTF-8";
+    await seedAlignSession();
+    expect(await telosQuestionPrompt()).toBe(
+      lookupKey(loadCatalog("ko"), "cli.telos.q_why_exists"),
+    );
+  });
+
+  test("no AGORA_LOCALE/LANG → prompt stays on the en catalog", async () => {
+    await seedAlignSession();
+    expect(await telosQuestionPrompt()).toBe(
+      lookupKey(loadCatalog("en"), "cli.telos.q_why_exists"),
+    );
   });
 });
 

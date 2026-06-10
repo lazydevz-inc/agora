@@ -26,6 +26,17 @@ export function getLocale(): Locale {
   return currentLocale;
 }
 
+// Single source of truth for environment locale sniffing (AGORA_LOCALE,
+// then LANG). Env-derived locales never hard-error: the OS sets LANG for
+// every process (CI ships C.UTF-8, users run ja_JP.UTF-8 etc.), so
+// unsupported values fall back to "en". Only an explicit --locale flag may
+// refuse (cli/flags.ts). Callers: CLI flag resolution (env branch), MCP
+// tool entry (mcp/tools.ts), Mode 2 cost warning (llm/selection.ts).
+export function resolveEnvLocale(): Locale {
+  const raw = (process.env["AGORA_LOCALE"] ?? process.env["LANG"] ?? "en").toLowerCase();
+  return raw.startsWith("ko") ? "ko" : "en";
+}
+
 export function localized(key: string, ctx?: Record<string, string>): string {
   const catalog = CATALOGS[currentLocale];
   const template = lookupKey(catalog, key);

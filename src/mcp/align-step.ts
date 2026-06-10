@@ -20,6 +20,7 @@ import type { ElenchusFile } from "../cli/commands/socrates.js";
 import { buildAgoraError } from "../errors/build.js";
 import type { AgoraErrorThrown } from "../errors/types.js";
 import { buildSeed } from "../handoff/seed-builder.js";
+import { getLocale } from "../i18n/index.js";
 import type {
   EfficientClaim,
   FormClaim,
@@ -467,7 +468,10 @@ async function beginSocratesRound(
       detected_files: [],
       detected_patterns: [...scan.detected_patterns],
     },
-    locale: socratesLocale(),
+    // Same global locale every other localized() surface uses — set at MCP
+    // tool entry (tools.ts applyMcpLocale); the CLI socrates command passes
+    // flags.locale, which the CLI entry also feeds into setLocale().
+    locale: getLocale(),
   });
   return await applySocratesOutcome(cwd, state, outcome);
 }
@@ -937,11 +941,6 @@ async function ensureScan(cwd: string): Promise<Phase0Output> {
   const scan = await runPhase0Scan(cwd);
   await writeJsonAtomic(path, scan);
   return scan;
-}
-
-function socratesLocale(): "en" | "ko" {
-  const raw = (process.env["AGORA_LOCALE"] ?? process.env["LANG"] ?? "en").toLowerCase();
-  return raw.startsWith("ko") ? "ko" : "en";
 }
 
 // ─── Expects matcher ───

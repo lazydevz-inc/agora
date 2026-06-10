@@ -18,6 +18,16 @@
 - ✅ **`shared/version.ts`** — `getAgoraVersion()`/`readPackageVersion()` was
   copy-pasted in 20 files (18 commands + `render.ts` + `mcp/server.ts`). Extracted
   to one memoized `agoraVersion()`; −244 LOC. (`pnpm verify` green, 471 tests.)
+- ✅ **env→locale sniffing deduped (was M6)** (2026-06-10) — the `AGORA_LOCALE ?? LANG`
+  ko-prefix sniff was copied 4× (`cli/flags.ts resolveLocale` env branch,
+  `mcp/tools.ts mcpLocale`, `mcp/align-step.ts socratesLocale`,
+  `llm/selection.ts detectLocale`). Now one `i18n/resolveEnvLocale()`. MCP tool
+  entry additionally applies it via `setLocale()`, so handlers stay correct even
+  without the `agora mcp` CLI boot path (direct import / unit tests were pinned
+  to "en"); Socrates classification reads `getLocale()` instead of re-sniffing.
+  Deliberate semantic: MCP locale is env-derived per tool call — a `--locale`
+  flag on `agora mcp` boot is not honored for envelope strings.
+  (`pnpm verify` green, 532 tests.)
 
 ## High — do these first (the "command/step shell")
 
@@ -37,7 +47,6 @@
 | M3 | `user.aborted` overloaded across 43 sites; the actionable guidance lives only in an un-localized `detail` string (never reaches the ko catalog). | A few precise codes (`user.prerequisite-missing`, `user.interactive-only`, `user.over-step-guard`) with parameterized, localized message keys. |
 | M4 | Per-command flag parsing hand-rolled 3× (`parseAcArgs`, `parseHandoffArgs`, `parseZ2Preselect`). | `cli/flags.ts: parseValueFlag()` / `parseEnumFlag()`. |
 | M5 | `maturity.ts applyXMaturity` ×4 and `align-step.ts applyMaturityToCauses` are the same fold written twice (CLI vs MCP divergence risk). | One `applyMaturityTags(causes, perCause)` in `philosophers/plato.ts`, reused by both paths. |
-| M6 | env→locale sniffing (`AGORA_LOCALE ?? LANG`, ko-prefix check) duplicated 4×: `cli/flags.ts resolveLocale`, `mcp/tools.ts mcpLocale`, `mcp/align-step.ts socratesLocale`, `llm/selection.ts detectLocale`. Behavior is consistent today (verified 2026-06-10 against the live MCP server: `AGORA_LOCALE=ko` → ko envelopes, `LANG=ja_JP` → en fallback — `agora mcp` boots through the CLI entry, which calls `setLocale` before dispatch), but four copies can drift. | One `resolveEnvLocale()` in `i18n/`; call sites that run after CLI entry use `getLocale()` instead of re-sniffing. |
 
 ## Low
 

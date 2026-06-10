@@ -13,6 +13,7 @@
 // so MCP mode is naturally silent. AGORA_NO_COST_WARNING=1 (or AGORA_QUIET=1)
 // suppresses.
 
+import { resolveEnvLocale } from "../i18n/index.js";
 import { spawnExec } from "../shared/spawn.js";
 import { type LLMCache, loadLLMCache } from "./cache.js";
 import { CachedRunner } from "./cached-runner.js";
@@ -85,7 +86,7 @@ export function maybeEmitMode2CostWarning(): void {
     costWarningEmitted = true;
     return;
   }
-  process.stderr.write(`${buildCostWarningMessage(detectLocale())}\n`);
+  process.stderr.write(`${buildCostWarningMessage(resolveEnvLocale())}\n`);
   costWarningEmitted = true;
 }
 
@@ -108,9 +109,4 @@ export function buildCostWarningMessage(locale: "en" | "ko"): string {
     "    Run agora as an MCP plugin inside Claude Code (agora_align_step / agora_ralph_step) to use the host session's interactive subscription — no extra billing.",
     "    Setup: see ADR-0009 / ADR-0010 · Silence: AGORA_NO_COST_WARNING=1",
   ].join("\n");
-}
-
-function detectLocale(): "en" | "ko" {
-  const raw = (process.env["AGORA_LOCALE"] ?? process.env["LANG"] ?? "en").toLowerCase();
-  return raw.startsWith("ko") ? "ko" : "en";
 }

@@ -1,10 +1,16 @@
 // SPEC: docs/architecture/locale-catalog.md (Stage 5-A.5).
 
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { AgoraErrorThrown } from "@/errors/types.js";
 import { lookupKey } from "@/i18n/catalog.js";
-import { getLocale, localized, SUPPORTED_LOCALES, setLocale } from "@/i18n/index.js";
+import {
+  getLocale,
+  localized,
+  resolveEnvLocale,
+  SUPPORTED_LOCALES,
+  setLocale,
+} from "@/i18n/index.js";
 
 afterEach(() => setLocale("en"));
 
@@ -62,6 +68,47 @@ describe("i18n", () => {
       const err = e as AgoraErrorThrown;
       expect(err.context).toMatchObject({ kind: "missing_placeholder", placeholder: "file" });
     }
+  });
+});
+
+describe("resolveEnvLocale — shared env locale resolver", () => {
+  let savedAgoraLocale: string | undefined;
+  let savedLang: string | undefined;
+
+  beforeEach(() => {
+    savedAgoraLocale = process.env["AGORA_LOCALE"];
+    savedLang = process.env["LANG"];
+    delete process.env["AGORA_LOCALE"];
+    delete process.env["LANG"];
+  });
+
+  afterEach(() => {
+    if (savedAgoraLocale === undefined) delete process.env["AGORA_LOCALE"];
+    else process.env["AGORA_LOCALE"] = savedAgoraLocale;
+    if (savedLang === undefined) delete process.env["LANG"];
+    else process.env["LANG"] = savedLang;
+  });
+
+  test("unset env → en", () => {
+    expect(resolveEnvLocale()).toBe("en");
+  });
+
+  test("AGORA_LOCALE=ko → ko; takes precedence over LANG", () => {
+    process.env["AGORA_LOCALE"] = "ko";
+    process.env["LANG"] = "en_US.UTF-8";
+    expect(resolveEnvLocale()).toBe("ko");
+  });
+
+  test("LANG=ko_KR.UTF-8 → ko (prefix match)", () => {
+    process.env["LANG"] = "ko_KR.UTF-8";
+    expect(resolveEnvLocale()).toBe("ko");
+  });
+
+  test("unsupported values fall back to en, never error", () => {
+    process.env["LANG"] = "ja_JP.UTF-8";
+    expect(resolveEnvLocale()).toBe("en");
+    process.env["AGORA_LOCALE"] = "fr";
+    expect(resolveEnvLocale()).toBe("en");
   });
 });
 
