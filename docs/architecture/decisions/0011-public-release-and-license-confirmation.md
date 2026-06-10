@@ -1,6 +1,11 @@
 # ADR-0011 — Public Release and License Confirmation
 
 > **Status**: Accepted (2026-06-04 — flips visibility to public + confirms MIT, the license ADR-0007 deferred)
+> **Amendment (2026-06-11, PR #9)**: Agora borrows concepts, not code, so Q00
+> attribution moved out of `LICENSE` (now the standard MIT notice, Sang's
+> copyright only) and lives as an inspiration credit in `CREDITS.md`/`README.md`.
+> Mentions of "`LICENSE` + `CREDITS.md` preserve Q00 attribution" below describe
+> the 2026-06-04 state.
 > **Date**: 2026-06-02 (accepted 2026-06-04)
 > **Decided by**: Sang Rhee
 > **Discussed with**: Claude
