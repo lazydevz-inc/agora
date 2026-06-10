@@ -257,9 +257,10 @@ describe("agora trace --follow (Stage 6-A.32)", () => {
   });
 
   test("describeFilters surfaces follow marker in TUI header", async () => {
-    // Use a 250ms timeout to spawn-and-kill before the poll loop blocks
-    // forever. The initial-backlog print happens synchronously; we just
-    // need to capture it before SIGTERM.
+    // Spawn-and-kill before the poll loop blocks forever. The
+    // initial-backlog print happens synchronously after startup; the
+    // timeout only needs to outlive tsx's cold start, which can exceed
+    // 2s on CI runners (a 500ms window flaked there with empty stdout).
     await mkdir(join(cwd, ".agora"), { recursive: true });
     await writeFile(
       join(cwd, ".agora", "events.jsonl"),
@@ -277,7 +278,7 @@ describe("agora trace --follow (Stage 6-A.32)", () => {
       output = execSync(`${TSX} ${CLI_ABS} trace --follow`, {
         stdio: "pipe",
         cwd,
-        timeout: 500, // SIGTERM after 500ms; initial print + poll-loop entry already happened
+        timeout: 5000, // SIGTERM after 5s; initial print + poll-loop entry already happened
       }).toString();
     } catch (e) {
       // execSync throws on SIGTERM; capture stdout up to that point
