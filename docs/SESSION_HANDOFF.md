@@ -441,9 +441,11 @@ Surprises that cost real iteration time. Read once, internalize.
 
 (Update this section per session.)
 
-**Last verified state at this writing (2026-06-10)**: Stage 6, 34 slices done.
-**v0.0.1-alpha.1 published to npm** (`@lazydevz/agora`; alpha.0 2026-06-04 →
-alpha.1 2026-06-10). Repo public + MIT (ADR-0011). 525 tests / 60 files.
+**Last verified state at this writing (2026-06-11)**: Stage 6, 34 slices done.
+**v0.0.1-alpha.2 published to npm** (`@lazydevz/agora`; alpha.0 2026-06-04 →
+alpha.1 → alpha.2 2026-06-10). Repo public + MIT (ADR-0011). 533 tests / 60 files.
+npm은 이제 프리릴리즈 publish에 dist-tag 명시를 요구한다 — `pnpm publish --tag latest`
+(OTP는 Sang이 직접 입력; 비대화형 셸에서는 publish 불가).
 CLAUDE.md 하단 **Version** 단락이 정확한 기능 스냅샷이다 — 그걸 기준으로 삼을 것.
 
 **Working commands** (CLI 19 + MCP server):
@@ -461,7 +463,8 @@ MCP server  : agora mcp — 8 tools (status / doctor / resume / new / intake /
 - Mode 2 cost-warning UX 개선 (1차 경고 + `AGORA_NO_COST_WARNING`는 shipped)
 - prompt-library refactor (인라인 프롬프트 → generator)
 - `.claude-plugin/{plugin,marketplace}.json` 버전을 release 플로우에서 자동
-  bump (alpha.1 릴리스 때 누락 → 2026-06-10 수동 동기화)
+  bump (alpha.1 릴리스 때 누락 → 수동 동기화; alpha.2는 release PR에서 함께
+  bump해 누락은 없었지만 자동화는 여전히 미구현)
 
 ---
 
