@@ -23,10 +23,34 @@
 
 > **Your AI agent doesn't fail at writing code. It fails at understanding what you meant.**
 >
-> Agora is the missing layer that sits between you and your AI coding agent. Before
-> a single line is written, five ancient philosophers interrogate your intent until
-> it's unambiguous. Then a verification-gated loop builds it — checking at *every
-> iteration* that the output still matches what you actually wanted.
+> Agora is a **Human-AI Alignment (HAA) framework** for making human taste
+> executable by AI coding agents.
+>
+> Before a single line is written, five ancient philosophers interrogate your
+> intent until it's unambiguous. Then a verification-gated loop builds it —
+> checking at *every iteration* that the output still matches what you actually
+> wanted.
+
+---
+
+## Quick start
+
+> Requires [Claude Code](https://claude.com/claude-code) (authenticated with a
+> Claude subscription) and Node 22+.
+
+```bash
+npm install -g @lazydevz/agora                 # installs the `agora` CLI + MCP server
+claude mcp add --scope user agora -- agora mcp # register the tools in every project
+```
+
+Then open Claude Code in your project and ask:
+
+> *"Use agora to align on a settings page, then build it."*
+
+Claude Code will call Agora's tools as needed: start or resume the project-local
+`.agora/` session, run alignment, and build through the gates.
+
+More install options and a worked example: [`docs/getting-started.md`](docs/getting-started.md)
 
 ---
 
@@ -176,73 +200,6 @@ polished lie — here's exactly what works today.
 > via the stepped MCP tools. Standalone CLI (subprocess) mode remains supported
 > for non-plugin users but draws Anthropic's metered Agent-SDK credit pool from
 > 2026-06-15 (see ADR-0009 / ADR-0010).
-
----
-
-## Quick start
-
-> Requires [Claude Code](https://claude.com/claude-code) (authenticated with a
-> Claude subscription) and Node 22+.
-
-Agora installs as a set of `agora_*` tools your Claude Code session drives —
-including `agora_new`, so the whole flow (start → align → build) lives inside
-Claude Code. A standalone `agora` CLI is also there if you prefer the terminal;
-one install gives you both.
-
-### Install — recommended (npm)
-
-```bash
-npm install -g @lazydevz/agora                 # installs the `agora` CLI + MCP server
-claude mcp add --scope user agora -- agora mcp # register the tools in every project
-```
-
-Prefer a one-click **plugin**? It registers all eight tools, so the entire flow —
-starting a session included — happens inside Claude Code:
-
-```text
-/plugin marketplace add lazydevz-inc/agora
-/plugin install agora
-```
-
-### Install — from source (contributors / latest `main`)
-
-```bash
-git clone https://github.com/lazydevz-inc/agora.git
-cd agora && pnpm install && pnpm build && npm link   # `npm link` puts `agora` on your PATH
-claude mcp add --scope user agora -- agora mcp
-```
-
-Open a fresh Claude Code session and the eight tools appear:
-`agora_status` · `agora_doctor` · `agora_resume` · `agora_new` · `agora_intake` ·
-`agora_trace` · `agora_align_step` · `agora_ralph_step`.
-
-### Use it
-
-In your project, just talk to Claude Code:
-
-> *"Use agora to align on a settings page, then build it."*
-
-Claude Code calls `agora_new` to start the session, captures your raw intent via
-`agora_intake`, runs the philosophers' interview via `agora_align_step`, locks a
-**Seed**, then builds it through the gates via `agora_ralph_step` — re-checking
-that the output still matches your intent at every iteration. No flags to
-memorize; every question shows *why* it's asked. *(Prefer the terminal? `agora new my-feature` does the same first step.)*
-
-→ **Full walkthrough with a worked example:** [`docs/getting-started.md`](docs/getting-started.md)
-
-<details>
-<summary>Or drive it entirely from the terminal (standalone CLI)</summary>
-
-```bash
-agora new my-feature
-agora resume        # Agora tells you the next step, every time
-```
-
-⚠️ In standalone mode Agora calls `claude` itself, which from 2026-06-15 draws
-Anthropic's metered Agent-SDK credit pool ($20–$200/mo). The in-Claude-Code
-install above avoids this. Suppress the per-run reminder with
-`AGORA_NO_COST_WARNING=1`.
-</details>
 
 ---
 

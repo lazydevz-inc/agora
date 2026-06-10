@@ -1,7 +1,7 @@
 {
   "name": "@lazydevz/agora",
   "version": "0.0.1-alpha.2",
-  "description": "A Claude Code MCP alignment harness that refines intent into a verifiable Seed, then builds through gated checks.",
+  "description": "A Human-AI Alignment (HAA) framework for making human taste executable by AI coding agents.",
   "license": "MIT",
   "author": {
     "name": "Sang Rhee",
