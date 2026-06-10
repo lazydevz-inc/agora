@@ -67,6 +67,45 @@ function mcpFlags(): GlobalFlags {
   };
 }
 
+// Map a suggested CLI command to the MCP tool that covers it, so the host
+// model doesn't have to guess "agora intake" → agora_intake (or worse, try
+// to run an interactive CLI command in a TTY it doesn't have). Phase-2
+// alignment shortcuts all route to the stepped agora_align_step. Returns
+// undefined for commands with no MCP equivalent (e.g. interactive bracket).
+const MCP_TOOL_BY_COMMAND: readonly [RegExp, string][] = [
+  [/^agora new\b/, "agora_new"],
+  [/^agora doctor\b/, "agora_doctor"],
+  [/^agora status\b/, "agora_status"],
+  [/^agora resume\b/, "agora_resume"],
+  [/^agora trace\b/, "agora_trace"],
+  [/^agora intake\b/, "agora_intake"],
+  [
+    /^agora (telos|form|material|efficient|round|socrates|maturity|ac|handoff)\b/,
+    "agora_align_step",
+  ],
+  [/^agora ralph\b/, "agora_ralph_step"],
+];
+
+export function mcpToolForCommand(command: string): string | undefined {
+  for (const [re, tool] of MCP_TOOL_BY_COMMAND) {
+    if (re.test(command)) return tool;
+  }
+  return undefined;
+}
+
+// Decorate next[] with the MCP tool hint. Done HERE (the MCP boundary)
+// rather than in the envelope builders, so the CLI JSON envelope shape
+// stays exactly per docs/cli/spec.md Stage 3-A.1.
+function decorateNext(envelope: CommandEnvelope): Record<string, unknown> {
+  return {
+    ...envelope,
+    next: envelope.next.map((n) => {
+      const tool = mcpToolForCommand(n.command);
+      return tool === undefined ? n : { ...n, mcp_tool: tool };
+    }),
+  };
+}
+
 export function envelopeToMcp(result: Result<CommandEnvelope, AgoraErrorThrown>): McpToolResult {
   if (!result.ok) {
     return {
@@ -84,7 +123,7 @@ export function envelopeToMcp(result: Result<CommandEnvelope, AgoraErrorThrown>)
     };
   }
   return {
-    content: [{ type: "text", text: JSON.stringify(result.value, null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(decorateNext(result.value), null, 2) }],
   };
 }
 

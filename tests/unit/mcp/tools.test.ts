@@ -18,6 +18,7 @@ import {
   mcpNew,
   mcpResume,
   mcpStatus,
+  mcpToolForCommand,
   mcpTrace,
 } from "@/mcp/tools.js";
 import { err, ok } from "@/result/index.js";
@@ -184,5 +185,34 @@ describe("mcpDoctor — flag threading (B15)", () => {
 describe("buildAgoraMcpServer", () => {
   test("constructs a server without throwing", () => {
     expect(() => buildAgoraMcpServer()).not.toThrow();
+  });
+});
+
+describe("mcpToolForCommand — next[] hints for the MCP host", () => {
+  test("maps CLI commands to their MCP tools", () => {
+    expect(mcpToolForCommand("agora new <name>")).toBe("agora_new");
+    expect(mcpToolForCommand("agora doctor --refresh")).toBe("agora_doctor");
+    expect(mcpToolForCommand("agora resume --accept-deferred (or --re-align / --view-log)")).toBe(
+      "agora_resume",
+    );
+    expect(mcpToolForCommand("agora telos")).toBe("agora_align_step");
+    expect(mcpToolForCommand("agora round")).toBe("agora_align_step");
+    expect(mcpToolForCommand("agora ralph")).toBe("agora_ralph_step");
+  });
+
+  test("interactive-only commands have no MCP equivalent", () => {
+    expect(mcpToolForCommand("agora bracket")).toBeUndefined();
+    expect(mcpToolForCommand("agora ping")).toBeUndefined();
+  });
+});
+
+describe("envelopeToMcp — next[] decorated with mcp_tool at the MCP boundary", () => {
+  test("status next entry carries mcp_tool agora_new when no session", async () => {
+    const result = await mcpStatus();
+    const envelope = JSON.parse(result.content[0]?.text ?? "{}") as {
+      next: { id: string; command: string; mcp_tool?: string }[];
+    };
+    const startNew = envelope.next.find((n) => n.id === "start_new");
+    expect(startNew?.mcp_tool).toBe("agora_new");
   });
 });

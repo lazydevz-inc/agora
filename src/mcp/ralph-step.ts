@@ -38,7 +38,7 @@ import type { AgoraErrorThrown } from "../errors/types.js";
 import type { ACNode } from "../handoff/dihairesis.js";
 import type { Seed } from "../handoff/seed-builder.js";
 import type { DisputatioResult } from "../ralph/disputatio.js";
-import { runGate1 } from "../ralph/gate-1.js";
+import { runGate1WithCache } from "../ralph/gate-1-cache.js";
 import { runGate2 } from "../ralph/gate-2.js";
 import {
   buildGate5UserPrompt,
@@ -52,7 +52,7 @@ import { countAtomicLeaves, selectNextLeaf } from "../ralph/leaf-selector.js";
 import { newRalphState, type RalphState, RalphStateSchema } from "../ralph/state.js";
 import { err, ok, type Result } from "../result/index.js";
 import { appendEvent } from "../shared/events.js";
-import { getRecentDiff } from "../shared/git-diff.js";
+import { getRecentDiff, parseChangedFiles } from "../shared/git-diff.js";
 import { readJsonOrNull, writeJsonAtomic } from "../shared/io.js";
 import { findProjectRoot, hasAgoraSession } from "../shared/path.js";
 import { spawnExec } from "../shared/spawn.js";
@@ -316,14 +316,18 @@ async function runGatesForLeaf(
   }
   const attemptsBefore = ralphState.per_leaf_attempts[leafId] ?? 0;
 
-  // Gate 1 (deterministic, sequential)
-  const gate1 = await runGate1({ cwd });
+  // Gate 1 (deterministic, sequential; tree-fingerprint memoized — an
+  // unchanged tree re-yields the same verdict, so sibling leaves don't
+  // re-pay the full typecheck/lint/test/build wall-clock).
+  const gate1Run = await runGate1WithCache({ cwd });
+  const gate1 = gate1Run.result;
   await appendEvent(cwd, {
     type: "gate_1.result",
     command: "agora_ralph_step",
     data: {
       leaf_id: leafId,
       passed: gate1.overall_passed,
+      from_cache: gate1Run.from_cache,
       failed_commands: gate1.commands.filter((c) => !c.passed).map((c) => c.name),
     },
   });
@@ -697,7 +701,14 @@ async function kickoffDisputatio(
       ? "(none — first leaf)"
       : ralphState.completed_leaves.map((id) => `- ${id}`).join("\n");
   const diff = await getRecentDiff(cwd);
-  const ctx = { leaf_content: leafContent, changed_files: [] as string[] };
+  // Real selection signals: the judged diff's file list + the seed's tech
+  // stack — previously hardcoded empty, leaving file_pattern/tech_stack
+  // critic triggers permanently dead in the MCP path.
+  const ctx = {
+    leaf_content: leafContent,
+    changed_files: parseChangedFiles(diff.diff),
+    tech_stack: seed.four_causes.material?.tech_stack ?? [],
+  };
   const critics = selectCritics(ctx);
   // Fallback: if no critics matched (shouldn't happen — universal critic
   // is always-trigger), advance leaf directly using last Gate 5.
@@ -722,7 +733,6 @@ async function kickoffDisputatio(
     diff_source: diff.source,
     critics,
   });
-  void ctx;
   return await applyDisputatioOutcome(cwd, state, seed, ralphState, outcome, ralphStatePath);
 }
 
