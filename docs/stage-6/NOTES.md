@@ -5381,3 +5381,40 @@ exit 0, 66,705-byte envelope parses whole, archive byte-identical,
 intake.json carries the first 65,536 bytes on a clean codepoint
 boundary. Tests: 537 passing (was 533).
 DoD: typecheck ✓ lint ✓ test ✓ build ✓ + manual CLI check ✓.
+
+### Question attribution over MCP (philosopher + purpose_label) — DONE (2026-06-11)
+
+Sang's live-session feedback: during the MCP alignment loop you can't
+tell WHICH philosopher is asking or WHY — "claude code가 감추는건지
+agora가 명시를 안해주는건지". Diagnosis: Agora never sent it. The TUI
+path has `cli.<round>.intro` lines ("Aristotle telos round — ...") but
+the `needs_user_input` StepQuestion carried only id/prompt/hint/
+open_question — the host literally cannot show what the envelope omits.
+This is forbidden pattern F2 ("왜 이 질문" purpose label 없음) leaking
+through the MCP surface, even though the alignment-loop.md round
+planner already specifies `purpose_label` per round.
+
+Shipped:
+- `StepQuestionSchema` + optional `philosopher` (enum of the 5
+  first-class modules — `PhilosopherIdSchema`, exported) + optional
+  `purpose_label` (src/mcp/step.ts). Both optional → old pending
+  records keep parsing.
+- All 11 needs_user_input issue sites attributed per the round
+  planner's Conductor/Contributor model: telos ×4 + form ×3 +
+  material ×3 + efficient ×3 + ac (Aristotle — "Aristotle.ac_drafter"
+  per spec §Round-planner), socrates.respond (Socrates),
+  maturity.ask + handoff.confirm (Plato), ralph.confirm_z2
+  (loop-policy: purpose_label only, no philosopher).
+- purpose_label strings are localized — 18 new `cli.*.purpose_*` keys
+  × en/ko (36 strings). Ralph Z2's duplicated question literal
+  (pending + envelope) collapsed into one `z2Question` const.
+- Relay contract in both stepped-tool descriptions: ALWAYS surface
+  philosopher + purpose_label alongside the question (suggested
+  rendering "🏛 Aristotle — <purpose_label>"); never hide who is
+  asking or why.
+
+Manual check (built dist, mcpAlignStep entry): en + ko envelopes carry
+`"philosopher": "aristotle"` + localized purpose_label on all 3 telos
+questions. Tests: 538 passing (60 files; was 537 — +1 schema test, +4
+assertion extensions across align/handoff/ralph step tests).
+DoD: typecheck ✓ lint ✓ lint:locale ✓ test ✓ build ✓.

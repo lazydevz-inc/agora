@@ -113,12 +113,16 @@ function issueQuestionsStep(scratch: FormScratch): FormStepOutcome {
       id: "q_essential_structure",
       prompt: localized("cli.form.q_essential_structure", { telos: scratch.input.telos_statement }),
       hint: "high-level structure, not feature list",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.form.purpose_q_essential_structure"),
       open_question: true,
     },
     {
       id: "q_irreducible_parts",
       prompt: localized("cli.form.q_irreducible_parts"),
       hint: "comma-separated list",
+      philosopher: "aristotle",
+      purpose_label: localized("cli.form.purpose_q_irreducible_parts"),
       open_question: true,
     },
   ];
@@ -194,6 +198,8 @@ function issueRefinementStep(scratch: FormScratch): FormStepOutcome {
     id: "q_refinement",
     prompt: localized("cli.form.q_feature_list_refinement"),
     hint: `Re-articulate without listing features (${reason})`,
+    philosopher: "aristotle",
+    purpose_label: localized("cli.form.purpose_q_refinement"),
     open_question: true,
   };
   return {

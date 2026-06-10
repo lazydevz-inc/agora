@@ -35,6 +35,7 @@ import {
   PLATO_DH_SYSTEM,
   renderTreeForReview,
 } from "../../handoff/dihairesis.js";
+import { localized } from "../../i18n/index.js";
 import { err, ok, type Result } from "../../result/index.js";
 import type { McpPending } from "../pending.js";
 import type {
@@ -244,6 +245,8 @@ function issueConfirmStep(scratch: HandoffScratch): HandoffStepOutcome {
     id: "q_confirm",
     prompt: `Review the proposed ac_tree. Answer "yes" to lock the seed (state advances to ready_for_ralph) or "no" to keep ac_tree.json for review and leave the session in alignment_complete.\n\n${rendered}`,
     hint: 'reply "yes" or "no"',
+    philosopher: "plato",
+    purpose_label: localized("cli.handoff.purpose_q_confirm"),
   };
   return {
     type: "issue",

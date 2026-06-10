@@ -125,6 +125,7 @@
       "gate_5_z1_directive": "Z1 directive for next iteration: {directive}",
       "gate_5_z2": "Gate 5 Z2 for leaf {leaf_id} (drift {drift} ≥ 0.60 — alignment may itself be off). {rationale}",
       "gate_5_z2_confirm": "Re-enter alignment loop (state in_ralph → in_alignment)?",
+      "purpose_q_confirm_z2": "Z2 escalation — Gate 5 drift kept recurring, so the seed itself may be misaligned. Only you can authorize re-entering the alignment loop.",
       "disputatio_running": "Running Aquinas Disputatio (Gate 3+4) for leaf {leaf_id}...",
       "disputatio_approved": "Aquinas APPROVED leaf {leaf_id} ({objections_count} objections — none critical, none required action). Advancing.",
       "disputatio_conditional": "Aquinas CONDITIONAL on leaf {leaf_id} ({objections_count} objections, {critical_count} critical). Action items recorded:\n{actions}",
@@ -134,28 +135,35 @@
     "handoff": {
       "intro": "Handoff — Plato Dihairesis + seed lock",
       "dh_starting": "Decomposing {ac_count} acceptance criteria via Plato Dihairesis (recursive binary cuts; defense floor 0.6)...",
-      "dh_summary": "DH complete: {llm_calls} LLM calls, {atomic_leaves} atomic leaves, max depth {max_depth}, {undivided} undivided ACs."
+      "dh_summary": "DH complete: {llm_calls} LLM calls, {atomic_leaves} atomic leaves, max depth {max_depth}, {undivided} undivided ACs.",
+      "purpose_q_confirm": "Termination gate — review Plato's dihairesis tree before the seed locks and Ralph begins. This is the last human checkpoint."
     },
     "ac": {
       "intro": "Acceptance Criteria capture",
       "context_summary": "Maturity passed. Now capture acceptance criteria — the testable conditions under which the software is 'done'. Free-text input; LLM will split compound items, dedup, normalize.",
-      "q_acs_list": "Settled telos: \"{telos}\"\nSettled form: \"{form}\"\n\nList your acceptance criteria (one per line, or comma-separated):"
+      "q_acs_list": "Settled telos: \"{telos}\"\nSettled form: \"{form}\"\n\nList your acceptance criteria (one per line, or comma-separated):",
+      "purpose_q_acs_list": "Drafting acceptance criteria — the testable conditions that will gate every Ralph iteration."
     },
     "maturity": {
       "intro": "Plato Divided Line — maturity tagging for all 4 captured causes",
       "context_summary": "Asking the Noesis test on each cause. Required floors: telos=noesis (rejected_alternatives required) / form=dianoia / material=pistis / efficient=pistis. All 4 must pass to unlock Y2 termination.",
-      "q_noesis_test": "[{field_path}] required floor: {required_floor}\n\nClaim: \"{claim_content}\"\n\nNoesis test: What alternative did you consider for this claim, and why did you reject it?"
+      "q_noesis_test": "[{field_path}] required floor: {required_floor}\n\nClaim: \"{claim_content}\"\n\nNoesis test: What alternative did you consider for this claim, and why did you reject it?",
+      "purpose_q_noesis": "Divided Line test — a claim only counts as noesis if you can name the alternative you rejected and why; otherwise it is still opinion."
     },
     "socrates": {
       "intro": "Socrates Elenchus — case-probing your load-bearing claims (telos + form)",
       "refined": "Refined the {cause} claim from your re-articulation.",
-      "done": "Elenchus complete: {probed} claim(s) probed, {aporia} aporia reached. Run `agora round` for maturity tagging."
+      "done": "Elenchus complete: {probed} claim(s) probed, {aporia} aporia reached. Run `agora round` for maturity tagging.",
+      "purpose_q_response": "Elenchus — a concrete counter-case probing whether this load-bearing claim survives contact. Defending, refining, or admitting aporia are all good outcomes."
     },
     "efficient": {
       "intro": "Aristotle efficient round — Phase 2, round 4 (final Aristotle cause)",
       "q_who": "Who is involved? (solo / team of N / specific roles)",
       "q_when": "When? (timeline + cadence)",
-      "q_how": "How? (process tools + sequence)"
+      "q_how": "How? (process tools + sequence)",
+      "purpose_q_who": "Efficient cause — who builds and maintains this determines the feasible scope.",
+      "purpose_q_when": "Efficient cause — the time budget shapes iteration rhythm and how much Ralph can attempt per session.",
+      "purpose_q_how": "Efficient cause — the working method (process, verification habits) the Ralph loop must respect."
     },
     "material": {
       "intro": "Aristotle material round — Phase 2, round 3",
@@ -163,7 +171,10 @@
       "q_confirm_stack": "Detected stack: {detected}\n\nAccept as-is, or list additions/removals? (use 'ok' to accept verbatim)",
       "q_tech_stack_fresh": "What's the tech stack? (language + framework + key libs, comma-separated)",
       "q_data_shape": "What's the shape of the primary data? (one paragraph)",
-      "q_infrastructure": "Where does it run? (deploy / runtime / hosting, one paragraph)"
+      "q_infrastructure": "Where does it run? (deploy / runtime / hosting, one paragraph)",
+      "purpose_q_stack": "Material cause — confirming what this is made of (the stack), seeded from the project scan.",
+      "purpose_q_data_shape": "Material cause — the shape of the data constrains what the software can become.",
+      "purpose_q_infrastructure": "Material cause — where it runs (deploy target, runtime) constrains the form."
     },
     "form": {
       "intro": "Aristotle form round — Phase 2, round 2",
@@ -171,7 +182,10 @@
       "q_essential_structure": "Given your telos (\"{telos}\"), what shape carries it? (high-level structure, not feature list)",
       "q_irreducible_parts": "What components are essential to the telos, not decoration? (comma-separated)",
       "feature_list_warning": "Detected feature list rather than structural components: \"{detected}\". {reason}",
-      "q_feature_list_refinement": "Re-ask: what's the structural shape, not the catalog of features?"
+      "q_feature_list_refinement": "Re-ask: what's the structural shape, not the catalog of features?",
+      "purpose_q_essential_structure": "Formal cause — the shape that carries the telos, prior to any feature list.",
+      "purpose_q_irreducible_parts": "Formal cause — separates essential components from decoration: what the form cannot lose.",
+      "purpose_q_refinement": "Your form read as a feature catalog — re-asking for structure, because form is a shape, not a list of features."
     },
     "telos": {
       "intro": "Aristotle telos round — Phase 2, round 1",
@@ -180,7 +194,11 @@
       "q_served_good": "What good does it serve? (Name the goodness, not the activity.)",
       "q_failure_signal": "How will you know if you built the thing but it failed at its purpose?",
       "noun_phrase_warning": "Detected noun-phrase telos: \"{detected}\". {reason}",
-      "q_noun_phrase_refinement": "Re-ask: what good does that noun serve? (Verb-phrase, not artifact name.)"
+      "q_noun_phrase_refinement": "Re-ask: what good does that noun serve? (Verb-phrase, not artifact name.)",
+      "purpose_q_why_exists": "Final cause (telos) opener — captures the raw reason this should exist; every later alignment claim is checked against it.",
+      "purpose_q_served_good": "Separates the served good from the artifact — a telos must name a goodness, not a feature.",
+      "purpose_q_failure_signal": "A telos without a failure signal is unfalsifiable — this question often surfaces the real telos.",
+      "purpose_q_refinement": "Your telos read as a noun-phrase artifact — re-asking for the good it serves, because an artifact name cannot be a telos."
     },
     "intake": {
       "intro": "Phase 1 — open intake",

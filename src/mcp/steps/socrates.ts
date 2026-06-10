@@ -19,6 +19,7 @@ import { z } from "zod";
 
 import { buildAgoraError } from "../../errors/build.js";
 import type { AgoraErrorThrown } from "../../errors/types.js";
+import { localized } from "../../i18n/index.js";
 import {
   buildSocratesUserPrompt,
   ConstructedCaseResponseSchema,
@@ -194,6 +195,8 @@ function issueRespondStep(scratch: SocratesScratch): SocratesStepOutcome {
     id: "q_response",
     prompt: scratch.current_constructed.question,
     hint: `Case: ${scratch.current_constructed.case}\n(Probing claim: ${claim.cause} — "${claim.content}")`,
+    philosopher: "socrates",
+    purpose_label: localized("cli.socrates.purpose_q_response"),
     open_question: true,
   };
   return {

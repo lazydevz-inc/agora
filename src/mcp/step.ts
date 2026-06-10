@@ -32,11 +32,25 @@ export type StepArgs = z.infer<typeof StepArgsSchema>;
 
 // ─── Envelope leaves ───
 
+// The five first-class philosopher modules (CLAUDE.md; adding a 6th
+// requires an ADR). Used to attribute a question to the module asking it.
+export const PhilosopherIdSchema = z.enum(["husserl", "socrates", "aristotle", "plato", "aquinas"]);
+export type PhilosopherId = z.infer<typeof PhilosopherIdSchema>;
+
 export const StepQuestionSchema = z
   .object({
     id: z.string().min(1),
     prompt: z.string().min(1),
     hint: z.string().optional(),
+    // Attribution metadata — which philosopher module is asking, and why
+    // this question exists (alignment-loop.md round planner's
+    // purpose_label; forbidden pattern F2 bans questions without a
+    // "why this question" label). The host relay contract requires
+    // surfacing BOTH to the user alongside the prompt. Omitted only for
+    // loop-policy questions no philosopher owns (e.g. Ralph Z2 confirm
+    // carries purpose_label but no philosopher).
+    philosopher: PhilosopherIdSchema.optional(),
+    purpose_label: z.string().min(1).optional(),
     // Host relay contract: true marks an open-ended examination question
     // (Socratic probe, Noesis test, telos answers). The host MAY draft
     // candidate answers as selectable options, but must present them as

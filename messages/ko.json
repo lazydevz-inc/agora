@@ -125,6 +125,7 @@
       "gate_5_z1_directive": "다음 시도용 Z1 지시: {directive}",
       "gate_5_z2": "Leaf {leaf_id} Gate 5 Z2 (drift {drift} ≥ 0.60 — alignment 자체가 부정확할 수 있음). {rationale}",
       "gate_5_z2_confirm": "Alignment loop로 재진입할까요 (state in_ralph → in_alignment)?",
+      "purpose_q_confirm_z2": "Z2 에스컬레이션 — Gate 5 drift가 반복 누적되어 시드 자체의 정렬이 어긋났을 수 있습니다. Alignment loop 재진입은 유저만 승인할 수 있습니다.",
       "disputatio_running": "Leaf {leaf_id}에 Aquinas Disputatio (Gate 3+4) 실행 중...",
       "disputatio_approved": "Aquinas가 leaf {leaf_id} 승인 ({objections_count}개 objection — critical 없음, action 불요). 진행.",
       "disputatio_conditional": "Aquinas가 leaf {leaf_id} 조건부 승인 ({objections_count}개 objection, {critical_count}개 critical). Action item:\n{actions}",
@@ -134,28 +135,35 @@
     "handoff": {
       "intro": "Handoff — Plato Dihairesis + seed lock",
       "dh_starting": "{ac_count}개 acceptance criteria를 Plato Dihairesis로 분해 중 (재귀적 binary cut; defense floor 0.6)...",
-      "dh_summary": "DH 완료: LLM 호출 {llm_calls}회, atomic leaf {atomic_leaves}개, 최대 depth {max_depth}, undivided AC {undivided}개."
+      "dh_summary": "DH 완료: LLM 호출 {llm_calls}회, atomic leaf {atomic_leaves}개, 최대 depth {max_depth}, undivided AC {undivided}개.",
+      "purpose_q_confirm": "종료 게이트 — 시드를 잠그고 Ralph를 시작하기 전에 Plato의 dihairesis 트리를 검토합니다. 마지막 인간 체크포인트입니다."
     },
     "ac": {
       "intro": "Acceptance Criteria 캡처",
       "context_summary": "Maturity 통과. 이제 acceptance criteria를 캡처합니다 — 소프트웨어가 '완료'된 것으로 간주되는 조건들. 자유 텍스트 입력; LLM이 복합 항목 분리, 중복 제거, 정규화.",
-      "q_acs_list": "Telos: \"{telos}\"\nForm: \"{form}\"\n\nAcceptance criteria를 나열하세요 (한 줄에 하나, 또는 쉼표로 구분):"
+      "q_acs_list": "Telos: \"{telos}\"\nForm: \"{form}\"\n\nAcceptance criteria를 나열하세요 (한 줄에 하나, 또는 쉼표로 구분):",
+      "purpose_q_acs_list": "Acceptance criteria 작성 — 앞으로 모든 Ralph iteration의 통과 조건이 될 검증 가능한 조건들을 수집합니다."
     },
     "maturity": {
       "intro": "Plato Divided Line — 4개 cause maturity tagging",
       "context_summary": "각 cause에 Noesis 테스트 진행. 필요 floor: telos=noesis (rejected_alternatives 필요) / form=dianoia / material=pistis / efficient=pistis. 4개 모두 통과해야 Y2 termination 가능.",
-      "q_noesis_test": "[{field_path}] 필요 floor: {required_floor}\n\n주장: \"{claim_content}\"\n\nNoesis 테스트: 이 주장에 대해 어떤 대안을 고려했고, 왜 거부했나요?"
+      "q_noesis_test": "[{field_path}] 필요 floor: {required_floor}\n\n주장: \"{claim_content}\"\n\nNoesis 테스트: 이 주장에 대해 어떤 대안을 고려했고, 왜 거부했나요?",
+      "purpose_q_noesis": "Divided Line 검사 — 기각한 대안과 그 이유를 말할 수 있어야 noesis입니다. 그 전까지는 아직 의견 단계입니다."
     },
     "socrates": {
       "intro": "Socrates Elenchus — load-bearing 주장(telos + form)을 케이스로 검증",
       "refined": "{cause} 주장을 재articulate 내용으로 다듬었습니다.",
-      "done": "Elenchus 완료: {probed}개 주장 검증, aporia {aporia}회. `agora round`로 maturity tagging 진행."
+      "done": "Elenchus 완료: {probed}개 주장 검증, aporia {aporia}회. `agora round`로 maturity tagging 진행.",
+      "purpose_q_response": "Elenchus — 구체적 반례 케이스로 이 핵심 주장이 버티는지 검증합니다. 방어, 수정, aporia 인정 모두 좋은 결과입니다."
     },
     "efficient": {
       "intro": "Aristotle efficient 라운드 — Phase 2, round 4 (마지막 Aristotle cause)",
       "q_who": "누가 참여하나요? (혼자 / N명 팀 / 특정 역할)",
       "q_when": "언제? (timeline + cadence)",
-      "q_how": "어떻게? (process tools + sequence)"
+      "q_how": "어떻게? (process tools + sequence)",
+      "purpose_q_who": "Efficient cause — 누가 만들고 유지하는지가 실현 가능한 범위를 결정합니다.",
+      "purpose_q_when": "Efficient cause — 시간 예산이 iteration 리듬과 세션당 Ralph가 시도할 수 있는 양을 결정합니다.",
+      "purpose_q_how": "Efficient cause — Ralph loop가 존중해야 할 작업 방식(프로세스, 검증 습관)을 묻습니다."
     },
     "material": {
       "intro": "Aristotle material 라운드 — Phase 2, round 3",
@@ -163,7 +171,10 @@
       "q_confirm_stack": "감지된 stack: {detected}\n\n그대로 수락 또는 추가/제거 사항? ('ok'로 그대로 수락)",
       "q_tech_stack_fresh": "기술 스택은? (language + framework + key libs, 쉼표로 구분)",
       "q_data_shape": "주요 data의 shape는? (한 문단)",
-      "q_infrastructure": "어디서 실행되나? (deploy / runtime / hosting, 한 문단)"
+      "q_infrastructure": "어디서 실행되나? (deploy / runtime / hosting, 한 문단)",
+      "purpose_q_stack": "Material cause — 무엇으로 만들어지는지(stack)를 확정합니다. 프로젝트 스캔 결과를 기반으로 묻습니다.",
+      "purpose_q_data_shape": "Material cause — 다루는 data의 shape가 이 소프트웨어가 될 수 있는 것을 제약합니다.",
+      "purpose_q_infrastructure": "Material cause — 어디서 동작하는지(deploy 대상, runtime)가 form을 제약합니다."
     },
     "form": {
       "intro": "Aristotle form 라운드 — Phase 2, round 2",
@@ -171,7 +182,10 @@
       "q_essential_structure": "당신의 telos (\"{telos}\")를 담아낼 shape는 무엇입니까? (high-level 구조, feature 리스트 아님)",
       "q_irreducible_parts": "이 telos에 본질적인 구성 요소는 (장식이 아닌) 무엇입니까? (쉼표로 구분)",
       "feature_list_warning": "구조가 아닌 feature 리스트로 감지됨: \"{detected}\". {reason}",
-      "q_feature_list_refinement": "다시 묻습니다: feature 카탈로그가 아닌 구조적 shape는 무엇입니까?"
+      "q_feature_list_refinement": "다시 묻습니다: feature 카탈로그가 아닌 구조적 shape는 무엇입니까?",
+      "purpose_q_essential_structure": "Formal cause — feature 리스트 이전에, telos를 담아내는 구조(shape)를 묻습니다.",
+      "purpose_q_irreducible_parts": "Formal cause — 장식과 본질을 구분합니다: form이 잃으면 안 되는 구성 요소를 묻습니다.",
+      "purpose_q_refinement": "Form이 feature 카탈로그로 읽혔습니다 — form은 기능 목록이 아니라 모양이므로 구조를 다시 묻습니다."
     },
     "telos": {
       "intro": "Aristotle telos 라운드 — Phase 2, round 1",
@@ -180,7 +194,11 @@
       "q_served_good": "어떤 좋음(good)을 만들어냅니까? (활동이 아니라 좋음 자체를 명명해주세요.)",
       "q_failure_signal": "만든 후에도 본래 목적에 실패했다는 걸 어떻게 알아챌 수 있을까요?",
       "noun_phrase_warning": "명사구 telos 감지됨: \"{detected}\". {reason}",
-      "q_noun_phrase_refinement": "다시 묻습니다: 그 명사가 어떤 좋음을 만들어냅니까? (artifact 이름이 아닌 동사구로.)"
+      "q_noun_phrase_refinement": "다시 묻습니다: 그 명사가 어떤 좋음을 만들어냅니까? (artifact 이름이 아닌 동사구로.)",
+      "purpose_q_why_exists": "Final cause(telos) 첫 질문 — 이것이 존재해야 하는 이유를 원형 그대로 수집합니다. 이후 모든 정렬 검증의 기준점이 됩니다.",
+      "purpose_q_served_good": "산출물과 '섬기는 좋음'을 분리합니다 — telos는 기능이 아니라 좋음을 명명해야 합니다.",
+      "purpose_q_failure_signal": "실패 신호가 없는 telos는 반증 불가능합니다 — 이 질문에서 진짜 telos가 드러나는 경우가 많습니다.",
+      "purpose_q_refinement": "Telos가 명사구(산출물 이름)로 읽혔습니다 — 산출물 이름은 telos가 될 수 없으므로 그것이 섬기는 좋음을 다시 묻습니다."
     },
     "intake": {
       "intro": "Phase 1 — open intake",
