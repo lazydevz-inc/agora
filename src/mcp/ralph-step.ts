@@ -328,6 +328,7 @@ async function runGatesForLeaf(
       leaf_id: leafId,
       passed: gate1.overall_passed,
       from_cache: gate1Run.from_cache,
+      duration_ms: gate1.total_duration_ms,
       failed_commands: gate1.commands.filter((c) => !c.passed).map((c) => c.name),
     },
   });
@@ -377,7 +378,15 @@ async function runGatesForLeaf(
   await appendEvent(cwd, {
     type: "gate_2.result",
     command: "agora_ralph_step",
-    data: { leaf_id: leafId, passed: gate2.passed },
+    // skipped distinguishes "Playwright green" from "vacuous pass (no
+    // config)" — without it the audit log couldn't tell the two apart.
+    data: {
+      leaf_id: leafId,
+      passed: gate2.passed,
+      skipped: gate2.skipped,
+      detected_config: gate2.detected_config,
+      duration_ms: gate2.duration_ms,
+    },
   });
   if (!gate2.passed) {
     const newAttempts = attemptsBefore + 1;
