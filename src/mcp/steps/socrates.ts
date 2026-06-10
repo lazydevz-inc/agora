@@ -194,6 +194,7 @@ function issueRespondStep(scratch: SocratesScratch): SocratesStepOutcome {
     id: "q_response",
     prompt: scratch.current_constructed.question,
     hint: `Case: ${scratch.current_constructed.case}\n(Probing claim: ${claim.cause} — "${claim.content}")`,
+    open_question: true,
   };
   return {
     type: "issue",

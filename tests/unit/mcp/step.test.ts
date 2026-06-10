@@ -77,6 +77,17 @@ describe("envelope builders + schema discrimination", () => {
     expect(StepEnvelopeSchema.safeParse(bad).success).toBe(false);
   });
 
+  test("question accepts optional open_question relay flag; stays strict otherwise", () => {
+    const flagged = envNeedsUserInput("align", "maturity.ask", [
+      { id: "q_noesis", prompt: "P", open_question: true },
+    ]);
+    expect(StepEnvelopeSchema.safeParse(flagged).success).toBe(true);
+    const unknownKey = envNeedsUserInput("align", "x", [
+      { id: "q", prompt: "P", coach_answer: true } as never,
+    ]);
+    expect(StepEnvelopeSchema.safeParse(unknownKey).success).toBe(false);
+  });
+
   test("envNeedsReasoning requires ≥1 prompt with expect:json|text", () => {
     const ok = envNeedsReasoning("align", "telos.extract", [
       { id: "p", system: "S", user: "U", expect: "json" },

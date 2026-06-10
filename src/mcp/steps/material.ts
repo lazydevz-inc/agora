@@ -125,16 +125,19 @@ function issueQuestionsStep(scratch: MaterialScratch): MaterialStepOutcome {
       hint: confirmDetected
         ? "confirm + add/remove (comma-separated)"
         : "language + framework + key libs",
+      open_question: true,
     },
     {
       id: "q_data_shape",
       prompt: localized("cli.material.q_data_shape"),
       hint: "one paragraph",
+      open_question: true,
     },
     {
       id: "q_infrastructure",
       prompt: localized("cli.material.q_infrastructure"),
       hint: "where it runs",
+      open_question: true,
     },
   ];
   return {

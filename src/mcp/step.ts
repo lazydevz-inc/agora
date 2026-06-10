@@ -37,6 +37,16 @@ export const StepQuestionSchema = z
     id: z.string().min(1),
     prompt: z.string().min(1),
     hint: z.string().optional(),
+    // Host relay contract: true marks an open-ended examination question
+    // (Socratic probe, Noesis test, telos answers). The host MAY draft
+    // candidate answers as selectable options, but must present them as
+    // suggestions, state that the question is open, invite the user's
+    // own thoughts beyond the options, and compose the submitted answer
+    // from what the user actually selected/wrote — never substitute
+    // reasoning the user didn't voice. (Dogfood 2026-06-10: a host turned
+    // the Noesis test into "(Recommended)" multiple choice + self-graded
+    // it noesis, so the maturity reloop could never fire.)
+    open_question: z.boolean().optional(),
   })
   .strict();
 export type StepQuestion = z.infer<typeof StepQuestionSchema>;

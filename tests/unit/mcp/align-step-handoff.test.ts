@@ -149,6 +149,7 @@ describe("runAlignStep — maturity round (4 causes sequential, all pass)", () =
     }
     expect(ask1.value.step).toBe("maturity.ask");
     expect(ask1.value.questions[0]?.id).toBe("q_noesis");
+    expect(ask1.value.questions[0]?.open_question).toBe(true);
 
     // Cycle: ask → extract → ask → extract → ... for 4 causes.
     const causes = ["telos", "form", "material", "efficient"] as const;

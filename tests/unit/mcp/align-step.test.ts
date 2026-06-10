@@ -105,6 +105,8 @@ describe("runAlignStep — fresh telos round, happy path (no noun-phrase)", () =
       "q_served_good",
       "q_failure_signal",
     ]);
+    // Exam questions carry the host relay contract flag.
+    expect(r.value.questions.every((q) => q.open_question === true)).toBe(true);
 
     const pendingR = await readPending(cwd);
     expect(pendingR.ok).toBe(true);

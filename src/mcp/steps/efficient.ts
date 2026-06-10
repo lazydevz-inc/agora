@@ -114,16 +114,19 @@ function issueQuestionsStep(scratch: EfficientScratch): EfficientStepOutcome {
       id: "q_who",
       prompt: localized("cli.efficient.q_who"),
       hint: "solo / team of N / me + 1 reviewer",
+      open_question: true,
     },
     {
       id: "q_when",
       prompt: localized("cli.efficient.q_when"),
       hint: "evenings, 30 min sessions / full-time, 2-week sprints",
+      open_question: true,
     },
     {
       id: "q_how",
       prompt: localized("cli.efficient.q_how"),
       hint: "TDD with vitest, deploy on push",
+      open_question: true,
     },
   ];
   return {

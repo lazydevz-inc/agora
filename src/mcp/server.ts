@@ -127,7 +127,7 @@ export function buildAgoraMcpServer(): McpServer {
     "agora_align_step",
     {
       description:
-        "Advance the Agora Alignment Loop one step. Host supplies reasoning + user answers via subsequent calls; Agora makes no LLM call. Returns a StepEnvelope (kind: done | advanced | needs_user_input | needs_reasoning | error). Slice A scope: Aristotle telos.",
+        "Advance the Agora Alignment Loop one step. Host supplies reasoning + user answers via subsequent calls; Agora makes no LLM call. Returns a StepEnvelope (kind: done | advanced | needs_user_input | needs_reasoning | error). Covers the full loop: telos → form → material → efficient → Socratic elenchus → Plato maturity → acceptance criteria → handoff. Relay contract for needs_user_input questions marked open_question:true — these are open-ended examinations (Socratic probes, Noesis tests): you MAY draft candidate answers as selectable options for convenience, but present them as suggestions, state explicitly that the question is open, invite the user to add their own thoughts beyond the options, and compose the submitted answer from what the user actually selected and wrote. Never submit reasoning the user didn't voice.",
       inputSchema: {
         user_answers: z.record(z.string(), z.string()).optional(),
         llm_responses: z
@@ -155,7 +155,7 @@ export function buildAgoraMcpServer(): McpServer {
     "agora_ralph_step",
     {
       description:
-        "Advance the Agora Ralph loop one step. Host supplies reasoning + Z2 confirm via subsequent calls; Agora runs deterministic Gates 1/2 in-process and asks the host for Gate 5 reasoning. Returns a StepEnvelope (kind: done | advanced | needs_user_input | needs_reasoning | error). Slice D scope: Gate 1 + Gate 2 + Gate 5; Disputatio lands in Slice E.",
+        "Advance the Agora Ralph loop one step. Host supplies reasoning + Z2 confirm via subsequent calls; Agora runs deterministic Gates 1/2 in-process and asks the host for Gate 3/4 Disputatio + Gate 5 drift reasoning. Returns a StepEnvelope (kind: done | advanced | needs_user_input | needs_reasoning | error). Covers Gates 1-5 plus Z1 self-correction and the Z2 mini-alignment confirm.",
       inputSchema: {
         user_answers: z.record(z.string(), z.string()).optional(),
         llm_responses: z

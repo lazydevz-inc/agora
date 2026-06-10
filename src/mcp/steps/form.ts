@@ -113,11 +113,13 @@ function issueQuestionsStep(scratch: FormScratch): FormStepOutcome {
       id: "q_essential_structure",
       prompt: localized("cli.form.q_essential_structure", { telos: scratch.input.telos_statement }),
       hint: "high-level structure, not feature list",
+      open_question: true,
     },
     {
       id: "q_irreducible_parts",
       prompt: localized("cli.form.q_irreducible_parts"),
       hint: "comma-separated list",
+      open_question: true,
     },
   ];
   return {
@@ -192,6 +194,7 @@ function issueRefinementStep(scratch: FormScratch): FormStepOutcome {
     id: "q_refinement",
     prompt: localized("cli.form.q_feature_list_refinement"),
     hint: `Re-articulate without listing features (${reason})`,
+    open_question: true,
   };
   return {
     type: "issue",

@@ -5299,3 +5299,35 @@ cent; stale-tab writes refused).
 
 Tests: 518 passing (59 files; was 514).
 DoD: pnpm verify ✓.
+
+### Open-question relay contract (host UX) — DONE (2026-06-10)
+
+Dogfood finding (baby-pic-agora, live session): the host converted every
+open examination question (Socratic probe, Plato Noesis test) into
+"(Recommended)" multiple choice with fully pre-authored answers, then
+graded its own assembly as noesis. Result: the maturity reloop
+(`reloop_directive_field` → drop cause → re-round) can structurally
+never fire — exam author, examinee, and grader collapse into the host
+(F8's spirit violated at the relay layer; PLATO_DL_SYSTEM's "NEVER
+coach" guards only the grader).
+
+Sang's call: pre-drafted answer options are GOOD UX — keep them. Fix the
+framing instead: make clear it's an open question and actively invite
+the user's own words beyond the options.
+
+Shipped:
+- `StepQuestionSchema` + optional `open_question: boolean`
+  (src/mcp/step.ts) — set on all 16 open-question literals across
+  telos/form/material/efficient/socrates/maturity/ac steps.
+  handoff.confirm + ralph.confirm_z2 stay unflagged (closed decisions).
+- `agora_align_step` description now carries the relay contract:
+  options-as-suggestions, say it's open, invite own thoughts, submit
+  only what the user actually selected/wrote. Stale "Slice A/D scope"
+  notes in both stepped-tool descriptions refreshed to actual coverage.
+- Pending files store the flag via issued_questions automatically;
+  optional field keeps old pending records parseable (live session
+  unaffected).
+
+Tests: 533 passing (60 files; was 532 — +1 schema strictness test, +2
+assertion extensions).
+DoD: typecheck ✓ lint ✓ test ✓ build ✓.

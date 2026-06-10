@@ -147,6 +147,7 @@ function issueAskStep(scratch: MaturityScratch): MaturityStepOutcome {
       required_floor: required,
     }),
     hint: 'Name the alternative + why-rejected (≥ 2 sentences for "noesis").',
+    open_question: true,
   };
   return {
     type: "issue",

@@ -98,6 +98,7 @@ function issueAskStep(scratch: AcScratch): AcStepOutcome {
       form: scratch.input.form_essential_structure,
     }),
     hint: "one per line, or comma-separated; bullets are fine",
+    open_question: true,
   };
   return {
     type: "issue",
