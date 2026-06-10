@@ -24,7 +24,7 @@ from the terminal. One install gives you both.
 
 ## 2. Install
 
-### Recommended (once published to npm)
+### Recommended (npm)
 
 ```bash
 npm install -g @lazydevz/agora
@@ -34,7 +34,7 @@ claude mcp add --scope user agora -- agora mcp
 `--scope user` registers the tools for **every** project, written to
 `~/.claude.json`. No restart needed for the next session.
 
-### From source (works today, before the npm release)
+### From source (contributors / latest `main`)
 
 ```bash
 git clone https://github.com/lazydevz-inc/agora.git
