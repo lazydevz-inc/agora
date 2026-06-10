@@ -6,6 +6,30 @@ follow [Semantic Versioning](https://semver.org/) once it leaves alpha.
 
 ## [Unreleased]
 
+## [0.0.1-alpha.2] — 2026-06-10
+
+Host-relay UX release. Dogfooding the published plugin showed the host
+session converting Agora's open examination questions (Socratic probes,
+Plato Noesis tests) into "(Recommended)" multiple choice with fully
+pre-authored answers — then grading its own assembly, so the maturity
+reloop could structurally never fire. Drafted answer options are
+deliberately kept (they are good UX); the framing is now contractual.
+
+### Added
+- `StepQuestion.open_question` relay flag, set on all 16 open examination
+  questions (telos / form / material / efficient / Socratic elenchus /
+  Plato maturity / acceptance criteria). Closed decisions (handoff
+  confirm, Ralph Z2 confirm) intentionally stay unflagged.
+- `agora_align_step` description now carries the relay contract for
+  flagged questions: present drafted options as suggestions, state that
+  the question is open, invite the user's own thoughts beyond the
+  options, and submit only what the user actually selected or wrote.
+
+### Fixed
+- Stale "Slice A/D scope" notes in both stepped-tool descriptions
+  replaced with their actual coverage (full alignment loop; Gates 1–5
+  plus Z1/Z2 escalation).
+
 ## [0.0.1-alpha.1] — 2026-06-10
 
 Hardening release from three full self-QA dogfood passes — the MCP
