@@ -29,7 +29,7 @@ import { localized } from "../../i18n/index.js";
 import type { FourCauses } from "../../philosophers/aristotle.js";
 import { err, ok, type Result } from "../../result/index.js";
 import { readJsonOrNull } from "../../shared/io.js";
-import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { findProjectRoot, hasAgoraSession } from "../../shared/path.js";
 import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import type { GlobalFlags } from "../flags.js";
@@ -59,7 +59,7 @@ export async function runRoundCommand(
   positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
-  if (!(await hasAgoraDir(cwd))) {
+  if (!(await hasAgoraSession(cwd))) {
     return err(
       buildAgoraError("user.aborted", {
         context: { detail: "No Agora session in this directory. Run `agora new <name>` first." },

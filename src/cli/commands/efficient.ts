@@ -26,7 +26,7 @@ import {
 } from "../../philosophers/aristotle.js";
 import { err, ok, type Result } from "../../result/index.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
-import { findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { findProjectRoot, hasAgoraSession } from "../../shared/path.js";
 import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import { saveState } from "../../state/writer.js";
@@ -38,7 +38,7 @@ export async function runEfficientCommand(
   _positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
-  if (!(await hasAgoraDir(cwd))) {
+  if (!(await hasAgoraSession(cwd))) {
     return err(
       buildAgoraError("user.aborted", {
         context: { detail: "No Agora session in this directory. Run `agora new <name>` first." },
@@ -183,7 +183,7 @@ export async function runEfficientCommand(
 
 function buildClackUi(): AristotleEfficientUi {
   return {
-    askWho: () => askText(localized("cli.efficient.q_who"), "solo / team of N / Sang + 1 reviewer"),
+    askWho: () => askText(localized("cli.efficient.q_who"), "solo / team of N / me + 1 reviewer"),
     askWhen: () =>
       askText(
         localized("cli.efficient.q_when"),

@@ -81,10 +81,29 @@ describe("agora new (brownfield)", () => {
 });
 
 describe("agora new (existing session)", () => {
-  test("refuses to overwrite — exit 2 + confirmation_required error", async () => {
+  test("refuses to overwrite a real session (state.json) — exit 2 + confirmation_required", async () => {
     await mkdir(join(cwd, ".agora"));
+    await writeFile(
+      join(cwd, ".agora", "state.json"),
+      JSON.stringify({ version: 1, current_phase: "in_alignment" }),
+      "utf8",
+    );
     const { combined, status } = run("new my-project");
     expect(status).toBe(2);
     expect(combined).toContain("Existing Agora session detected");
+  });
+
+  test("bare .agora/ WITHOUT state.json (doctor cache/audit log) does not block new", async () => {
+    // `agora doctor` materializes .agora/ (probe cache + events.jsonl)
+    // without creating a session. Gate-0-first order must stay legal:
+    // doctor → new.
+    await mkdir(join(cwd, ".agora", "cache"), { recursive: true });
+    await writeFile(join(cwd, ".agora", "events.jsonl"), "{}\n", "utf8");
+    const { status } = run("new my-project");
+    expect(status).toBe(0);
+    const state = JSON.parse(await readFile(join(cwd, ".agora", "state.json"), "utf8")) as {
+      current_phase: string;
+    };
+    expect(state.current_phase).toBe("in_alignment");
   });
 });

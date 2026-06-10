@@ -137,7 +137,8 @@ describe("runDisputatio — conditional verdict with concedo action", () => {
       respondeoResp("conditional", "telos served, but obj_1 must be addressed"),
       adSingulaResp([
         {
-          objection_id: "obj_1",
+          // Ids are namespaced "<critic_id>:<raw_id>" by stampObjectionIds.
+          objection_id: "universal-telos-alignment:obj_1",
           ruling: "concedo",
           action_or_reason: "add input validation in src/auth.ts:42",
         },
@@ -161,7 +162,11 @@ describe("runDisputatio — rejected verdict", () => {
       sedContraResp(),
       respondeoResp("rejected", "critical violation"),
       adSingulaResp([
-        { objection_id: "obj_1", ruling: "concedo", action_or_reason: "fix critical violation" },
+        {
+          objection_id: "universal-telos-alignment:obj_1",
+          ruling: "concedo",
+          action_or_reason: "fix critical violation",
+        },
       ]),
     ]);
     const result = await runDisputatio(baseInput, runner);
@@ -191,6 +196,36 @@ describe("runDisputatio — F-Aquinas-4 enforcement", () => {
     if (result.ok) return;
     expect(result.error.code).toBe("internal.invariant-violation");
     expect(result.error.context?.["detail"]).toContain("F-Aquinas-4");
+  });
+});
+
+describe("runDisputatio — cross-critic objection id collision (F-Aquinas-4 hole)", () => {
+  test("two critics both emitting obj_1 require two distinct rulings", async () => {
+    const runner = new QueueRunner([
+      criticOne({ id: "obj_1" }), // universal-telos-alignment
+      criticOne({ id: "obj_1" }), // tech-solid — same raw id
+      criticEmpty(),
+      sedContraResp(),
+      respondeoResp("conditional"),
+      adSingulaResp([
+        // Pre-namespacing, a single "obj_1" ruling silently satisfied BOTH
+        // objections via Set matching. Now each namespaced id needs its own.
+        {
+          objection_id: "universal-telos-alignment:obj_1",
+          ruling: "nego",
+          action_or_reason: "specific reason A",
+        },
+        { objection_id: "tech-solid:obj_1", ruling: "nego", action_or_reason: "specific reason B" },
+      ]),
+    ]);
+    const result = await runDisputatio(baseInput, runner);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.all_objections_count).toBe(2);
+    expect(result.value.videtur.flatMap((v) => v.objections.map((o) => o.id)).sort()).toEqual([
+      "tech-solid:obj_1",
+      "universal-telos-alignment:obj_1",
+    ]);
   });
 });
 

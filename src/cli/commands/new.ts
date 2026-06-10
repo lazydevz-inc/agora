@@ -12,7 +12,7 @@ import type { AgoraErrorThrown } from "../../errors/types.js";
 import { localized } from "../../i18n/index.js";
 import { ok, type Result } from "../../result/index.js";
 import { writeJsonAtomic } from "../../shared/io.js";
-import { ensureAgoraDir, findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { ensureAgoraDir, findProjectRoot, hasAgoraSession } from "../../shared/path.js";
 import { agoraVersion } from "../../shared/version.js";
 import { newState } from "../../state/types.js";
 import { saveState } from "../../state/writer.js";
@@ -24,10 +24,10 @@ export async function runNewCommand(
   positional: readonly string[],
 ): Promise<Result<CommandEnvelope, AgoraErrorThrown>> {
   const cwd = findProjectRoot(process.cwd());
-  if (await hasAgoraDir(cwd)) {
+  if (await hasAgoraSession(cwd)) {
     return error("user.confirmation-required", {
       detail:
-        "Existing Agora session detected (.agora/ already present). Use `agora status` to inspect or remove .agora/ to start fresh.",
+        "Existing Agora session detected (.agora/state.json already present). Use `agora status` to inspect or remove .agora/ to start fresh.",
     });
   }
 
@@ -86,15 +86,28 @@ function buildEnvelope(scan: Awaited<ReturnType<typeof runPhase0Scan>>): Command
       ok: true,
       data: { scan },
     },
-    next: [
-      {
-        id: "continue_alignment",
-        description: scan.is_brownfield
-          ? "Skip Phase −1 brackets (brownfield default-off); jump to Phase 1 intake"
-          : "Run Phase −1 Epoché to bracket assumptions before intake",
-        command: scan.is_brownfield ? "agora resume" : "agora bracket",
-      },
-    ],
+    next: scan.is_brownfield
+      ? [
+          {
+            id: "continue_alignment",
+            description: "Skip Phase −1 brackets (brownfield default-off); jump to Phase 1 intake",
+            command: "agora resume",
+          },
+        ]
+      : [
+          {
+            id: "continue_alignment",
+            description:
+              "Run Phase −1 Epoché to bracket assumptions before intake (optional, interactive)",
+            command: "agora bracket",
+          },
+          {
+            id: "intake",
+            description:
+              "Skip the optional Phase −1 and go straight to Phase 1 intake (MCP hosts: agora_intake)",
+            command: "agora intake",
+          },
+        ],
     warnings: [],
     errors: [],
     exit_code: 0,

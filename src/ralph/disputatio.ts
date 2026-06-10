@@ -337,13 +337,7 @@ async function runVidetur(
       );
     }
     // Stamp critic_id onto each objection (LLM only emits its own id field).
-    const objections = parsed.data.objections.map((o) => ({
-      id: o.id,
-      critic_id: critic.id,
-      claim: o.claim,
-      evidence: o.evidence,
-      severity: o.severity,
-    }));
+    const objections = stampObjectionIds(critic.id, parsed.data.objections);
     return ok({
       critic_id: critic.id,
       objections,
@@ -511,6 +505,30 @@ entries.`;
     );
   }
   return ok(parsed.data.rulings);
+}
+
+// Namespace per-critic objection ids with the critic id and uniquify
+// collisions ("obj_1" from two critics — or twice from one — previously
+// collided, letting a single Ad singula ruling satisfy F-Aquinas-4 for
+// multiple objections via Set matching). Shared by the LLM-runner path and
+// the MCP stepped path.
+export function stampObjectionIds(
+  criticId: string,
+  raw: readonly { id: string; claim: string; evidence: string; severity: Objection["severity"] }[],
+): Objection[] {
+  const seen = new Map<string, number>();
+  return raw.map((o) => {
+    const base = `${criticId}:${o.id}`;
+    const count = seen.get(base) ?? 0;
+    seen.set(base, count + 1);
+    return {
+      id: count === 0 ? base : `${base}-${String(count + 1)}`,
+      critic_id: criticId,
+      claim: o.claim,
+      evidence: o.evidence,
+      severity: o.severity,
+    };
+  });
 }
 
 export function renderObjections(objections: readonly Objection[]): string {

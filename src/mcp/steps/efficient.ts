@@ -113,7 +113,7 @@ function issueQuestionsStep(scratch: EfficientScratch): EfficientStepOutcome {
     {
       id: "q_who",
       prompt: localized("cli.efficient.q_who"),
-      hint: "solo / team of N / Sang + 1 reviewer",
+      hint: "solo / team of N / me + 1 reviewer",
     },
     {
       id: "q_when",

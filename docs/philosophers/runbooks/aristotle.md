@@ -222,7 +222,7 @@ strictness, and over-engineering tolerance.
 
 Hard rules:
 1. Capture three sub-fields:
-   a. who: people involved (e.g. "solo: Sang", "team of 2")
+   a. who: people involved (e.g. "solo: one dev", "team of 2")
    b. when: timeline + cadence (e.g. "evenings, 30 min sessions")
    c. how: process tools and sequence (e.g. "TDD with vitest, deploy on push")
 2. NEVER skip even for solo projects. Solo IS an efficient cause that

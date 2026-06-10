@@ -25,7 +25,7 @@ import { err, ok, type Result } from "../../result/index.js";
 import { openEditorAndRead } from "../../shared/editor.js";
 import { appendEvent } from "../../shared/events.js";
 import { readJsonOrNull, writeJsonAtomic } from "../../shared/io.js";
-import { ensureAgoraDir, findProjectRoot, hasAgoraDir } from "../../shared/path.js";
+import { ensureAgoraDir, findProjectRoot, hasAgoraSession } from "../../shared/path.js";
 import { agoraVersion } from "../../shared/version.js";
 import { loadState } from "../../state/reader.js";
 import { saveState } from "../../state/writer.js";
@@ -45,7 +45,7 @@ export async function runIntakeCommand(
   if (!argsResult.ok) return argsResult;
   const { fromFile } = argsResult.value;
 
-  if (!(await hasAgoraDir(cwd))) {
+  if (!(await hasAgoraSession(cwd))) {
     return err(
       buildAgoraError("user.aborted", {
         context: { detail: "No Agora session in this directory. Run `agora new <name>` first." },

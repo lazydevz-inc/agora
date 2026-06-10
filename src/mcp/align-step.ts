@@ -32,7 +32,7 @@ import type { PlatoDLPerCauseOutput, PlatoMaturityResult } from "../philosophers
 import type { ElenchedClaim, SocratesClaim } from "../philosophers/socrates.js";
 import { err, ok, type Result } from "../result/index.js";
 import { readJsonOrNull, writeJsonAtomic } from "../shared/io.js";
-import { findProjectRoot, hasAgoraDir } from "../shared/path.js";
+import { findProjectRoot, hasAgoraSession } from "../shared/path.js";
 import { loadState } from "../state/reader.js";
 import type { State } from "../state/types.js";
 import { saveState } from "../state/writer.js";
@@ -71,7 +71,7 @@ export async function runAlignStep(
   }
   const args = argsResult.data;
 
-  if (!(await hasAgoraDir(cwd))) {
+  if (!(await hasAgoraSession(cwd))) {
     return ok(
       envError(
         "align",
@@ -178,10 +178,31 @@ async function dispatchFresh(
   const seedExists = (await readJsonOrNull<unknown>(seedPath(cwd))) !== null;
   const target = pickAlignTarget(causes, elenchus, maturity, acs, seedExists);
   if (target === "done") {
+    // Every alignment artifact exists. If state still says in_alignment
+    // (e.g. after a manually-arranged re-entry that invalidated nothing),
+    // declaring "done" while leaving the phase behind would deadlock the
+    // loop: agora_ralph_step refuses in_alignment, and this branch would
+    // keep saying done forever. Reconcile the phase for real.
+    if (state.current_phase === "in_alignment" || state.current_phase === "in_alignment_paused") {
+      const advanced = await saveState(
+        cwd,
+        { ...state, current_phase: "ready_for_ralph" },
+        "agora_align_step",
+      );
+      if (!advanced.ok) return advanced;
+      return ok(
+        envAdvanced(
+          "align",
+          "align.reconciled",
+          "All alignment artifacts already exist (seed.json locked); state reconciled to ready_for_ralph. Run agora_ralph_step to continue the Ralph loop.",
+          { phase: "ready_for_ralph" as const },
+        ),
+      );
+    }
     return ok(
       envDone(
         "align",
-        "Alignment complete. seed.json is locked; state.current_phase advances to ready_for_ralph. Run agora_ralph_step (lands in Slice D of ADR-0010) to enter the Ralph loop.",
+        "Alignment complete. seed.json is locked. Run agora_ralph_step to enter the Ralph loop.",
       ),
     );
   }
@@ -739,9 +760,29 @@ async function beginHandoffRound(
   if (causes?.telos === undefined || acs === null) {
     return ok(envError("align", "state.corrupt", "handoff needs telos + acceptance_criteria.json"));
   }
+  // Reuse a preserved decomposition (declined confirm / Z2 re-alignment):
+  // beginHandoff validates root-id match and falls back to fresh DH.
+  const preservedRecord = await readJsonOrNull<{
+    ac_tree?: unknown[];
+    undivided_acs?: string[];
+    max_depth_reached?: number;
+    total_llm_calls?: number;
+  }>(acTreePath(cwd));
+  const preserved =
+    preservedRecord !== null && Array.isArray(preservedRecord.ac_tree)
+      ? {
+          preserved: {
+            ac_tree: preservedRecord.ac_tree,
+            undivided_acs: preservedRecord.undivided_acs ?? [],
+            max_depth_reached: preservedRecord.max_depth_reached ?? 0,
+            total_llm_calls: preservedRecord.total_llm_calls ?? 0,
+          },
+        }
+      : {};
   const outcome = beginHandoff({
     telos_statement: causes.telos.statement,
     acceptance_criteria: acs.criteria,
+    ...preserved,
   });
   return await applyHandoffOutcome(cwd, state, outcome);
 }

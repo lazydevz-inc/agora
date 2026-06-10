@@ -112,8 +112,13 @@ export interface SocratesUi {
 
 // ─── Aporia / refinement linguistic markers (runbook §10: markers, not sentiment) ───
 
+// Biased toward sensitivity: a missed refinement silently drops the user's
+// sharpened commitment from elenchus_refinement (data loss), while a false
+// positive merely stores conversational text alongside the untouched clean
+// statement (cheap). Dogfood QA 2026-06-10: "Good catch — I hadn't pinned
+// this down. Decision: …" classified as "confirmed" and lost the refinement.
 const APORIA_MARKERS_EN = [
-  "i hadn't thought",
+  "i hadn't", // generalizes "i hadn't thought/considered/pinned/decided/realized"
   "hadn't considered",
   "let me say",
   "say it more",
@@ -128,6 +133,14 @@ const APORIA_MARKERS_EN = [
   "oh —",
   "oh-",
   "the real",
+  "good catch",
+  "fair hit",
+  "fair point",
+  "you're right",
+  "i was wrong",
+  "didn't think of",
+  "didn't think about",
+  "i missed",
 ];
 const APORIA_MARKERS_KO = [
   "생각 못",
@@ -141,6 +154,10 @@ const APORIA_MARKERS_KO = [
   "사실은",
   "아 —",
   "진짜",
+  "좋은 지적",
+  "맞는 지적",
+  "놓쳤",
+  "미처",
 ];
 const EXCEPTION_MARKERS_EN = ["but ", "except", "unless", "only if", "as long as"];
 const EXCEPTION_MARKERS_KO = ["근데", "다만", "단,", "예외", "경우엔", "경우에만"];
