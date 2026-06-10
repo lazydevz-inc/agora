@@ -37,6 +37,7 @@
 | M3 | `user.aborted` overloaded across 43 sites; the actionable guidance lives only in an un-localized `detail` string (never reaches the ko catalog). | A few precise codes (`user.prerequisite-missing`, `user.interactive-only`, `user.over-step-guard`) with parameterized, localized message keys. |
 | M4 | Per-command flag parsing hand-rolled 3× (`parseAcArgs`, `parseHandoffArgs`, `parseZ2Preselect`). | `cli/flags.ts: parseValueFlag()` / `parseEnumFlag()`. |
 | M5 | `maturity.ts applyXMaturity` ×4 and `align-step.ts applyMaturityToCauses` are the same fold written twice (CLI vs MCP divergence risk). | One `applyMaturityTags(causes, perCause)` in `philosophers/plato.ts`, reused by both paths. |
+| M6 | env→locale sniffing (`AGORA_LOCALE ?? LANG`, ko-prefix check) duplicated 4×: `cli/flags.ts resolveLocale`, `mcp/tools.ts mcpLocale`, `mcp/align-step.ts socratesLocale`, `llm/selection.ts detectLocale`. Behavior is consistent today (verified 2026-06-10 against the live MCP server: `AGORA_LOCALE=ko` → ko envelopes, `LANG=ja_JP` → en fallback — `agora mcp` boots through the CLI entry, which calls `setLocale` before dispatch), but four copies can drift. | One `resolveEnvLocale()` in `i18n/`; call sites that run after CLI entry use `getLocale()` instead of re-sniffing. |
 
 ## Low
 
