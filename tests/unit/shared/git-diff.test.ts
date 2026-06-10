@@ -12,7 +12,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { getRecentDiff } from "@/shared/git-diff.js";
+import { getRecentDiff, parseChangedFiles } from "@/shared/git-diff.js";
 
 let cwd: string;
 
@@ -171,5 +171,33 @@ describe("getRecentDiff — root commit fallback (single-commit repo)", () => {
     } finally {
       await rm(fresh, { recursive: true, force: true });
     }
+  });
+});
+
+describe("parseChangedFiles — critic-selection signal from a unified diff", () => {
+  test("extracts b-side paths, dedupes, ignores body lines", () => {
+    const diff = [
+      "diff --git a/src/app.css b/src/app.css",
+      "index 111..222 100644",
+      "--- a/src/app.css",
+      "+++ b/src/app.css",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+      "diff --git a/src/main.ts b/src/main.ts",
+      "+++ b/src/main.ts",
+      "diff --git a/src/main.ts b/src/main.ts",
+    ].join("\n");
+    expect(parseChangedFiles(diff).sort()).toEqual(["src/app.css", "src/main.ts"]);
+  });
+
+  test("real untracked-file diff from getRecentDiff parses", async () => {
+    await writeFile(join(cwd, "style.css"), "body{}\n", "utf8");
+    const r = await getRecentDiff(cwd);
+    expect(parseChangedFiles(r.diff)).toContain("style.css");
+  });
+
+  test("empty diff → empty list", () => {
+    expect(parseChangedFiles("")).toEqual([]);
   });
 });

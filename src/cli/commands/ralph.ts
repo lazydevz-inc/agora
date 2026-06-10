@@ -35,7 +35,7 @@ import type { Seed } from "../../handoff/seed-builder.js";
 import { localized } from "../../i18n/index.js";
 import { selectRuntime } from "../../llm/selection.js";
 import { type DisputatioResult, runDisputatio } from "../../ralph/disputatio.js";
-import { runGate1 } from "../../ralph/gate-1.js";
+import { runGate1WithCache } from "../../ralph/gate-1-cache.js";
 import { runGate2 } from "../../ralph/gate-2.js";
 import { type Gate5Result, runGate5 } from "../../ralph/gate-5.js";
 import { countAtomicLeaves, selectNextLeaf } from "../../ralph/leaf-selector.js";
@@ -210,7 +210,7 @@ export async function runRalphCommand(
     }),
   );
 
-  const gate1 = await runGate1({ cwd });
+  const gate1 = (await runGate1WithCache({ cwd })).result;
   await appendEvent(cwd, {
     type: "gate_1.result",
     command: "agora ralph",

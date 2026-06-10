@@ -123,6 +123,19 @@ async function collectUntrackedDiff(cwd: string): Promise<{ diff: string; listed
   return { diff: out, listed: true };
 }
 
+// Extract the changed file paths from a unified diff (the `b/` side of
+// each `diff --git` header; `/dev/null` for deletions is dropped). Used to
+// feed critic-selection triggers (file_pattern) with real signals.
+export function parseChangedFiles(diff: string): string[] {
+  const out = new Set<string>();
+  const re = /^diff --git (?:a\/(.+?)|\/dev\/null) (?:b\/(.+)|\/dev\/null)$/gm;
+  for (const m of diff.matchAll(re)) {
+    const path = m[2] ?? m[1];
+    if (path !== undefined && path.length > 0) out.add(path);
+  }
+  return [...out];
+}
+
 function finalize(diff: string, source: GitDiffResult["source"]): GitDiffResult {
   if (Buffer.byteLength(diff, "utf8") <= MAX_DIFF_BYTES) {
     return { diff, source, truncated: false };
