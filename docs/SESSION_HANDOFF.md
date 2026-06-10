@@ -443,10 +443,12 @@ Surprises that cost real iteration time. Read once, internalize.
 
 **Last verified state at this writing (2026-06-11)**: Stage 6, 34 slices done.
 **v0.0.1-alpha.2 published to npm** (`@lazydevz/agora`; alpha.0 2026-06-04 →
-alpha.1 → alpha.2 2026-06-10). Repo public + MIT (ADR-0011). 533 tests / 60 files.
+alpha.1 → alpha.2 2026-06-10). Repo public + MIT (ADR-0011). 538 tests / 60 files.
 npm은 이제 프리릴리즈 publish에 dist-tag 명시를 요구한다 — `pnpm publish --tag latest`
 (OTP는 Sang이 직접 입력; 비대화형 셸에서는 publish 불가).
 CLAUDE.md 하단 **Version** 단락이 정확한 기능 스냅샷이다 — 그걸 기준으로 삼을 것.
+MCP 질문에는 `philosopher` + `purpose_label` 귀속이 실린다 (2026-06-11) —
+새 needs_user_input 질문을 추가할 때 두 필드를 빼먹으면 F2 위반이다.
 
 **Working commands** (CLI 19 + MCP server):
 ```
