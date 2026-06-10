@@ -104,7 +104,7 @@
 
 **Agora = 고대 철학자들이 모이는 광장. AI 코딩 에이전트의 alignment harness.**
 
-> - License: MIT (ADR-0007에서 provisional 채택 → ADR-0011에서 확정 — Q00의 Ouroboros 저작권 보존, CREDITS.md 참조)
+> - License: MIT (ADR-0007에서 provisional 채택 → ADR-0011에서 확정; 2026-06-11부터 LICENSE는 표준 MIT 단독 표기 — Ouroboros는 코드 차용 없는 컨셉 영감이라 inspiration credit만 CREDITS.md/README에 유지, ADR-0011 amendment 참조)
 > - Status: **Stage 6 (Implementation — vertical slices) — 진행 중**
 > - Stage 1 closed: 2026-04-27 (`docs/stage-1/CLOSED.md`, tag `v0.1.0-stage-1`)
 > - Stage 2 closed: 2026-05-03 (`docs/stage-2/CLOSED.md`, tag `v0.2.0-stage-2`)
