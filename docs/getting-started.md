@@ -52,7 +52,7 @@ claude mcp add --scope user agora -- agora mcp
 /plugin install agora
 ```
 
-The plugin registers all seven tools (no global `agora` binary needed) — you can
+The plugin registers all eight tools (no global `agora` binary needed) — you can
 start a session right inside Claude Code by asking it to call `agora_new`.
 
 ---

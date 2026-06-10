@@ -441,31 +441,27 @@ Surprises that cost real iteration time. Read once, internalize.
 
 (Update this section per session.)
 
-**Last verified state at this writing**: Stage 6, 6 slices done.
+**Last verified state at this writing (2026-06-10)**: Stage 6, 34 slices done.
+**v0.0.1-alpha.1 published to npm** (`@lazydevz/agora`; alpha.0 2026-06-04 →
+alpha.1 2026-06-10). Repo public + MIT (ADR-0011). 525 tests / 60 files.
+CLAUDE.md 하단 **Version** 단락이 정확한 기능 스냅샷이다 — 그걸 기준으로 삼을 것.
 
-**Working commands**:
+**Working commands** (CLI 19 + MCP server):
 ```
-agora --version  (6-A.1) — foundation, JSON envelope
-agora doctor    (6-A.2) — 5 probes + Gate 0 cache
-agora ping      (6-A.3) — first LLM call (ClaudeRunner)
-agora status    (6-A.4) — state foundation
-agora new       (6-A.5) — Phase 0 auto-scan
-agora bracket   (6-A.6) — Husserl Phase −1 (first philosopher)
+guided flow : agora · new · resume · status · doctor · ping · trace
+              · handoff · ralph
+phase 2     : intake · round · telos · form · material · efficient
+              · socrates · maturity · ac · bracket  (round/resume가 자동 라우팅)
+MCP server  : agora mcp — 8 tools (status / doctor / resume / new / intake /
+              trace / align_step / ralph_step) — host-reasoning 모드 (ADR-0010)
 ```
 
-**Next slice candidates** (from latest Stage 6 NOTES "Next task"):
-- (a) `agora resume` — phase orchestrator (Phase 1 intake / Phase 2 routing)
-- (b) Phase 1 open intake
-- (c) Aristotle Phase 2 telos round (second philosopher)
-- (d) prompt-library generator (refactor inline prompts)
-- (e) `src/config/` + TOML+Zod
-- (f) Remaining 14 probes
-
-**Strategic priority for daily-use**: alignment loop completion → Ralph loop
-foundation. Path: resume → intake → Aristotle → Socrates → Plato → Y2 lock →
-Ralph orchestrator + Gate 1 → Gate 2 → Aquinas Gate 3+4 → Gate 5.
-
-Estimated total to v1 daily-use: **15-25 more slices**.
+**Remaining backlog** (next slice candidates):
+- code-quality backlog (`docs/architecture/code-quality-backlog.md`)
+- Mode 2 cost-warning UX 개선 (1차 경고 + `AGORA_NO_COST_WARNING`는 shipped)
+- prompt-library refactor (인라인 프롬프트 → generator)
+- `.claude-plugin/{plugin,marketplace}.json` 버전을 release 플로우에서 자동
+  bump (alpha.1 릴리스 때 누락 → 2026-06-10 수동 동기화)
 
 ---
 

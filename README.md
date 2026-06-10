@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/@lazydevz/agora"><img src="https://img.shields.io/npm/v/%40lazydevz%2Fagora" alt="npm"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
   <a href="#status"><img src="https://img.shields.io/badge/status-alpha-orange" alt="Status"></a>
   <a href="#"><img src="https://img.shields.io/badge/node-22+-blue" alt="Node"></a>
@@ -167,8 +168,8 @@ polished lie — here's exactly what works today.
 | Non-interactive / agent-driven mode (JSON, no TTY prompts) | ✅ working |
 | Socrates (Elenchus case-probing) — `agora socrates`, auto-routed by `agora round` | ✅ working |
 | Gate 2 (functional QA via Playwright) — detection-gated, shells out to your project's Playwright | ✅ working |
-| **In-Claude-Code plugin (MCP) mode** | ✅ working end-to-end (ADR-0010 Slices A-E): read-only tools (status/doctor/resume/trace) **plus** stepped `agora_align_step` + `agora_ralph_step` that drive the alignment + Ralph loops via host-supplied reasoning — Agora makes zero LLM calls in this path |
-| Published to npm | 🚧 not yet |
+| **In-Claude-Code plugin (MCP) mode** | ✅ working end-to-end (ADR-0010 Slices A-E): eight tools — session bootstrap (`agora_new`, `agora_intake`), read-only (status/doctor/resume/trace), **plus** stepped `agora_align_step` + `agora_ralph_step` that drive the alignment + Ralph loops via host-supplied reasoning — Agora makes zero LLM calls in this path |
+| Published to npm | ✅ [`@lazydevz/agora`](https://www.npmjs.com/package/@lazydevz/agora) |
 
 > **Note on architecture:** the in-Claude-Code plugin model (above) is now the
 > primary path — all reasoning happens inside your interactive Claude Code session
@@ -188,14 +189,14 @@ including `agora_new`, so the whole flow (start → align → build) lives insid
 Claude Code. A standalone `agora` CLI is also there if you prefer the terminal;
 one install gives you both.
 
-### Install — recommended (once published to npm)
+### Install — recommended (npm)
 
 ```bash
 npm install -g @lazydevz/agora                 # installs the `agora` CLI + MCP server
 claude mcp add --scope user agora -- agora mcp # register the tools in every project
 ```
 
-Prefer a one-click **plugin**? It registers all seven tools, so the entire flow —
+Prefer a one-click **plugin**? It registers all eight tools, so the entire flow —
 starting a session included — happens inside Claude Code:
 
 ```text
@@ -203,7 +204,7 @@ starting a session included — happens inside Claude Code:
 /plugin install agora
 ```
 
-### Install — from source (works today, before the npm release)
+### Install — from source (contributors / latest `main`)
 
 ```bash
 git clone https://github.com/lazydevz-inc/agora.git
@@ -211,8 +212,8 @@ cd agora && pnpm install && pnpm build && npm link   # `npm link` puts `agora` o
 claude mcp add --scope user agora -- agora mcp
 ```
 
-Open a fresh Claude Code session and the seven tools appear:
-`agora_status` · `agora_doctor` · `agora_resume` · `agora_new` ·
+Open a fresh Claude Code session and the eight tools appear:
+`agora_status` · `agora_doctor` · `agora_resume` · `agora_new` · `agora_intake` ·
 `agora_trace` · `agora_align_step` · `agora_ralph_step`.
 
 ### Use it
@@ -221,11 +222,11 @@ In your project, just talk to Claude Code:
 
 > *"Use agora to align on a settings page, then build it."*
 
-Claude Code calls `agora_new` to start the session, runs the philosophers'
-interview via `agora_align_step`, locks a **Seed**, then builds it through the
-gates via `agora_ralph_step` — re-checking that the output still matches your
-intent at every iteration. No flags to memorize; every question shows *why* it's
-asked. *(Prefer the terminal? `agora new my-feature` does the same first step.)*
+Claude Code calls `agora_new` to start the session, captures your raw intent via
+`agora_intake`, runs the philosophers' interview via `agora_align_step`, locks a
+**Seed**, then builds it through the gates via `agora_ralph_step` — re-checking
+that the output still matches your intent at every iteration. No flags to
+memorize; every question shows *why* it's asked. *(Prefer the terminal? `agora new my-feature` does the same first step.)*
 
 → **Full walkthrough with a worked example:** [`docs/getting-started.md`](docs/getting-started.md)
 

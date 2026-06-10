@@ -1,6 +1,6 @@
 {
   "name": "agora",
-  "version": "0.0.1-alpha.0",
+  "version": "0.0.1-alpha.1",
   "description": "The alignment layer between human intent and AI execution. Five philosophers refine your intent into a verifiable Seed, then a gate-checked loop builds it — all reasoning runs inside your Claude Code session (zero extra billing).",
   "author": {
     "name": "Sang Rhee",
