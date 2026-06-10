@@ -131,20 +131,28 @@ function matchBooleanFlag(arg: string, raw: RawFlags): boolean {
 }
 
 function resolveLocale(localeFlag: string | undefined): Result<Locale, AgoraErrorThrown> {
-  const envLocale = process.env["AGORA_LOCALE"] ?? process.env["LANG"];
-  const raw = localeFlag ?? envLocale ?? "en";
-  const normalized = normalizeLocale(raw);
-  if (!SUPPORTED_LOCALES.includes(normalized as Locale)) {
-    return err(
-      buildAgoraError("user.forbidden-flag-combo", {
-        context: {
-          detail: `Locale '${raw}' not bundled. v1 supports: ${SUPPORTED_LOCALES.join(", ")}.`,
-          flag: "--locale",
-        },
-      }),
-    );
+  // Only an EXPLICIT --locale=<x> may hard-error: the user stated an
+  // intent we can't honor. Environment-derived locales (AGORA_LOCALE /
+  // LANG) fall back to "en" — LANG is set by the OS for every process
+  // (CI runners ship C.UTF-8, users run ja_JP.UTF-8 etc.), and rejecting
+  // it made EVERY CLI invocation exit 2 in those environments.
+  if (localeFlag !== undefined) {
+    const normalized = normalizeLocale(localeFlag);
+    if (!SUPPORTED_LOCALES.includes(normalized as Locale)) {
+      return err(
+        buildAgoraError("user.forbidden-flag-combo", {
+          context: {
+            detail: `Locale '${localeFlag}' not bundled. v1 supports: ${SUPPORTED_LOCALES.join(", ")}.`,
+            flag: "--locale",
+          },
+        }),
+      );
+    }
+    return ok(normalized as Locale);
   }
-  return ok(normalized as Locale);
+  const envLocale = process.env["AGORA_LOCALE"] ?? process.env["LANG"] ?? "en";
+  const normalized = normalizeLocale(envLocale);
+  return ok(SUPPORTED_LOCALES.includes(normalized as Locale) ? (normalized as Locale) : "en");
 }
 
 function normalizeLocale(raw: string): string {
