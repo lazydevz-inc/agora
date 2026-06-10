@@ -6,6 +6,55 @@ follow [Semantic Versioning](https://semver.org/) once it leaves alpha.
 
 ## [Unreleased]
 
+## [0.0.1-alpha.1] — 2026-06-10
+
+Hardening release from three full self-QA dogfood passes — the MCP
+host-reasoning loop driven end-to-end on real projects (greenfield CLI,
+brownfield re-run, and a web app that exercised the first live Playwright
+Gate 2 run). 518 tests, was 473.
+
+### Fixed
+- **Z2 re-alignment deadlock**: accepting Z2 invalidates the maturity tags +
+  seed lock (Ralph resumes the same leaf after re-confirm); the alignment
+  loop reconciles `in_alignment` → `ready_for_ralph` when every artifact
+  already exists instead of replying "done" forever.
+- **Gate 5 diff integrity**: `.agora/**` and lockfiles excluded from the
+  judged diff, untracked files included, single-root-commit fallback via
+  `git show`, "not a repo" classified as `no_git` — previously the gate
+  could end up judging Agora's own audit-log churn.
+- **Session detection**: a session is `.agora/state.json`, not the bare
+  `.agora/` directory — `agora doctor` before `agora new` no longer refuses
+  with "existing session detected".
+- **Disputatio**: objection ids namespaced per critic (closes an
+  F-Aquinas-4 hole where one ruling satisfied several colliding ids);
+  zero-objection rounds skip the vacuous Sed contra.
+- Socrates aporia markers broadened (en+ko) so refinements like "Good
+  catch — I hadn't pinned this down" stop being classified "confirmed"
+  (which silently dropped the refinement).
+- Declined handoff retries reuse the preserved `ac_tree.json` (straight to
+  confirm) instead of re-running the whole Dihairesis.
+- Gate failure envelopes carry `failed_detail` (exit codes + output tails);
+  gate events record `from_cache` / `skipped` / `detected_config` /
+  durations; `ralph.initialized` warns when no git repo is present.
+- `resume` at `ralph_complete` (JSON/MCP) points at the real
+  non-interactive flags instead of a TTY dead end; material round no longer
+  asks to "accept" an empty detected stack; unified CLI exit codes on the
+  error catalog; unknown commands error instead of printing the version.
+
+### Added
+- **Gate-1 tree-fingerprint cache**: deterministic gate results memoized
+  per working-tree fingerprint (pass-only, 10-min TTL) — a multi-leaf Ralph
+  session runs typecheck/lint/test/build once per tree state, not once per
+  leaf.
+- Critic selection receives real signals (changed files from the Gate-5
+  diff + the seed's tech stack), activating `file_pattern` / `tech_stack`
+  triggers.
+- MCP envelopes decorate `next[]` with `mcp_tool` hints; `agora_intake` MCP
+  tool so the host-reasoning loop bootstraps without the interactive CLI;
+  doctor accepts `include_disabled` / `refresh` over MCP.
+
+### Carried over (first npm release to include the items below)
+
 ### Added
 - Claude Code **plugin distribution**: `.claude-plugin/plugin.json` +
   `marketplace.json` so the tools install via
