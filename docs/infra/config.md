@@ -1,10 +1,16 @@
 # Config Loading — Specification (Stage 4)
 
-> **Status**: Stage 4-A in progress (opened 2026-05-03 after Stage 3 close).
-> Sections marked **[SPEC]** are formally accepted Stage 4 outputs.
+> **Status**: Design accepted in Stage 4 (closed 2026-05-03).
+> **Implementation checked 2026-09-11**: `src/config/` and the TOML loader
+> are not shipped. The schema, merge algorithm, and TOML examples below
+> are a future implementation contract, not functioning configuration.
 >
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 4
-> closes its gate.
+> Use actual CLI/tool schemas and implemented environment handling as the
+> current interface. Host-agent model and reasoning settings are separate;
+> no `[llm].model`, OpenAI API key, verbosity, or reasoning setting is
+> implemented by Agora. See the [agent guide](../agent-guide.md) and
+> [current runtime contract](llm-integration.md#current-runtime-and-agent-contract-verified-2026-09-11).
+
 
 ---
 

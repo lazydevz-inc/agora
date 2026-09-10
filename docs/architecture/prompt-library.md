@@ -3,8 +3,16 @@
 > **Status**: Stage 5-A.4 (Accepted 2026-05-03).
 > Sections marked **[SPEC]** are formally accepted Stage 5 outputs.
 >
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 5
-> closes its gate.
+> Stage 5 closed on 2026-05-04; this design is accepted.
+> See [the closure record](../stage-5/CLOSED.md).
+
+**Agent authoring guidance:** Developer autonomy, delegation, verification,
+and MCP question relay follow the shared [agent guide](../agent-guide.md).
+Keep those host workflow rules outside canonical philosopher prompt blocks.
+Runbook §4 and critic definitions retain ownership of prompt text; the
+generator owns `src/prompts/_generated.ts`. A guide cross-reference does
+not change philosopher methods, required user input, or output schemas.
+Change prompt sources and regenerate only when a prompt change is in scope.
 
 ---
 

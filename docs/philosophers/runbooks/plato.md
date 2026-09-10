@@ -7,6 +7,13 @@
 > **Status**: [SPEC] (Accepted 2026-05-03, Stage 5-A.3)
 > **Revision**: 2
 
+**Agent operation:** Follow the shared [agent guide](../../agent-guide.md)
+for development, delegation, verification, and host question relay. This
+runbook defines the philosopher's method, required user input, and schemas.
+Keep host workflow policy outside canonical §4 prompts; edit prompt sources
+here when a prompt change is in scope, then use the prompt-library generator
+to update its catalog.
+
 ---
 
 ## Plato is the only philosopher with two operations

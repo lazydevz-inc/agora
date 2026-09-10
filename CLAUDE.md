@@ -1,7 +1,12 @@
 # Agora — AI Context Document
 
-> 이 문서는 AI(Claude)가 프로젝트를 정확하게 이해하기 위한 Single Source of Truth입니다.
+> 이 문서는 Codex, Claude Code 등 코딩 에이전트가 프로젝트를 이해하기 위한 공통 reference입니다.
 > **이 문서에 없는 것은 구현하지 마세요. 이 문서와 다른 것은 버그입니다.**
+> `AGENTS.md`는 이 파일의 심볼릭 링크입니다. 링크를 유지하고 이 파일만 수정하세요.
+> 작업 방법은 [에이전트 활용 가이드](docs/agent-guide.md)를 함께 따릅니다.
+> 최신 사용자 요청과 기존 승인을 작업 범위의 기준으로 삼고, 과거 기록이나
+> 스킬의 일반 지침을 새로운 승인 절차로 해석하지 마세요. SPEC 충돌은 근거를
+> 확인하고 보고하며, 명시적 Stage 게이트와 ADR 요구는 유지합니다.
 
 ---
 
@@ -44,19 +49,20 @@
 
 ### 완료 기준 (DoD)
 
-1. `pnpm typecheck` 에러 없음
-2. `pnpm lint` 통과
-3. `pnpm test` 모든 테스트 통과
-4. `pnpm build` 빌드 성공 (해당되는 경우)
-5. CLI에서 실제 명령어가 의도한 대로 동작 (수동 검증)
-6. 기존 기능 regression 없음
+1. `pnpm verify` 통과 — lint, typecheck, lint:locale, lint:prompts, test, build
+2. 변경된 동작은 해당 CLI/TUI/JSON/MCP 경로에서 수동 검증
+3. 기존 기능 regression 없음. 실행하지 못한 검증은 이유와 함께 명시
+
+작은 문서 수정에 구현을 그대로 반복하는 테스트를 추가하지 않습니다.
+필수 검증 통과 후에는 새 변경·실패·미해결 위험이 있을 때만 재실행하거나 확대합니다.
 
 ### 작업 프로세스
 
 #### 1단계: 문제/요청 이해
 
 - 문제 현상 명확히 기술 (에러 메시지, 로그, 재현 조건). 실제 코드 확인.
-- 불분명한 부분이 있으면 사용자에게 질문
+- 기존 코드·문서·대화로 해결되는 세부 사항은 판단해 진행합니다.
+- 답이 결과나 범위를 실질적으로 바꾸는 경우에만 짧게 질문하고, 독립 작업은 계속합니다.
 
 #### 2단계: 원인 분석 (버그의 경우)
 
@@ -65,7 +71,8 @@
 
 #### 3단계: 해결책 제시
 
-- 해결 방안 + 영향 범위 분석. 사용자 선택 대기.
+- 해결 방안과 영향 범위를 제시하고, 요청으로 승인된 범위의 작업은 바로 진행합니다.
+- 새 Stage, 아키텍처 결정, 의존성 추가 등 실제 미승인 결정만 구체안과 함께 확인합니다.
 
 #### 4단계: 작업 계획 보고 (코드 작성 전 필수)
 
@@ -80,16 +87,25 @@
 ⚡ Before → After
 🔗 관련 ADR — ADR 번호 또는 "해당 없음"
 
-이대로 진행해도 될까요?
+검증 계획 — 변경에 필요한 확인과 필수 pnpm verify
 ```
+
+작업 규모에 맞춰 간결하게 보고하세요. 계획 보고 자체는 승인 대기가 아닙니다.
+승인이 필요한 최종 행동은 검토할 결과를 먼저 준비한 뒤 확인합니다.
 
 #### 5단계: 실행
 
-- 승인받은 계획대로 진행. 예상 밖 상황 → 중단 후 보고.
+- 승인된 범위를 검증까지 끝냅니다. 예상 밖 문제는 근거를 확인하고 범위 안에서 해결합니다.
+- 사용자 수정 지시를 반영하고, 중간 질문에 답한 뒤 원래 작업을 이어갑니다.
+- 독립 조사·검토·겹치지 않는 수정은 서브에이전트에 분담하고 결과를 통합 검증합니다.
+- `.agora/` 상태와 pending step을 바꾸는 작업은 단일 담당자가 순차 실행합니다.
+- 진행을 멈춰야 하면 정확한 파일·규칙 또는 도구 오류와 필요한 결정을 설명합니다.
 
 #### 6단계: 검증 → 완료
 
-- DoD 통과 후에만 "완료" 선언. 실패 시 문제 보고.
+- DoD 통과 후에만 "완료" 선언. 변경 내용, 검증, 남은 제한을 간결하게 보고합니다.
+- 커밋·push·PR·배포는 사용자 요청과 기존 승인 범위를 따릅니다. 문서 수정 요청을
+  자동 push 지시로 해석하지 않습니다.
 
 ### 이전 세션 작업 이어받을 때
 
@@ -120,6 +136,17 @@
 
 Claude Code(또는 다른 AI 코딩 에이전트) 위에 올라가는 spec-first **Human-AI Alignment (HAA)** 도구. **Alignment Loop**로 인간 의도와 AI 스펙의 격차를 ~0%로 좁히고, **Ralph Loop**로 5개 검증 게이트를 모두 통과할 때까지 반복 구현한다.
 
+### 현재 구현과 호스트 설정 (2026-09-11 코드 확인)
+
+Codex로 이 저장소를 개발할 때도 같은 가이드를 사용합니다. Agora 제품의 주력
+설치 경로는 ADR-0009/0010의 Claude Code MCP입니다. MCP는 실행 디렉터리에
+묶인 stdio 서버이며 호스트가 추론합니다. 도구 인자로 `cwd`나 모델을 받지 않습니다.
+직접 LLM 호출은 `ClaudeCliRunner`만 구현되어 있고, SDK fallback과 TOML config
+loader, OpenAI runner는 미구현입니다. 아래 설계 트리는 구현 완료 목록이 아닙니다.
+모델·reasoning 설정은 호스트가 제공하는 범위에서 관리하며, 사용자 요청 없이
+현재 모델을 바꾸지 않습니다. OpenAI API 기능과 Agora 기능의 구분은
+[에이전트 활용 가이드](docs/agent-guide.md)를 참조하세요.
+
 ### 핵심 통찰 (MANIFESTO.md 요약)
 
 - **AI는 execution을 정복했다 → 인간에게 남는 영역은 *taste***
@@ -140,13 +167,13 @@ Claude Code(또는 다른 AI 코딩 에이전트) 위에 올라가는 spec-first
 | 철학 | 표면적 차용 | 5명 1급 시민 모듈 + 6번째 추가는 ADR 필수 |
 | 언어/스택 | Python | TypeScript (CLI ↔ TUI ↔ GUI 코드재사용) |
 | Customization | 광범위한 옵션 | Biased — 베스트 옵션을 그냥 줌 |
-| Claude 인증 | Agent SDK (API 과금) | **`claude --print` subprocess (Max 구독 사용)** (ADR-0005) |
+| Claude 인증 | Agent SDK (API 과금) | MCP 호스트 추론 주력; standalone은 `claude --print` (ADR-0009/0010) |
 
 ---
 
 ## 5명의 철학자 (1급 시민 모듈)
 
-`src/agora/philosophers/` 에 각각 1개 모듈로 존재 예정. 6번째 추가는 의도적으로 어렵게 만들어져 있음 (`docs/philosophy/06-*.md` 작성 + ADR 필수).
+`src/philosophers/`에 각각 1개 모듈로 구현되어 있습니다. 6번째 추가는 의도적으로 어렵게 만들어져 있음 (`docs/philosophy/06-*.md` 작성 + ADR 필수).
 
 | # | 철학자 | 역할 | 적용 위치 | 상세 문서 |
 |---|--------|------|----------|----------|
@@ -207,19 +234,18 @@ Phase 2 (반복): 다철학자 라운드 (Aristotle 구조 + Socrates 검증 + P
 방법 + 게이트 + 루프를 지휘한다. **Agora 자신은 LLM을 호출하지 않는다** (주력
 모드 기준).
 
-**왜 바뀌었나 (ADR-0009)**: 2026-06-15부터 Anthropic이 `claude -p`(=`claude
---print`) + Agent SDK 구독 사용분을 **별도 종량 크레딧 풀($20~$200/월, API 요율)**
-로 분리. 즉 ADR-0005가 주력으로 삼았던 subprocess 경로가 비용 폭탄이 됨. 그래서
-**호스트 Claude Code 세션이 추론을 담당하는 MCP 플러그인(Mode 3)을 주력으로 승격.**
+**결정 배경 (ADR-0009, 2026-05-24 기록)**: 당시 subprocess 과금 변화에
+대응해 **MCP 플러그인(Mode 3)을 주력으로 승격**했습니다. ADR의 날짜·금액은
+결정 당시 근거이며 현재 요금제나 잔여 사용량의 보장이 아닙니다.
 
-| 우선순위 | Mode | LLM 호출 | 과금 |
+| 우선순위 | Mode | 현재 구현 | 과금 경계 |
 |------|------|---------|------|
-| **1 (주력)** | **MCP 플러그인 (Claude Code 내부)** | 호스트 세션이 추론; Agora는 0회 | 인터랙티브 구독 풀 (추가 과금 X) |
-| 2 (레거시/standalone) | `claude --print` subprocess | Agora가 `claude -p` 호출 | **종량 크레딧 풀** (2026-06-15~) — 비용 경고 표시 |
-| 3 (사장) | Agent SDK + `ANTHROPIC_API_KEY` | 직접 API | API 과금 |
+| **1 (주력)** | **MCP 플러그인 (Mode 3, Claude Code 내부)** | 호스트 세션이 추론; Agora의 LLM 호출 0회 | 호스트의 현재 요금제·한도 적용 |
+| 2 (standalone) | `claude --print` subprocess | `ClaudeCliRunner` + 캐시 | 별도 호출이며 기존 비용 경고 표시; 실제 요금은 제공자 정책 확인 |
+| 미구현 | Agent SDK fallback | 설계만 존재; `ANTHROPIC_API_KEY`만으로 활성화되지 않음 | 현재 실행 경로 없음 |
 
-Mode 1(주력)은 nested LLM 낭비 + 추가 과금을 모두 방지. Agora는 *구조 + 의미 +
-게이트 검증*만 제공하고, 추론이 필요하면 호스트 Claude Code 세션이 수행.
+주력 MCP 모드는 Agora 측 중첩 LLM 호출을 없앱니다. Agora는 *구조 + 의미 +
+게이트 검증*을 제공하고, 추론이 필요하면 호스트 세션이 수행합니다.
 **ADR-0010 Slices A-E (2026-05-24)**: MCP 플러그인 레이어(`src/mcp/`) 구현됨 —
 `agora_align_step`/`agora_ralph_step` 두 stepped tool이 alignment + Ralph
 loop 전체를 호스트-추론 방식으로 노출. Mode 2(subprocess)는 Mode 3 미사용
@@ -242,9 +268,9 @@ loop 전체를 호스트-추론 방식으로 노출. Mode 2(subprocess)는 Mode 
 | Test | vitest | 3 | fast, ESM 네이티브 |
 | Lint + Format | biome | 2 | 단일 도구 |
 | Browser QA (Stage 4) | Playwright CLI | TBD | 결정적 실행 (Playwright MCP 미사용) |
-| Claude 호출 (1차) | `claude` CLI subprocess | (system) | Max 구독 사용 (ADR-0005) |
-| Claude 호출 (2차) | `@anthropic-ai/claude-agent-sdk` | TBD | API 키 필요 (fallback) |
-| MCP (Stage 4) | `@modelcontextprotocol/sdk` | TBD | export 모드 |
+| Standalone 추론 | `claude` CLI subprocess | (system) | Mode 2, 제공자 과금 정책 적용 |
+| SDK fallback | `@anthropic-ai/claude-agent-sdk` | 미구현 | 현재 의존성에 없음 |
+| MCP (주력) | `@modelcontextprotocol/sdk` | package.json 참조 | stdio + 호스트 추론, 도구 8개 |
 
 ADR-0001, ADR-0005 참조.
 
@@ -366,7 +392,7 @@ hardcoded defaults            ← 최후
 - 함수/변수: `camelCase`
 - 상수: `SCREAMING_SNAKE_CASE`
 - 이벤트: `domain.entity.verb_past_tense`
-- 절대 import 금지 (path alias `@/` 활용)
+- 소스는 상대 import + `.js` 확장자, 테스트는 `@/*` alias 사용 (NodeNext)
 
 ---
 
@@ -398,8 +424,8 @@ UX expertise-aware split:
 | **2** | Two-Loop Specification | alignment-loop, ralph-loop, handoff 검증 게이트 | ✅ 완료 (2026-05-03, `docs/stage-2/CLOSED.md`, tag `v0.2.0-stage-2`) |
 | **3** | CLI Surface Detail | cli/spec, 모든 명령/플래그/스크린 | ✅ 완료 (2026-05-03, `docs/stage-3/CLOSED.md`, tag `v0.3.0-stage-3`) |
 | **4** | Infra + LLM Integration + Install | install, llm-integration, config, probes, errors-and-telemetry | ✅ 완료 (2026-05-03, `docs/stage-4/CLOSED.md`, tag `v0.4.0-stage-4`) |
-| **5** | Internal Architecture + Runbooks | 모듈 그래프, 철학자별 runbook, prompt library | 🟡 진행 중 (`docs/stage-5/NOTES.md`) |
-| **6+** | Implementation (vertical slices) | 첫 vertical slice → 누적 | ⏳ |
+| **5** | Internal Architecture + Runbooks | 모듈 그래프, 철학자별 runbook, prompt library | ✅ 완료 (`docs/stage-5/CLOSED.md`) |
+| **6** | Implementation (vertical slices) | 첫 vertical slice → 누적 | 🟡 진행 중 (`docs/stage-6/NOTES.md`) |
 
 각 Stage는 **명시적 게이트**: Sang의 승인 없이 다음 Stage 진입 금지.
 
@@ -437,5 +463,5 @@ UX expertise-aware split:
 
 ---
 
-**Last Updated**: 2026-06-11
+**Last Updated**: 2026-09-11 (에이전트 작업 가이드 갱신; 아래 릴리스 이력은 당시 기록)
 **Version**: 0.0.1-alpha.2 (Stage 6 active — 34 vertical slices done: alignment loop end-to-end + Ralph Gate 1/3/4/5 + audit log + `agora trace` + non-interactive/agent-driven mode. **ADR-0010 Slices A-E shipped**: `agora_align_step` + `agora_ralph_step` MCP tools drive the alignment + Ralph loops via host-supplied reasoning — Mode 3 (MCP plugin) is now load-bearing. **Public release (2026-06-04, ADR-0011 Accepted)**: repo → public + MIT confirmed; Claude Code plugin manifest (`.claude-plugin/`) + `agora_new` MCP tool + `docs/getting-started.md` + OSS meta (CONTRIBUTING/SECURITY/CoC/CHANGELOG/CI) + `shared/version.ts` dedup (−244 LOC). **Self-QA bug-fix pass (2026-06-09)**: 8 MCP tools now (added `agora_intake` so the host-reasoning alignment loop bootstraps without the interactive CLI) + `agora_doctor` accepts include_disabled/refresh; unified CLI exit codes on ERROR_CATALOG (envelope ↔ process now agree; user category → 2); unknown command errors instead of silently printing version; Ralph Gate 5 judges the uncommitted working-tree diff first (was prior commit); Ralph gate/drift/Disputatio events now hit the audit log; drift history no longer drops Z2-declined spikes or double-records passes; Socrates refinement stored in `elenchus_refinement` instead of clobbering the clean telos statement; `agora status` + brownfield `resume` give correct next-step guidance. **Self-QA dogfood pass #2 (2026-06-10)**: greenfield+brownfield 풀 루프 dogfood (mdtoc 프로젝트, MCP host-reasoning으로 align→handoff→Ralph 13-leaf 완주 ×2) — 16건 발견·수정: 세션 판정 state.json 기준(hasAgoraSession, doctor→new 순서 복구); Gate 5 diff에서 .agora/락파일 제외 + untracked 포함 + 루트커밋 폴백 + no-git 경고; Z2-yes 데드락 해소(maturity/seed 무효화 + align done-branch reconcile); handoff 거절 재시도가 보존된 ac_tree 재사용; Disputatio objection id 네임스페이스(F-Aquinas-4 구멍) + 무반론 시 Sed contra 스킵; Socrates aporia 마커 확장(refinement 유실 방지); gate 실패 envelope에 failed_detail; resume@ralph_complete 비대화형 플래그 안내; 'Sang' 예시 중립화. **Dogfood round 3 + npm release (2026-06-10)**: 웹앱 dogfood로 첫 라이브 Playwright Gate 2 완주; Gate-1 tree-fingerprint 캐시(트리 상태당 deterministic gate 1회 실행); critic 선택에 실제 신호 주입(Gate-5 diff 파일 + seed tech stack); MCP envelope `next[]`에 `mcp_tool` 힌트; env 유래 비지원 locale은 en 폴백; **v0.0.1-alpha.1 npm 게시 완료** (`@lazydevz/agora` — alpha.0 2026-06-04, alpha.1 2026-06-10). **Host-relay UX → v0.0.1-alpha.2 npm 게시 (2026-06-10, PR #7)**: 라이브 dogfood에서 호스트 세션이 개방형 검증 질문(Socrates probe, Plato Noesis 등)을 "(Recommended)" 객관식 + 자가채점으로 바꿔 maturity reloop이 구조적으로 못 뜨는 문제 발견 — 16개 개방형 질문에 `StepQuestion.open_question` 릴레이 플래그 + `agora_align_step` 설명에 릴레이 계약(드래프트 옵션은 유지하되 개방형임을 명시, 유저 본인의 말 환영, 유저가 실제 답한 것만 제출; handoff confirm·Z2 같은 닫힌 결정은 의도적으로 미플래그); env→locale 스니핑 4곳 → 단일 리졸버(backlog M6 해소); stepped-tool 설명의 낡은 Slice A/D 스코프 표기 수정. npm이 프리릴리즈 publish에 dist-tag 명시를 요구하게 되어 `pnpm publish --tag latest`로 게시. **Intake 캡 재산정 + 무손실 컷 (2026-06-11, R3-A 개정)**: 16 KB 하드캡이 영어 바이트 기준 산수(한글은 UTF-8 3바이트/음절이라 절반 지점에서 캡)였고 MCP host-relay 시대의 의도적 대용량 relay와 충돌 → soft 16 KB / hard 64 KB로 상향; 하드캡 도달 시 원본 전체를 `.agora/history/intake-original-{ts}.md`에 먼저 보존(절단은 절대 데이터를 파괴하지 않음, `intake_original_path`/`intake_original_byte_size` 기록); 부수 발견 — `process.exit()`가 stdout 플러시를 안 기다려 64 KB 초과 `--json` envelope이 파이프 버퍼에서 잘리던 버그를 `exitAfterFlush()`로 전 종료 지점 수정. **질문 출처 표시 (2026-06-11)**: MCP alignment/Ralph 질문에 어느 철학자가 왜 묻는지가 안 보이던 문제(F2 위반이 MCP 표면으로 누출 — 호스트가 감춘 게 아니라 Agora가 안 보내고 있었음) — `StepQuestion`에 `philosopher`(5인 enum) + `purpose_label`(localized, en/ko 18키×2) 추가, 11개 발행 지점 전부 라운드 플래너 귀속대로 채움(telos/form/material/efficient/ac=Aristotle, socrates=Socrates, maturity/handoff=Plato, Z2=철학자 없음·purpose만), stepped-tool 설명에 "항상 둘 다 표시" 릴레이 계약 추가. 538 tests. 🚧 남은 작업: code-quality backlog (`docs/architecture/code-quality-backlog.md`), Mode 2 cost-warning UX, prompt-library refactor.)

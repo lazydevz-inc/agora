@@ -3,8 +3,15 @@
 > **Status**: Stage 5-A.2 (Accepted 2026-05-03).
 > Sections marked **[SPEC]** are formally accepted Stage 5 outputs.
 >
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 5
-> closes its gate.
+> Stage 5 closed on 2026-05-04; this design is accepted.
+> See [the closure record](../stage-5/CLOSED.md).
+
+**Agent authoring guidance:** Follow the shared [agent guide](../agent-guide.md)
+for development and host operation. Put its cross-reference before the
+numbered runbook sections; keep workflow policy outside canonical §4
+prompts. Preserve the philosopher's method, user-input requirements, and
+expected schemas. Runbooks own prompt sources; the prompt-library generator
+owns the generated catalog. A cross-reference alone needs no revision bump.
 
 ---
 

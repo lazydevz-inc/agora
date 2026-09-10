@@ -19,6 +19,13 @@ it helps to know what kind of project this is:
 
 ## Getting set up
 
+For work with Codex, Claude Code or another coding agent, read
+[`docs/SESSION_HANDOFF.md`](docs/SESSION_HANDOFF.md) first, then
+[`AGENTS.md`](AGENTS.md) (a symlink to `CLAUDE.md`) and the shared
+[`agent guide`](docs/agent-guide.md). It covers current model guidance, bounded
+delegation, context continuity and the host relay contract. Model settings belong
+to the host; this repository does not implement an OpenAI API runner.
+
 ```bash
 # Node >= 22, pnpm 10 (via corepack)
 corepack enable
@@ -50,6 +57,11 @@ pnpm verify
 - `pnpm lint:prompts` — generated prompt library is in sync with the runbooks
 - `pnpm test` — Vitest (all green)
 - `pnpm build` — emits `dist/`
+
+Run this gate once against the final change, then repeat only the checks affected
+by a subsequent change or failure. Documentation updates need link and factual
+checks; add tests when behavior changes require them, not tests that merely
+repeat the wording of a guide.
 
 ## Code conventions (enforced by review)
 

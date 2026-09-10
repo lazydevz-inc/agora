@@ -52,6 +52,12 @@ Claude Code will call Agora's tools as needed: start or resume the project-local
 
 More install options and a worked example: [`docs/getting-started.md`](docs/getting-started.md)
 
+Developing Agora with Codex or another coding agent? Read
+[`docs/SESSION_HANDOFF.md`](docs/SESSION_HANDOFF.md) first, then the shared
+[`agent guide`](docs/agent-guide.md) for task execution, model guidance and the
+MCP host relay contract. The installation above is the shipped Claude Code path;
+using Codex to contribute does not add an OpenAI runtime to Agora.
+
 ---
 
 ## The problem every AI-coding developer knows
@@ -156,17 +162,17 @@ You: "I want a settings page."                    ← vague is fine; that's the 
 
 ---
 
-## Runs inside Claude Code — zero extra billing
+## Runs inside Claude Code — host-supplied reasoning
 
 Agora is designed to run **as a layer inside Claude Code.** It contributes the
 *method* (the philosophers) and the *gates* (verification); Claude Code contributes
 the *intelligence*.
 
-Crucially, **Agora itself makes no LLM calls.** When reasoning is needed, it's your
-existing Claude Code session doing the thinking — which means:
+In the **MCP path, Agora makes no LLM calls.** When reasoning is needed, your
+existing Claude Code session does the thinking — which means:
 
-- ✅ Your **interactive Claude subscription** is used (no separate API bill)
-- ✅ No `ANTHROPIC_API_KEY`, no metered Agent-SDK credit pool
+- ✅ Reasoning uses your host session under that host's plan and usage limits
+- ✅ No Agora-side API key or nested LLM call is needed for this path
 - ✅ Agora stays a thin, fast alignment/verification layer — anti-fragile to model upgrades
 
 > **The augmentation bet:** *Agora is to AI coding agents what Linux distros are to
@@ -198,8 +204,9 @@ polished lie — here's exactly what works today.
 > **Note on architecture:** the in-Claude-Code plugin model (above) is now the
 > primary path — all reasoning happens inside your interactive Claude Code session
 > via the stepped MCP tools. Standalone CLI (subprocess) mode remains supported
-> for non-plugin users but draws Anthropic's metered Agent-SDK credit pool from
-> 2026-06-15 (see ADR-0009 / ADR-0010).
+> for non-plugin users and invokes `claude --print`; its billing follows the
+> installed Claude runtime and account terms. The billing assumptions recorded
+> in ADR-0009 / ADR-0010 are historical, not a current pricing guarantee.
 
 ---
 

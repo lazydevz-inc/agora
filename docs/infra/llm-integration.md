@@ -1,10 +1,47 @@
 # LLM Integration — Specification (Stage 4)
 
-> **Status**: Stage 4-A in progress (opened 2026-05-03 after Stage 3 close).
-> Sections marked **[SPEC]** are formally accepted Stage 4 outputs.
->
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 4
-> closes its gate.
+> **Status**: Stage 4 design accepted on 2026-05-03; Stage 6 implementation
+> has evolved under ADR-0009/0010. See the current behavior below before
+> using any of the older design examples.
+
+## Current runtime and agent contract (verified 2026-09-11)
+
+Use [Getting started](../getting-started.md), the
+[MCP install guide](mcp-plugin-install.md), and the shared
+[agent guide](../agent-guide.md) for operational instructions. The older
+Stage 4 examples below record design intent; they are not a current API
+reference. This status note records shipped behavior, not a new provider
+or architecture decision.
+
+| Surface | Current implementation |
+|---------|------------------------|
+| MCP launch | `agora mcp` over stdio, bound to the server process working directory |
+| Tools | `agora_status`, `agora_doctor`, `agora_resume`, `agora_trace`, `agora_new`, `agora_intake`, `agora_align_step`, `agora_ralph_step` |
+| Tool arguments | Read registered schemas in `src/mcp/server.ts`; no per-call `cwd`, `model`, or reasoning setting |
+| Wire output | JSON encoded in `content[].text`; parse the command or step envelope and inspect errors, not just transport success |
+| Host reasoning | `needs_reasoning` → current prompt IDs in `llm_responses`; `needs_user_input` → actual user answers in `user_answers` |
+| Shared state | One coordinator advances `.agora/` and its single `mcp_pending.json`; parallel helpers only return independent work |
+| Standalone runner | `CachedRunner(ClaudeCliRunner)` from `src/llm/selection.ts`; SDK fallback is unimplemented |
+| Runtime options | `src/llm/runner.ts` has no OpenAI provider, model, effort, or verbosity option |
+| Config | TOML loader remains specified but unimplemented; see [config.md](config.md) |
+
+The MCP host must preserve question attribution (`philosopher`,
+`purpose_label`), the `open_question` invitation, and genuine user decisions.
+Do not infer a user's answer from a recommended option. `advanced` can
+instruct the host to implement a leaf before the next gate call; `done`
+is scoped to its loop. Read `src/mcp/step.ts` and the live response.
+
+Claude CLI liveness uses `claude --version`; no paid inference is needed
+for this check. `src/llm/cli-runner.ts` invokes `--print --output-format json`,
+passes multiline or long prompts via stdin and short single-line prompts
+via argv, and uses `--append-system-prompt` when provided. `max_tokens` is
+informational, not a `claude --max-tokens` flag.
+
+OpenAI model documentation applies to the host agent's working practices.
+Responses API async tools, reasoning updates, or model parameters do not
+become Agora functionality through a guide edit. Other MCP clients need
+separate integration verification; `agora_doctor` still probes Claude.
+
 
 ---
 
@@ -97,6 +134,11 @@ inner runner only.
 
 ## Runtime Selection [SPEC] (Accepted 2026-05-03, inherited from ADR-0005)
 
+> **Historical Stage 4 design:** this section differs from shipped behavior.
+> Use [the current runtime contract](#current-runtime-and-agent-contract-verified-2026-09-11)
+> and `src/mcp/server.ts` / `src/llm/cli-runner.ts` for executable calls.
+
+
 > **Goal**: Decide between subprocess and SDK at process start. Auto-detect
 > with graceful warning on fallback.
 
@@ -141,6 +183,11 @@ This handles network-degraded Claude Code states.
 ---
 
 ## Subprocess Invocation [SPEC] (Accepted 2026-05-03)
+
+> **Historical Stage 4 design:** this section differs from shipped behavior.
+> Use [the current runtime contract](#current-runtime-and-agent-contract-verified-2026-09-11)
+> and `src/mcp/server.ts` / `src/llm/cli-runner.ts` for executable calls.
+
 
 > **Goal**: Define the exact subprocess invocation pattern for ClaudeCliRunner.
 
@@ -459,6 +506,11 @@ should always see the billing context).
 ---
 
 ## MCP Server Design [SPEC] (Accepted 2026-05-03, Stage 4-A.5)
+
+> **Historical Stage 4 design:** this section differs from shipped behavior.
+> Use [the current runtime contract](#current-runtime-and-agent-contract-verified-2026-09-11)
+> and `src/mcp/server.ts` / `src/llm/cli-runner.ts` for executable calls.
+
 
 > **Goal**: When Agora runs inside Claude Code as an MCP server (Mode 3
 > per ADR-0005), expose its 7 commands as MCP tools, return structured

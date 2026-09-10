@@ -5,6 +5,11 @@ Agora from inside Claude Code. It assumes you have
 [Claude Code](https://claude.com/claude-code) authenticated with a Claude
 subscription and Node 22+.
 
+This is the shipped Claude Code walkthrough. For developing Agora with Codex or
+another coding agent, start with [Session Handoff](SESSION_HANDOFF.md) and the
+[shared agent guide](agent-guide.md). Other MCP hosts must satisfy the same relay
+and project-isolation contract; their full Agora workflow is not verified here.
+
 ---
 
 ## 1. What you're installing
@@ -94,6 +99,17 @@ You don't call the tools by hand. You talk to Claude Code in plain language;
 Claude Code drives `agora_align_step` / `agora_ralph_step`, asks you the
 philosophers' questions, and reports gate results.
 
+The host must show each question's `philosopher` and `purpose_label` when present.
+An `open_question: true` remains an open-ended question: draft answers may help,
+but the host submits only what you actually selected or wrote as `user_answers`.
+It must not invent your answers or approve a handoff or Z2 confirmation for you.
+
+Agora's MCP server uses its launch working directory as the project. Its tools
+do not accept a `cwd` argument. Keep one project per server and one writer to its
+session state; finish each stepped call before issuing the next. Independent
+analysis can run in parallel, but updates to `.agora/` must be sequential. See
+the [agent guide](agent-guide.md) for the full envelope and recovery contract.
+
 ---
 
 ## 5. Walkthrough — align, seed, build
@@ -156,10 +172,10 @@ iteration runs the gates:
 
 | Symptom | Fix |
 |---------|-----|
-| A step won't advance / "pending owner" error | Delete `.agora/mcp_pending.json` to abort the in-flight step, then ask again. |
+| A step won't advance / "pending owner" error | Check `agora_status`, `agora_resume`, `agora_trace` and `.agora/mcp_pending.json`; resume the owning loop with the exact issued question/prompt IDs. Preserve pending state before any intentional reset. |
 | Gate 0 / `agora doctor` fails | Authenticate the CLI it names (`claude`, `gh`, etc.). Re-run `agora doctor --refresh` to bust the 5-minute probe cache. |
-| A probe keeps showing a stale failure | `rm -rf .agora/cache` (or `agora doctor --refresh`). |
-| Want to start over | Remove `.agora/` and run `agora new` again. |
+| A probe keeps showing a stale failure | Run `agora doctor --refresh` (or `agora_doctor` with `refresh: true` in MCP). |
+| Want to start over | Preserve the current `.agora/` session first. An intentional reset discards pending work and the Seed; it is not the default way to recover a stalled step. |
 
 Everything Agora writes lives under `.agora/` in your project. `.agora/cache/`
 and `.agora/logs/` are gitignored; the Seed and state are safe to commit and
@@ -169,7 +185,8 @@ share with your team.
 
 ## 7. Prefer the terminal? Standalone CLI
 
-You can drive the whole flow without Claude Code:
+You can drive the flow from a terminal outside the Claude Code chat interface.
+The standalone reasoning path still requires the `claude` executable:
 
 ```bash
 agora new my-feature
@@ -177,10 +194,11 @@ agora resume      # Agora always tells you the next step
 agora status
 ```
 
-> ⚠️ In standalone mode Agora calls `claude` itself. From 2026-06-15 that draws
-> Anthropic's metered Agent-SDK credit pool ($20–$200/mo), separate from your
-> interactive subscription. The in-Claude-Code install (§2) avoids this entirely.
-> Suppress the per-run reminder with `AGORA_NO_COST_WARNING=1`.
+> In standalone mode Agora calls `claude --print` itself, so billing follows your
+> installed Claude runtime and account terms. Agora's built-in warning reflects
+> the historical billing assumptions in ADR-0009; it is not a current price quote.
+> The MCP path makes no Agora-side LLM call. Suppress the standalone reminder
+> with `AGORA_NO_COST_WARNING=1`.
 
 ---
 

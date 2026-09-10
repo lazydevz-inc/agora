@@ -14,6 +14,12 @@
 > See `docs/architecture/runbook-template.md` for the SPEC defining the
 > 12-section DTD + rules.
 
+**Agent authoring guidance:** Link the shared [agent guide](../../agent-guide.md)
+here for development, delegation, verification, and host question relay.
+Keep those workflow rules outside canonical §4 prompts. The instantiated
+runbook owns its philosopher's method, user-input requirements, schemas,
+and prompt sources; the prompt-library generator owns the generated catalog.
+
 ---
 
 ## 1. When this is called

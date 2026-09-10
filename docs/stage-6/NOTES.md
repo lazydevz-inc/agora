@@ -15,9 +15,18 @@
 ## 🚦 Quick Start (read this first when resuming Stage 6)
 
 > Read `docs/SESSION_HANDOFF.md` first for project-wide conventions.
-> This Quick Start is Stage-6-specific live state.
+> This Quick Start is Stage-6-specific context. Current agent operation is
+> defined in [agent-guide.md](../agent-guide.md). Read dated progress records
+> as history and revalidate implementation before using an old work queue.
 
-**Working commands** (each = one shipped slice):
+**Current guide review (2026-09-11):** Stage 6 remains active; package version
+is `0.0.1-alpha.2`. MCP exposes eight tools and uses host-supplied reasoning.
+The prompt generator exists; remaining inline-prompt migration, the TOML
+loader, and SDK fallback are unfinished. No OpenAI runner is implemented.
+`pnpm verify` runs lint, typecheck, lint:locale, lint:prompts, test, and build.
+See `docs/SESSION_HANDOFF.md` §8 and current code for the live inventory.
+
+**Historical slice milestones** (the list below stops at 6-A.22):
 ```
 agora --version  (6-A.1) — foundation
 agora doctor    (6-A.2) — 5 probes + Gate 0 cache
@@ -70,7 +79,7 @@ items + "Next task:" line.
 **Slice cadence**: ~3-6 vertical slices per focused session. Each slice:
 ~600-1500 LOC + tests + commit + Progress Log entry.
 
-**Estimated to v1 daily-use**: 15-25 more slices. Roughly:
+**Historical estimate before the later slices below** (not the current backlog): 15-25 more slices. Roughly:
 - Alignment loop completion: Phase 1 intake / Aristotle / Socrates /
   Plato (Y2 + Dihairesis) / agora resume orchestrator → 6-8 slices
 - Ralph loop foundation: Gate 1 / Gate 2 / Aquinas Gate 3+4 (+10 critics) /
@@ -119,19 +128,16 @@ A slice is NOT:
 
 ### Per-slice structure
 
-Each vertical slice round follows roughly:
+For a requested change, state the scoped plan and carry it through verification.
+Use a Mode A/B discussion only for a real unresolved decision; existing task
+approval does not require another questionnaire. Keep the explicit Stage gates.
 
-```
-1. Mode B Q: which slice next + DoD specifics
-2. Implement files top-down (CLI command → orchestrator → infra)
-3. Write unit tests per Stage 5-A.1 (mirrored tests/ structure)
-4. Write integration test (one cross-module flow per slice)
-5. Manual verify: agora <command> in TUI mode + --json mode
-   + (where applicable) MCP mode via Claude Code
-6. Run pnpm typecheck + pnpm lint + pnpm test (all must pass)
-7. Commit + push
-8. Update Progress Log here with what shipped
-```
+1. Read the affected SPEC, implementation, and regression context.
+2. Implement the smallest complete change, delegating independent work.
+3. Add tests for actual changed behavior, not a fixed test quota per slice.
+4. Exercise affected TUI/JSON/locale/MCP behavior and run `pnpm verify`.
+5. Review the diff and update this log with actual evidence.
+6. Commit/push only within the current user's authorization.
 
 ### Definition-of-Done (DoD) per slice (default — sub-question may extend)
 
@@ -144,9 +150,9 @@ Each vertical slice round follows roughly:
   at render sites)
 - All new prompts go through `renderPrompt(key, ctx)` (no inline LLM
   calls bypassing prompt library)
-- `pnpm typecheck` ✓ / `pnpm lint` ✓ / `pnpm test` ✓
-- Manual TUI verification (terminal screen capture in PR description)
-- Manual JSON verification (`agora <cmd> --json | jq` output captured)
+- `pnpm verify` ✓ (lint / typecheck / lint:locale / lint:prompts / test / build)
+- Manual TUI verification when the affected behavior is interactive
+- Manual JSON verification for affected CLI behavior; document-only edits need link/example review
 - Per Stage 4-A.6: any new ERROR_CATALOG entries land with both en + ko
   catalog keys (no F1 violation)
 
@@ -161,7 +167,7 @@ Each vertical slice round follows roughly:
 - Pre-commit hook decisions (only if workflow surfaces chronic forgotten regens)
 
 **Deferred to Stage 7+ / commercial form decisions**:
-- Public-release decision per ADR-0007 trigger
+- Public release was accepted by ADR-0011 (2026-06-04); no longer deferred
 - Commercial product form (open-core / paid CLI / SaaS / hybrid) per north-star.md 1-year horizon
 - Foundation model adapter beyond Claude
 - Multi-locale beyond en/ko
@@ -5418,3 +5424,51 @@ Manual check (built dist, mcpAlignStep entry): en + ko envelopes carry
 questions. Tests: 538 passing (60 files; was 537 — +1 schema test, +4
 assertion extensions across align/handoff/ralph step tests).
 DoD: typecheck ✓ lint ✓ lint:locale ✓ test ✓ build ✓.
+
+
+---
+
+### Agent guidance refresh — DONE (2026-09-11)
+
+**Request and scope:** Update agent usage and guide files from the current
+[OpenAI model guide](https://developers.openai.com/api/docs/guides/latest-model),
+which described GPT-6 Astra when reviewed. Documentation only; Stage 6 stays
+active. No new provider, model setting, dependency, or product behavior.
+
+**Changes and rationale:**
+
+- Added `docs/agent-guide.md` as the shared contributor/host operating guide:
+  authorized follow-through, useful bounded delegation, concise reporting,
+  steering/compaction continuity, and verification proportional to the change.
+- Updated `CLAUDE.md` (and its existing `AGENTS.md` symlink) plus
+  `docs/SESSION_HANDOFF.md`: removed repeated approval questionnaires and
+  automatic commit/push mandates; retained actual Stage/ADR/user-input gates.
+- Connected README, CONTRIBUTING, getting-started, and MCP installation to
+  the same guide. Preserved actual question/prompt IDs and user answers;
+  documented one coordinator for mutable `.agora/` state and inspection before
+  intentional pending/session reset.
+- Marked older config/LLM/install specifications with current implementation
+  boundaries: process-cwd stdio MCP, eight tools, JSON in text content,
+  `ClaudeCliRunner` only, no TOML loader or OpenAI runner. Historical billing
+  rationale is not presented as a current plan guarantee.
+- Linked prompt-library/runbook authoring and all five philosopher runbooks
+  without changing their canonical §4 prompts, schemas, or revisions.
+
+**Verification performed:**
+
+- `pnpm verify` passed: lint, typecheck, lint:locale, lint:prompts,
+  **538 tests in 60 files**, and build.
+- Built CLI `--version` and `--version --json` returned the current
+  `0.0.1-alpha.2` version successfully.
+- Local Markdown targets and `AGENTS.md` → `CLAUDE.md` link verified;
+  canonical prompt bodies compared with the pre-change versions.
+- Independent guide audit findings corrected, including `advanced` requiring
+  host implementation before a subsequent Ralph gate call, argv/stdin
+  branching, and policy-question attribution exceptions.
+- The initial sandboxed pnpm launch stalled before checks; the authorized
+  retry completed all six checks. No package or lockfile change was needed.
+
+**Outstanding:** Other-host/Codex end-to-end product integration remains
+unverified; using Codex to develop the repository does not establish it.
+Existing implementation backlog is unchanged. After verification, Sang
+explicitly requested committing and pushing this documentation update.

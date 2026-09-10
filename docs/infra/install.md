@@ -1,10 +1,14 @@
 # Install Mechanics — Specification (Stage 4)
 
-> **Status**: Stage 4-A in progress (opened 2026-05-03 after Stage 3 close).
-> Sections marked **[SPEC]** are formally accepted Stage 4 outputs.
->
-> Per ADR-0004, this document is not "Accepted" (full file) until Stage 4
-> closes its gate.
+> **Status**: Design accepted in Stage 4 (closed 2026-05-03).
+> For the current npm and Claude Code MCP instructions, use
+> [Getting started](../getting-started.md) and [MCP install](mcp-plugin-install.md).
+> The [agent guide](../agent-guide.md) covers contributor and host operation.
+> The Stage 4 designs below predate the public release and stepped MCP tools;
+> historic stage-version examples, first-run plans, and private-repo rationale
+> are not current installation guarantees. Public release was accepted in
+> ADR-0011; verify executable examples against the current package.
+
 
 ---
 
@@ -92,7 +96,7 @@ $ npx -y @lazydevz/agora <subcommand>     # auto-yes, AI-agent-safe
 We **document** this in:
 - README quickstart section
 - `agora --help` install hint
-- AI-agent integration guide (Stage 5)
+- [Agent guide](../agent-guide.md) and [MCP install guide](mcp-plugin-install.md)
 
 We can NOT enforce `-y` from inside the package; npm/npx behavior is
 controlled by the invoking shell.
@@ -325,7 +329,7 @@ Always `0` (informational; not a health check).
 ## Output consumed by
 
 - **README quickstart**: cites all three install paths + `npx -y` for AI agents.
-- **AI-agent integration guide** (Stage 5): includes `npx -y @lazydevz/agora` examples.
+- **[Agent guide](../agent-guide.md)**: current working contract; executable install examples live in [MCP install](mcp-plugin-install.md).
 - **`agora doctor`**: cross-references first-run banner for "are you newly installed?"
 - **`agora --version`**: reads npm package version field.
 - **Bug reports**: `agora --version --json` is the canonical capture command.
